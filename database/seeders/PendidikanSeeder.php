@@ -13,15 +13,18 @@ class PendidikanSeeder extends Seeder
 {
     $data = [
         ['jenjang' => 'SD', 'urutan' => 1],
-        ['jenjang' => 'SMP', 'urutan' => 2],
-        ['jenjang' => 'SMA/SMK', 'urutan' => 3],
-        ['jenjang' => 'D3', 'urutan' => 4],
-        ['jenjang' => 'D4/S1', 'urutan' => 5],
-        ['jenjang' => 'S2', 'urutan' => 6],
-        ['jenjang' => 'S3', 'urutan' => 7],
+        ['jenjang' => 'SLTP', 'urutan' => 2],
+        ['jenjang' => 'SLTA', 'urutan' => 3],
+        ['jenjang' => 'D I', 'urutan' => 4],
+        ['jenjang' => 'D II', 'urutan' => 5],
+        ['jenjang' => 'D III', 'urutan' => 6],
+        ['jenjang' => 'D IV', 'urutan' => 7],
+        ['jenjang' => 'S1', 'urutan' => 8],
+        ['jenjang' => 'S2', 'urutan' => 9],
+        ['jenjang' => 'S3', 'urutan' => 10],
     ];
     foreach ($data as $d) {
-        Pendidikan::create($d);
+        Pendidikan::updateOrCreate(['jenjang' => $d['jenjang']], ['urutan' => $d['urutan']]);
     }
 }
 }
