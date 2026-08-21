@@ -6,17 +6,26 @@ use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class RekapAgamaExport implements FromArray, WithEvents
+class RekapGolonganExport implements FromArray, WithEvents
 {
     protected array $data;
-    protected array $agamaList = ['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha'];
+
+    protected array $golonganList = [
+        'I/a', 'I/b', 'I/c', 'I/d',
+        'II/a', 'II/b', 'II/c', 'II/d',
+        'III/a', 'III/b', 'III/c', 'III/d',
+        'IV/a', 'IV/b', 'IV/c', 'IV/d',
+        'IV/e',
+    ];
+
     protected int $headerRows = 7;
 
     public function __construct(protected string $periode)
     {
-        $this->data = (new RekapService())->rekapAgama($periode);
+        $this->data = (new RekapService())->rekapGolongan($periode);
     }
 
     public function array(): array
@@ -24,21 +33,13 @@ class RekapAgamaExport implements FromArray, WithEvents
         $rows = [];
         $no = 1;
         foreach ($this->data as $d) {
-            // Total gabungan pria+wanita per agama, untuk blok kolom P-U
-            $totalPerAgama = [];
-            foreach ($this->agamaList as $agama) {
-                $totalPerAgama[] = ($d['pria'][$agama] ?? 0) + ($d['wanita'][$agama] ?? 0);
-            }
-
             $rows[] = array_merge(
                 [$no++, $d['instansi']],
                 array_values($d['pria']),
                 [$d['jml_pria']],
                 array_values($d['wanita']),
                 [$d['jml_wanita']],
-                [$d['jml_total']],
-                [$d['instansi']],   // kolom P: instansi diulang
-                $totalPerAgama       // kolom Q-U: total per agama
+                [$d['jml_total']]
             );
         }
         return $rows;
@@ -64,37 +65,34 @@ class RekapAgamaExport implements FromArray, WithEvents
 
                 // Judul
                 $sheet->setCellValue('A1', 'REKAPITULASI JUMLAH ASN PEMERINTAH DAERAH/KABUPATEN/KOTA PEMERINTAH KOTA YOGYAKARTA');
-                $sheet->setCellValue('A2', 'DIPERINCI MENURUT AGAMA DAN JENIS KELAMIN');
+                $sheet->setCellValue('A2', 'DIPERINCI MENURUT GOLONGAN RUANG DAN JENIS KELAMIN');
                 $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
-                $sheet->mergeCells('A1:O1');
-                $sheet->mergeCells('A2:O2');
-                $sheet->mergeCells('A3:O3');
+                $sheet->mergeCells('A1:AM1');
+                $sheet->mergeCells('A2:AM2');
+                $sheet->mergeCells('A3:AM3');
 
                 // Header utama baris 5-7
                 $sheet->setCellValue('A5', 'NO');
                 $sheet->setCellValue('B5', 'INSTANSI');
                 $sheet->setCellValue('C5', 'PRIA');
-                $sheet->setCellValue('H5', 'JML');
-                $sheet->setCellValue('I5', 'WANITA');
-                $sheet->setCellValue('N5', 'JML');
-                $sheet->setCellValue('O5', 'JML TOTAL');
-                $sheet->setCellValue('Q5', 'Total'); // header blok tambahan, tidak di-merge (sesuai aslinya)
+                $sheet->setCellValue('T5', 'JML');
+                $sheet->setCellValue('U5', 'WANITA');
+                $sheet->setCellValue('AL5', 'JML');
+                $sheet->setCellValue('AM5', 'JML TOTAL');
 
                 $sheet->mergeCells('A5:A7');
                 $sheet->mergeCells('B5:B7');
-                $sheet->mergeCells('C5:G5');
-                $sheet->mergeCells('H5:H7');
-                $sheet->mergeCells('I5:M5');
-                $sheet->mergeCells('N5:N7');
-                $sheet->mergeCells('O5:O7');
+                $sheet->mergeCells('C5:S5');
+                $sheet->mergeCells('T5:T7');
+                $sheet->mergeCells('U5:AK5');
+                $sheet->mergeCells('AL5:AL7');
+                $sheet->mergeCells('AM5:AM7');
 
-                $kolomPria = ['C', 'D', 'E', 'F', 'G'];
-                $kolomWanita = ['I', 'J', 'K', 'L', 'M'];
-                $kolomTotal = ['Q', 'R', 'S', 'T', 'U'];
-                foreach ($this->agamaList as $i => $nama) {
+                $kolomPria = ['C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
+                $kolomWanita = ['U','V','W','X','Y','Z','AA','AB','AC','AD','AE','AF','AG','AH','AI','AJ','AK'];
+                foreach ($this->golonganList as $i => $nama) {
                     $sheet->setCellValue($kolomPria[$i] . '7', $nama);
                     $sheet->setCellValue($kolomWanita[$i] . '7', $nama);
-                    $sheet->setCellValue($kolomTotal[$i] . '7', $nama);
                 }
 
                 $lastDataRow = $this->headerRows + count($this->data);
@@ -104,28 +102,23 @@ class RekapAgamaExport implements FromArray, WithEvents
                 $sheet->setCellValue('A' . $totalRow, 'TOTAL');
                 $sheet->mergeCells("A{$totalRow}:B{$totalRow}");
 
-                foreach (range('C', 'O') as $col) {
+                // Kolom C..AM (multi-huruf), tidak bisa pakai range() bawaan PHP
+                for ($colIdx = Coordinate::columnIndexFromString('C'); $colIdx <= Coordinate::columnIndexFromString('AM'); $colIdx++) {
+                    $col = Coordinate::stringFromColumnIndex($colIdx);
                     $sum = 0;
                     for ($r = $this->headerRows + 1; $r <= $lastDataRow; $r++) {
                         $sum += (float) $sheet->getCell($col . $r)->getValue();
                     }
                     $sheet->setCellValue($col . $totalRow, $sum);
                 }
-                foreach (range('Q', 'U') as $col) {
-                    $sum = 0;
-                    for ($r = $this->headerRows + 1; $r <= $lastDataRow; $r++) {
-                        $sum += (float) $sheet->getCell($col . $r)->getValue();
-                    }
-                    $sheet->setCellValue($col . $totalRow, $sum);
-                }
+                $sheet->getStyle("A{$totalRow}:AM{$totalRow}")->getFont()->setBold(true);
 
                 // Styling
                 $sheet->getStyle('A1:A3')->getFont()->setBold(true);
-                $sheet->getStyle('A5:U7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:U7')->getAlignment()->setHorizontal('center')->setVertical('center');
-                $sheet->getStyle("A5:U{$totalRow}")->getBorders()->getAllBorders()
+                $sheet->getStyle('A5:AM7')->getFont()->setBold(true);
+                $sheet->getStyle('A5:AM7')->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getStyle("A5:AM{$totalRow}")->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle("A{$totalRow}:U{$totalRow}")->getFont()->setBold(true);
             },
         ];
     }

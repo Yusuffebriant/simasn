@@ -17,7 +17,7 @@ class ImportController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls'],
+            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
             'periode' => ['required', 'date_format:Y-m'],
         ]);
 
@@ -40,10 +40,12 @@ class ImportController extends Controller
 
     /**
      * GET /api/imports/{batch}
-     * Cek status & progres import (di-poll dari frontend).
+     * Cek status & progres import.
      */
     public function show(ImportBatch $batch)
     {
+        $this->authorizeBatch($batch);
+
         return response()->json([
             'id' => $batch->id,
             'nama_file' => $batch->nama_file,
@@ -57,18 +59,38 @@ class ImportController extends Controller
 
     /**
      * GET /api/imports/{batch}/errors
-     * Daftar baris gagal untuk ditinjau admin.
+     * Daftar baris gagal.
      */
     public function errors(ImportBatch $batch)
     {
+        $this->authorizeBatch($batch);
+
         return response()->json(
-            $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->get()
+            $batch->errors()
+                ->select('baris_ke', 'pesan', 'data_mentah')
+                ->get()
         );
     }
 
     /**
+     * Otorisasi akses batch import.
+     */
+    protected function authorizeBatch(ImportBatch $batch): void
+    {
+        $user = Auth::user();
+
+        if ($user->hasRole('super-admin')) {
+            return;
+        }
+
+        if ($batch->uploaded_by !== $user->id) {
+            abort(403, 'Anda tidak berhak mengakses data import ini.');
+        }
+    }
+
+    /**
      * GET /api/imports
-     * Riwayat semua batch import (untuk halaman histori).
+     * Riwayat semua batch import.
      */
     public function index()
     {
