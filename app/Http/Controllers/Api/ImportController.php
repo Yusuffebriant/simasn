@@ -7,6 +7,7 @@ use App\Jobs\ProcessPegawaiImport;
 use App\Models\ImportBatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreImportRequest;
 
 class ImportController extends Controller
 {
@@ -14,13 +15,8 @@ class ImportController extends Controller
      * POST /api/imports
      * Upload file Excel, buat batch, dispatch job ke queue.
      */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
-            'periode' => ['required', 'date_format:Y-m'],
-        ]);
-
+    public function store(StoreImportRequest $request)
+    {   
         $path = $request->file('file')->store('imports');
 
         $batch = ImportBatch::create([
@@ -62,15 +58,13 @@ class ImportController extends Controller
      * Daftar baris gagal.
      */
     public function errors(ImportBatch $batch)
-    {
-        $this->authorizeBatch($batch);
+{
+    $this->authorizeBatch($batch);
 
-        return response()->json(
-            $batch->errors()
-                ->select('baris_ke', 'pesan', 'data_mentah')
-                ->get()
-        );
-    }
+    return response()->json(
+        $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
+    );
+}
 
     /**
      * Otorisasi akses batch import.

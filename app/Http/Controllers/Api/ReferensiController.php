@@ -31,4 +31,4 @@ class ReferensiController extends Controller
     {
         return response()->json(Pendidikan::orderBy('urutan')->get());
     }
-}s
+}

@@ -90,8 +90,8 @@ class RekapEselonGolonganGenderExport implements FromArray, WithEvents
                 $sheet->mergeCells('W5:W7');
 
                 foreach ($this->golonganList as $index => $golongan) {
-                    $sheet->setCellValueByColumnAndRow($index + 3, 7, $golongan);
-                    $sheet->setCellValueByColumnAndRow($index + 13, 7, $golongan);
+                    $sheet->setCellValue([$index + 3, 7], $golongan);
+                    $sheet->setCellValue([$index + 13, 7], $golongan);
                 }
 
                 $sheet->setCellValue('A' . $totalRow, 'TOTAL');

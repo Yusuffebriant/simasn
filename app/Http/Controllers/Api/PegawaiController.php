@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PegawaiResource;
 use App\Models\Pegawai;
 use Illuminate\Http\Request;
 
@@ -23,12 +24,12 @@ class PegawaiController extends Controller
             });
         }
 
-        return response()->json($query->paginate(20));
+        return PegawaiResource::collection($query->paginate(20));
     }
 
     public function show(Pegawai $pegawai)
     {
-        return response()->json(
+        return new PegawaiResource(
             $pegawai->load(['instansi', 'golonganRuang', 'eselon', 'agama', 'pendidikan', 'detail'])
         );
     }

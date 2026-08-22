@@ -157,6 +157,7 @@ class RekapService
         'IV/a', 'IV/b', 'IV/c', 'IV/d',
         'IV/e',
     ];
+    $pppkList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
     $rows = Pegawai::query()
         ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
@@ -165,6 +166,7 @@ class RekapService
             'instansi.id as instansi_id',
             'instansi.nama as instansi_nama',
             'golongan_ruang.kode as golongan_kode',
+            'golongan_ruang.kelompok as golongan_kelompok',
             'pegawai.jenis_kelamin',
             DB::raw('COUNT(*) as jumlah')
         )
@@ -173,6 +175,7 @@ class RekapService
             'instansi.id',
             'instansi.nama',
             'golongan_ruang.kode',
+            'golongan_ruang.kelompok',
             'pegawai.jenis_kelamin'
         )
         ->get();
@@ -187,32 +190,50 @@ class RekapService
                 'instansi' => $row->instansi_nama,
                 'pria' => array_fill_keys($golonganList, 0),
                 'wanita' => array_fill_keys($golonganList, 0),
+                'pppk' => array_fill_keys($pppkList, 0),
             ];
         }
 
         $kode = trim($row->golongan_kode);
+        $jumlah = (int) $row->jumlah;
+
+        if ($row->golongan_kelompok === 'PPPK') {
+            if (in_array($kode, $pppkList, true)) {
+                $perInstansi[$id]['pppk'][$kode] += $jumlah;
+            }
+            continue;
+        }
 
         if (!in_array($kode, $golonganList, true)) {
             continue;
         }
 
-        $kelompok = $row->jenis_kelamin === 'L'
-            ? 'pria'
-            : 'wanita';
-
-        $perInstansi[$id][$kelompok][$kode] =
-            (int) $row->jumlah;
+        $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+        $perInstansi[$id][$kelompok][$kode] = $jumlah;
     }
 
     foreach ($perInstansi as &$data) {
         $data['jml_pria'] = array_sum($data['pria']);
         $data['jml_wanita'] = array_sum($data['wanita']);
-        $data['jml_total'] =
-            $data['jml_pria'] + $data['jml_wanita'];
+        $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
+
+        // Agregat PNS per romawi utama (I, II, III, IV) — gabung Pria+Wanita, gabung sub-grade a/b/c/d
+        $gabungan = array_map(fn($p, $w) => $p + $w, $data['pria'], $data['wanita']);
+        $pnsAgg = ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0];
+        foreach ($gabungan as $kode => $jumlah) {
+            $romawi = explode('/', $kode)[0];
+            if (isset($pnsAgg[$romawi])) {
+                $pnsAgg[$romawi] += $jumlah;
+            }
+        }
+        $data['pns_agg'] = $pnsAgg;
+        $data['pns_total'] = array_sum($pnsAgg);
+
+        $data['pppk_total'] = array_sum($data['pppk']);
     }
 
     return array_values($perInstansi);
-    }
+}
 
     public function rekapJabatan(?string $periode = null): array
     {

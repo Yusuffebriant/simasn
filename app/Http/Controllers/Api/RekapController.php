@@ -7,12 +7,72 @@ use App\Exports\RekapAgamaExport;
 use App\Exports\RekapPendidikanExport;
 use App\Exports\RekapGolonganExport;
 use App\Exports\RekapJabatanExport;
-use App\Exports\RekapEselonGolonganGenderExport;
+use App\Exports\RekapEselonGolonganExport;;
+use App\Services\RekapService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
 
 class RekapController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | JSON REKAP
+    |--------------------------------------------------------------------------
+    */
+
+    public function agamaJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.agama.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapAgama($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
+    public function pendidikanJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.pendidikan.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapPendidikan($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
+    public function jabatanJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.jabatan.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapJabatan($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORT EXCEL
+    |--------------------------------------------------------------------------
+    */
+
     public function exportAgama(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
