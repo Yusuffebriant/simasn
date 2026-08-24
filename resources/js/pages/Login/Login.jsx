@@ -38,39 +38,87 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+
     if (!validate()) return;
+
     setLoading(true);
+    setErrors({});
 
     try {
-      await fetch(`${API_BASE_URL.replace("/api", "")}/sanctum/csrf-cookie`, {
+      // Ambil CSRF cookie dari Laravel Sanctum
+      await fetch("/sanctum/csrf-cookie", {
         credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
       });
 
+      // Login ke API Laravel
       const res = await fetch(`${API_BASE_URL}/login`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email, password, remember }),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          remember,
+        }),
       });
 
+      const data = await res.json();
+
+      // Validasi error form Laravel
       if (res.status === 422) {
-        const data = await res.json();
         const fieldErrors = {};
+
         Object.entries(data.errors || {}).forEach(([key, msgs]) => {
           fieldErrors[key] = msgs[0];
         });
+
         setErrors(fieldErrors);
         return;
       }
 
+      // Login gagal
       if (!res.ok) {
-        setErrors({ form: "Email atau kata sandi salah." });
+        setErrors({
+          form: data.message || "Email atau kata sandi salah.",
+        });
         return;
       }
 
+      // Simpan token dari response Laravel
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      } else if (data.access_token) {
+        localStorage.setItem("token", data.access_token);
+      }
+
+      // Simpan data user jika dikirim backend
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      // Pastikan token benar-benar tersimpan
+      if (!localStorage.getItem("token")) {
+        setErrors({
+          form: "Login berhasil, tetapi token tidak ditemukan dari server.",
+        });
+        return;
+      }
+
+      // Masuk ke Dashboard
       window.location.assign("/dashboard");
+
     } catch (err) {
-      setErrors({ form: "Tidak dapat terhubung ke server. Coba lagi." });
+      console.error("Login error:", err);
+
+      setErrors({
+        form: "Tidak dapat terhubung ke server. Coba lagi.",
+      });
     } finally {
       setLoading(false);
     }
