@@ -3,6 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Admin from './pages/Admin/Admin';
+import Setting from './pages/Setting/Setting';
 
 function App() {
 
@@ -11,6 +12,10 @@ function App() {
 
     if(path === "/admin"){
         return <Admin />;
+    }
+    
+    if (path === "/setting") {
+        return <Setting />;
     }
 
 
