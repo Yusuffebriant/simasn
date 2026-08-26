@@ -5,6 +5,7 @@ import Home from './pages/Home/Home';
 import Dashboard from './pages/Dashboard/Dashboard';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
+import Setting from './pages/Setting/Setting';
 
 function isLoggedIn() {
     return !!localStorage.getItem('token');
@@ -40,6 +41,10 @@ function App() {
             return null;
         }
         return <Admin />;
+    }
+    
+    if (path === "/setting") {
+        return <Setting />;
     }
 
     // Default: path tidak dikenal -> ke halaman utama, BUKAN Dashboard
