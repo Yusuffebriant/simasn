@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { setToken, setUser } from "../../lib/api";
 
 // ---------------------------------------------------------------------------
 // LoginPage — Portal Kepegawaian BKPSDM
 //
-// Kontrak backend (Laravel + Sanctum, SPA auth):
-//   1. GET  /sanctum/csrf-cookie          (sekali, sebelum POST pertama)
-//   2. POST /login  { email, password, remember }  credentials: 'include'
-//   3. Sukses -> Laravel set session cookie, redirect ke area terautentikasi
-//   4. 422 -> { message, errors: { email: [...], password: [...] } }
-//   5. 401/403 -> kredensial salah
+// Kontrak backend (Laravel + Sanctum, TOKEN-based — bukan cookie/SPA):
+//   1. POST /login  { email, password }   (TANPA credentials:'include',
+//      TANPA /sanctum/csrf-cookie — endpoint ini tidak ada di backend)
+//   2. Sukses (200) -> { user, token } -> simpan token, sertakan sebagai
+//      header "Authorization: Bearer <token>" di setiap request berikutnya
+//   3. 422 -> { message, errors: { email: [...] } } -> kredensial salah
+//   4. 429 -> rate limit 5x/menit terlampaui
 //
 // Ganti API_BASE_URL, nama instansi, dan path logo sesuai kebutuhan daerahmu.
 // ---------------------------------------------------------------------------
@@ -45,32 +47,19 @@ export default function LoginPage() {
     setErrors({});
 
     try {
-      // Ambil CSRF cookie dari Laravel Sanctum
-      await fetch("/sanctum/csrf-cookie", {
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      // Login ke API Laravel
+      // Login ke API Laravel — token-based, TIDAK pakai cookie/CSRF.
       const res = await fetch(`${API_BASE_URL}/login`, {
         method: "POST",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({
-          email,
-          password,
-          remember,
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
 
-      // Validasi error form Laravel
+      // 422 -> validasi/kredensial salah (lihat dokumentasi bagian 1)
       if (res.status === 422) {
         const fieldErrors = {};
 
@@ -82,36 +71,29 @@ export default function LoginPage() {
         return;
       }
 
-      // Login gagal
-      if (!res.ok) {
+      // 429 -> rate limit 5 percobaan/menit terlampaui
+      if (res.status === 429) {
+        setErrors({ form: "Terlalu banyak percobaan, coba lagi nanti." });
+        return;
+      }
+
+      // Login gagal (kasus lain)
+      if (!res.ok || !data.token) {
         setErrors({
           form: data.message || "Email atau kata sandi salah.",
         });
         return;
       }
 
-      // Simpan token dari response Laravel
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      } else if (data.access_token) {
-        localStorage.setItem("token", data.access_token);
-      }
+      // Simpan token + user (key konsisten lewat lib/api.js)
+      setToken(data.token);
+      if (data.user) setUser(data.user);
 
-      // Simpan data user jika dikirim backend
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-      }
-
-      // Pastikan token benar-benar tersimpan
-      if (!localStorage.getItem("token")) {
-        setErrors({
-          form: "Login berhasil, tetapi token tidak ditemukan dari server.",
-        });
-        return;
-      }
-
-      // Masuk ke Dashboard
-      window.location.assign("/dashboard");
+      // Kembali ke halaman yang tadi mau diakses (mis. /admin),
+      // default ke /admin kalau tidak ada tujuan spesifik.
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect") || "/admin";
+      window.location.assign(redirect);
 
     } catch (err) {
       console.error("Login error:", err);

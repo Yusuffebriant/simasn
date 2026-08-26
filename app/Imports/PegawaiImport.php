@@ -23,7 +23,19 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
         $this->normalizer = new PegawaiNormalizer();
     }
 
-    public function collection(Collection $rows)
+    /**
+     * TAMBAHKAN method chunkSize
+     * Menentukan jumlah baris per chunk
+     */
+    public function chunkSize(): int
+    {
+        return 1000; // Bisa diubah sesuai kebutuhan
+    }
+
+    /**
+     * TAMBAHKAN return type : void
+     */
+    public function collection(Collection $rows): void
     {
         $berhasilChunk = 0;
         $gagalChunk = 0;
@@ -39,6 +51,12 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
             [$valid, $pesan] = $this->normalizer->isRowValid($rowArray);
 
             if (!$valid) {
+                // Baris "index nomor kolom" (mis. 1,2,3,4,...) bukan kesalahan data
+                // yang perlu ditinjau manual — itu baris bawaan format export SIMPEG,
+                // jadi dilewati diam-diam, TIDAK dihitung sebagai gagal.
+                if ($pesan === 'Baris terdeteksi sebagai index palsu, bukan data pegawai') {
+                    continue;
+                }
                 $this->catatError($rowArray, $pesan);
                 $gagalChunk++;
 

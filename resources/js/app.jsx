@@ -1,48 +1,58 @@
 import '@vitejs/plugin-react/preamble';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import Home from './pages/Home/Home';
+import Home from './pages/home/home';
 import Dashboard from './pages/Dashboard/Dashboard';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
+import { isLoggedIn } from './lib/api';
 
-function isLoggedIn() {
-    return !!localStorage.getItem('token');
+function withRedirectTo(path) {
+    const target = encodeURIComponent(path);
+    return `/login?redirect=${target}`;
 }
 
 function App() {
     const path = window.location.pathname;
 
-    // Halaman publik — bisa diakses siapa saja
+    // "/" — halaman utama, tampilan ala-dashboard, BISA diakses tanpa login.
+    // Data sensitif (rekap, dsb) tetap butuh token di endpoint aslinya —
+    // halaman ini cuma menampilkan info umum + ajakan masuk sebagai admin.
     if (path === '/') {
         return <Home />;
     }
+
     if (path === '/login') {
-        // Kalau sudah login, tidak perlu lihat form login lagi
+        // Kalau sudah login, tidak perlu lihat form login lagi —
+        // langsung ke tujuan semula (?redirect=...) atau /admin.
         if (isLoggedIn()) {
-            window.location.replace('/dashboard');
+            const params = new URLSearchParams(window.location.search);
+            window.location.replace(params.get('redirect') || '/admin');
             return null;
         }
         return <LoginPage />;
     }
 
-    // Halaman terproteksi — wajib token
+    // "/dashboard" — versi dashboard lengkap dengan data user (protected).
     if (path === '/dashboard') {
         if (!isLoggedIn()) {
-            window.location.replace('/login');
+            window.location.replace(withRedirectTo('/dashboard'));
             return null;
         }
         return <Dashboard />;
     }
+
+    // "/admin" — hanya boleh diakses setelah login. Ini yang dipicu
+    // saat user klik "Admin" di sidebar dari halaman publik.
     if (path === '/admin') {
         if (!isLoggedIn()) {
-            window.location.replace('/login');
+            window.location.replace(withRedirectTo('/admin'));
             return null;
         }
         return <Admin />;
     }
 
-    // Default: path tidak dikenal -> ke halaman utama, BUKAN Dashboard
+    // Default: path tidak dikenal -> ke halaman utama, BUKAN Dashboard/Admin
     return <Home />;
 }
 
