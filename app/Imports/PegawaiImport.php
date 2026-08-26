@@ -7,18 +7,15 @@ use App\Models\ImportBatchError;
 use App\Models\Pegawai;
 use App\Models\PegawaiDetail;
 use App\Services\PegawaiNormalizer;
-use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithChunkReading;
-use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, WithBatchInserts
+class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
     protected PegawaiNormalizer $normalizer;
-    protected int $berhasil = 0;
-    protected int $gagal = 0;
     protected int $barisKe = 1;
 
     public function __construct(protected ImportBatch $batch)
@@ -26,17 +23,25 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
         $this->normalizer = new PegawaiNormalizer();
     }
 
-    public function collection(Collection $rows): void
+    public function collection(Collection $rows)
     {
+        $berhasilChunk = 0;
+        $gagalChunk = 0;
+
         foreach ($rows as $row) {
             $this->barisKe++;
-            $rowArray = $row->toArray();
-            $rowArray = array_change_key_case($rowArray, CASE_UPPER);
+
+            $rowArray = array_change_key_case(
+                $row->toArray(),
+                CASE_UPPER
+            );
 
             [$valid, $pesan] = $this->normalizer->isRowValid($rowArray);
 
             if (!$valid) {
                 $this->catatError($rowArray, $pesan);
+                $gagalChunk++;
+
                 continue;
             }
 
@@ -46,9 +51,10 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
                 DB::transaction(function () use ($hasil) {
                     $pegawai = Pegawai::updateOrCreate(
                         ['nip' => $hasil['pegawai']['nip']],
-                        array_merge($hasil['pegawai'], [
-                            'raw_import_id' => $this->batch->id,
-                        ])
+                        array_merge(
+                            $hasil['pegawai'],
+                            ['raw_import_id' => $this->batch->id]
+                        )
                     );
 
                     PegawaiDetail::updateOrCreate(
@@ -57,36 +63,38 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
                     );
                 });
 
-                $this->berhasil++;
+                $berhasilChunk++;
             } catch (\Throwable $e) {
-                $this->catatError($rowArray, $e->getMessage());
+                $this->catatError(
+                    $rowArray,
+                    $e->getMessage()
+                );
+
+                $gagalChunk++;
             }
         }
 
-        $this->batch->update([
-            'berhasil' => $this->berhasil,
-            'gagal' => $this->gagal,
-        ]);
+        DB::table('import_batches')
+            ->where('id', $this->batch->id)
+            ->update([
+                'berhasil' => DB::raw(
+                    "berhasil + {$berhasilChunk}"
+                ),
+                'gagal' => DB::raw(
+                    "gagal + {$gagalChunk}"
+                ),
+            ]);
     }
 
-    protected function catatError(array $rowArray, ?string $pesan): void
-    {
-        $this->gagal++;
+    protected function catatError(
+        array $rowArray,
+        ?string $pesan
+    ): void {
         ImportBatchError::create([
             'import_batch_id' => $this->batch->id,
             'baris_ke' => $this->barisKe,
             'pesan' => $pesan ?? 'Kesalahan tidak diketahui',
             'data_mentah' => $rowArray,
         ]);
-    }
-
-    public function chunkSize(): int
-    {
-        return 500;
-    }
-
-    public function batchSize(): int
-    {
-        return 500;
     }
 }

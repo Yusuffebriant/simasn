@@ -2,14 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/admin', function () {
-    return view('welcome');
-});
-
-Route::get('/dashboard', function () {
-    return view('welcome');
-});
-
-Route::get('/setting', function () {
-    return view('welcome');
-});
+// Semua request non-API diarahkan ke view yang sama (React app),
+// biar React Router yang urus routing di sisi client.
+Route::view('/{any}', 'welcome')->where('any', '.*');

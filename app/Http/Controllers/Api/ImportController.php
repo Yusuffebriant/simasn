@@ -7,6 +7,7 @@ use App\Jobs\ProcessPegawaiImport;
 use App\Models\ImportBatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreImportRequest;
 
 class ImportController extends Controller
 {
@@ -14,13 +15,8 @@ class ImportController extends Controller
      * POST /api/imports
      * Upload file Excel, buat batch, dispatch job ke queue.
      */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls'],
-            'periode' => ['required', 'date_format:Y-m'],
-        ]);
-
+    public function store(StoreImportRequest $request)
+    {   
         $path = $request->file('file')->store('imports');
 
         $batch = ImportBatch::create([
@@ -40,10 +36,12 @@ class ImportController extends Controller
 
     /**
      * GET /api/imports/{batch}
-     * Cek status & progres import (di-poll dari frontend).
+     * Cek status & progres import.
      */
     public function show(ImportBatch $batch)
     {
+        $this->authorizeBatch($batch);
+
         return response()->json([
             'id' => $batch->id,
             'nama_file' => $batch->nama_file,
@@ -57,18 +55,36 @@ class ImportController extends Controller
 
     /**
      * GET /api/imports/{batch}/errors
-     * Daftar baris gagal untuk ditinjau admin.
+     * Daftar baris gagal.
      */
     public function errors(ImportBatch $batch)
+{
+    $this->authorizeBatch($batch);
+
+    return response()->json(
+        $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
+    );
+}
+
+    /**
+     * Otorisasi akses batch import.
+     */
+    protected function authorizeBatch(ImportBatch $batch): void
     {
-        return response()->json(
-            $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->get()
-        );
+        $user = Auth::user();
+
+        if ($user->hasRole('super-admin')) {
+            return;
+        }
+
+        if ($batch->uploaded_by !== $user->id) {
+            abort(403, 'Anda tidak berhak mengakses data import ini.');
+        }
     }
 
     /**
      * GET /api/imports
-     * Riwayat semua batch import (untuk halaman histori).
+     * Riwayat semua batch import.
      */
     public function index()
     {
