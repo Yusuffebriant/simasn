@@ -63,7 +63,7 @@ class PegawaiNormalizer
             $kode = 'Non Eselon';
         }
 
-        return Eselon::firstOrCreate(['kode' => $kode])->id;
+        return Eselon::firstOrCreate(['kode' => $kode], ['urutan' => 999])->id;
     }
 
     public function resolvePendidikan(?string $raw): ?int
@@ -103,7 +103,7 @@ class PegawaiNormalizer
             return null;
         }
 
-        return Pendidikan::firstOrCreate(['jenjang' => $jenjang])->id;
+        return Pendidikan::firstOrCreate(['jenjang' => $jenjang], ['urutan' => 999])->id;
     }
 
     public function resolveJenisKelamin(?string $raw): ?string
@@ -123,7 +123,7 @@ class PegawaiNormalizer
             return null;
         }
 
-        return Agama::firstOrCreate(['nama' => trim($raw)])->id;
+        return Agama::firstOrCreate(['nama' => trim($raw)], ['urutan' => 999])->id;
     }
 
     public function resolveInstansi(?string $unit): ?int

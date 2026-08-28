@@ -16,7 +16,7 @@ class ImportController extends Controller
      * Upload file Excel, buat batch, dispatch job ke queue.
      */
     public function store(StoreImportRequest $request)
-    {   
+    {
         $path = $request->file('file')->store('imports');
 
         $batch = ImportBatch::create([
@@ -58,13 +58,13 @@ class ImportController extends Controller
      * Daftar baris gagal.
      */
     public function errors(ImportBatch $batch)
-{
-    $this->authorizeBatch($batch);
+    {
+        $this->authorizeBatch($batch);
 
-    return response()->json(
-        $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
-    );
-}
+        return response()->json(
+            $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
+        );
+    }
 
     /**
      * Otorisasi akses batch import.

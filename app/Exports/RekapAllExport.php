@@ -2,35 +2,49 @@
 
 namespace App\Exports;
 
+use Maatwebsite\Excel\Concerns\Export;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\WithTitle;
 
-class RekapAllExport implements WithMultipleSheets
+class RekapAllExport implements Export, WithMultipleSheets
 {
     use Exportable;
 
-    public function __construct(protected string $periode)
-    {
-    }
+    public function __construct(protected string $periode) {}
 
     public function sheets(): array
     {
         return [
             new class($this->periode) extends RekapAgamaExport implements WithTitle {
-                public function title(): string { return 'Rekap Agama'; }
+                public function title(): string
+                {
+                    return 'Rekap Agama';
+                }
             },
             new class($this->periode) extends RekapPendidikanExport implements WithTitle {
-                public function title(): string { return 'Rekap Pendidikan'; }
+                public function title(): string
+                {
+                    return 'Rekap Pendidikan';
+                }
             },
             new class($this->periode) extends RekapGolonganExport implements WithTitle {
-                public function title(): string { return 'Rekap Golongan'; }
+                public function title(): string
+                {
+                    return 'Rekap Golongan';
+                }
             },
             new class($this->periode) extends RekapJabatanExport implements WithTitle {
-                public function title(): string { return 'Rekap Jabatan'; }
+                public function title(): string
+                {
+                    return 'Rekap Jabatan';
+                }
             },
             new class($this->periode) extends RekapEselonGolonganGenderExport implements WithTitle {
-                public function title(): string { return 'Rekap Eselon & Golongan'; }
+                public function title(): string
+                {
+                    return 'Rekap Eselon & Golongan';
+                }
             },
         ];
     }

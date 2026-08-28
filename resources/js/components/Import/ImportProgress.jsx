@@ -9,9 +9,11 @@ function ImportProgress({ file, periode, setResult, next, back }) {
     const [phase, setPhase] = useState("uploading"); // uploading | polling | error
     const [error, setError] = useState("");
     const pollTimer = useRef(null);
+    const startedRef = useRef(false); // cegah upload dobel akibat React.StrictMode (dev-only double-invoke useEffect)
 
     useEffect(() => {
-        let cancelled = false;
+        if (startedRef.current) return;
+        startedRef.current = true;
 
         async function startImport() {
 
@@ -52,16 +54,12 @@ function ImportProgress({ file, periode, setResult, next, back }) {
 
                 const { batch_id } = await uploadRes.json();
 
-                if (cancelled) return;
-
                 setPhase("polling");
                 poll(batch_id);
 
             } catch (err) {
-                if (!cancelled) {
-                    setError(err.message);
-                    setPhase("error");
-                }
+                setError(err.message);
+                setPhase("error");
             }
         }
 
@@ -76,8 +74,6 @@ function ImportProgress({ file, periode, setResult, next, back }) {
 
                 const data = await res.json();
 
-                if (cancelled) return;
-
                 if (data.status === "diproses") {
                     pollTimer.current = setTimeout(() => poll(batchId), POLL_INTERVAL_MS);
                     return;
@@ -88,17 +84,14 @@ function ImportProgress({ file, periode, setResult, next, back }) {
                 next();
 
             } catch (err) {
-                if (!cancelled) {
-                    setError(err.message);
-                    setPhase("error");
-                }
+                setError(err.message);
+                setPhase("error");
             }
         }
 
         startImport();
 
         return () => {
-            cancelled = true;
             if (pollTimer.current) clearTimeout(pollTimer.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps

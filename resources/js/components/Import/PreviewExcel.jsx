@@ -1,24 +1,12 @@
-import { useState } from "react";
+import { formatPeriodeLabel } from "../../lib/periode";
 
 function PreviewExcel({
     headers,
     preview,
     periode,
-    setPeriode,
     next,
     back
 }) {
-
-    const [error, setError] = useState("");
-
-    function handleNext() {
-        if (!periode) {
-            setError("Periode wajib diisi (format YYYY-MM).");
-            return;
-        }
-        setError("");
-        next();
-    }
 
     return (
         <div>
@@ -30,21 +18,13 @@ function PreviewExcel({
                 </h2>
 
                 <p className="text-gray-600 mb-4">
-                    Pilih periode data pegawai yang sedang diimport.
+                    Data yang diimport akan otomatis tercatat untuk periode
+                    berjalan berikut.
                 </p>
 
-                <input
-                    type="month"
-                    value={periode}
-                    onChange={(e) => setPeriode(e.target.value)}
-                    className="border rounded p-3"
-                />
-
-                {error && (
-                    <p className="text-red-600 text-sm mt-2">
-                        {error}
-                    </p>
-                )}
+                <div className="inline-block border rounded p-3 bg-gray-50 font-semibold text-gray-800">
+                    {formatPeriodeLabel(periode)}
+                </div>
 
             </div>
 
@@ -93,7 +73,7 @@ function PreviewExcel({
                 </button>
 
                 <button
-                    onClick={handleNext}
+                    onClick={next}
                     className="px-5 py-2 bg-[#006A4E] text-white rounded"
                 >
                     Lanjut Import

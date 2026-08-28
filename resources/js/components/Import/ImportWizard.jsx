@@ -4,6 +4,7 @@ import UploadExcel from "./UploadExcel";
 import PreviewExcel from "./PreviewExcel";
 import ImportProgress from "./ImportProgress";
 import ImportResult from "./ImportResult";
+import { getCurrentPeriode } from "../../lib/periode";
 
 
 const STEPS = ["Upload", "Preview", "Import", "Selesai"];
@@ -16,7 +17,9 @@ function ImportWizard() {
     const [file, setFile] = useState(null);
     const [headers, setHeaders] = useState([]);
     const [preview, setPreview] = useState([]);
-    const [periode, setPeriode] = useState("");
+    // Periode data import selalu mengikuti bulan berjalan — tidak lagi
+    // dipilih manual oleh pengguna.
+    const [periode, setPeriode] = useState(getCurrentPeriode());
 
     // hasil akhir import, diisi oleh ImportProgress setelah polling selesai
     const [result, setResult] = useState(null);
@@ -59,7 +62,6 @@ function ImportWizard() {
                     headers={headers}
                     preview={preview}
                     periode={periode}
-                    setPeriode={setPeriode}
                     next={() => setStep(3)}
                     back={() => setStep(1)}
                 />
@@ -83,7 +85,7 @@ function ImportWizard() {
                         setFile(null);
                         setHeaders([]);
                         setPreview([]);
-                        setPeriode("");
+                        setPeriode(getCurrentPeriode());
                         setResult(null);
                     }}
                 />

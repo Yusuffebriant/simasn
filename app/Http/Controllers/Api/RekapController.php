@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Exports\RekapAgamaExport;
+use App\Exports\RekapAllExport;
 use App\Exports\RekapPendidikanExport;
 use App\Exports\RekapGolonganExport;
 use App\Exports\RekapJabatanExport;
-use App\Exports\RekapEselonGolonganExport;;
+use App\Exports\RekapEselonGolonganGenderExport;
+
 use App\Services\RekapService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -66,12 +68,52 @@ class RekapController extends Controller
         return response()->json($data);
     }
 
+    public function golonganJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.golongan.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapGolongan($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
+    public function eselonGolonganGenderJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.eselon-golongan-gender.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapEselonGolonganGender($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
 
     /*
     |--------------------------------------------------------------------------
     | EXPORT EXCEL
     |--------------------------------------------------------------------------
     */
+
+    public function exportAll(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        return Excel::download(
+            new RekapAllExport($periode),
+            "rekap-all-{$periode}.xlsx"
+        );
+    }
 
     public function exportAgama(Request $request)
     {
