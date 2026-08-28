@@ -1,22 +1,7 @@
 import { useState } from "react";
 import { LoaderCircle, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-
-function defaultPeriode() {
-    const now = new Date();
-    const bulan = String(now.getMonth() + 1).padStart(2, "0");
-    return `${now.getFullYear()}-${bulan}`;
-}
-
-function formatPeriodeLabel(periode) {
-    const bulanNama = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-    ];
-    const [tahun, bln] = periode.split("-");
-    const idx = parseInt(bln, 10) - 1;
-    return bulanNama[idx] ? `${bulanNama[idx]} ${tahun}` : periode;
-}
+import { getCurrentPeriode, formatPeriodeLabel } from "../../lib/periode";
 
 // Ambil nama file dari header Content-Disposition kalau ada,
 // fallback ke nama default berdasarkan periode.
@@ -37,17 +22,13 @@ const REKAP_LIST = [
 ];
 
 function ExportLaporan() {
-    const [periode, setPeriode] = useState(defaultPeriode());
+    // Periode selalu mengikuti bulan berjalan — tidak lagi bisa dipilih manual.
+    const periode = getCurrentPeriode();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
     async function handleExportAll() {
-        if (!periode) {
-            setError("Pilih periode terlebih dahulu.");
-            return;
-        }
-
         setLoading(true);
         setError("");
         setSuccess("");
@@ -115,12 +96,9 @@ function ExportLaporan() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Periode
                         </label>
-                        <input
-                            type="month"
-                            value={periode}
-                            onChange={(e) => setPeriode(e.target.value)}
-                            className="border p-3 rounded"
-                        />
+                        <div className="border p-3 rounded bg-gray-50 text-gray-700 min-w-[10rem]">
+                            {formatPeriodeLabel(periode)}
+                        </div>
                     </div>
 
                     <button

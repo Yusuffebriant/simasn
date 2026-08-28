@@ -57,6 +57,13 @@ function Sidebar() {
                     Admin
                 </a>
 
+                <a 
+                    href="/setting"
+                    className="block px-6 py-3 hover:bg-white/20"
+                >
+                    Settings
+                </a>
+
             </nav>
 
             <div className="p-4 border-t border-white/20">

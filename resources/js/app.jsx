@@ -5,7 +5,9 @@ import Home from './pages/home/home';
 import Dashboard from './pages/Dashboard/Dashboard';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
+
 import { isLoggedIn } from './lib/api';
+import Setting from './pages/Setting/Setting';
 
 function withRedirectTo(path) {
     const target = encodeURIComponent(path);
@@ -50,6 +52,10 @@ function App() {
             return null;
         }
         return <Admin />;
+    }
+    
+    if (path === "/setting") {
+        return <Setting />;
     }
 
     // Default: path tidak dikenal -> ke halaman utama, BUKAN Dashboard/Admin
