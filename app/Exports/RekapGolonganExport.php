@@ -9,18 +9,39 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
+/**
+ * Layout kolom di export ini meniru PERSIS format resmi
+ * "data-asn-agustus-2026" (sheet "gol"):
+ *
+ *  C..Z   (24 kolom) : Pria  - golongan PNS & PPPK diselang-seling
+ *  AA               : Sub Total Pria
+ *  AB..AY (24 kolom) : Wanita - urutan sama seperti Pria
+ *  AZ               : Sub Total Wanita
+ *  BA               : TOTAL
+ *  BB, BC           : kosong (spacer, sesuai referensi)
+ *  BD..BH           : blok PNS (I, II, III, IV, Total)
+ *  BI..BP           : blok PPPK detail (I/1a, III/1c, ... , Total)
+ */
 class RekapGolonganExport implements FromArray, WithEvents
 {
     protected array $data;
 
-    protected array $golonganList = [
-        'I/a', 'I/b', 'I/c', 'I/d',
-        'II/a', 'II/b', 'II/c', 'II/d',
-        'III/a', 'III/b', 'III/c', 'III/d',
-        'IV/a', 'IV/b', 'IV/c', 'IV/d',
-        'IV/e',
+    // Urutan tampil 24 kolom Pria/Wanita, sesuai template referensi.
+    // Setiap key di sini adalah key yang sama persis dengan yang dipakai
+    // RekapService::rekapGolongan() di $d['pria'] / $d['wanita'].
+    protected array $golonganDisplayOrder = [
+        'I/a', 'I', 'I/b', 'I/c', 'III', 'I/d',
+        'II/a', 'V', 'II/b', 'II/c', 'VII', 'II/d',
+        'III/a', 'IX', 'III/b', 'X', 'III/c', 'XI', 'III/d',
+        'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e',
     ];
-    protected array $pppkList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
+
+    // Urutan ini HARUS sama dengan urutan $pppkList di RekapService,
+    // supaya array_values($d['pppk']) jatuh di label yang benar.
+    protected array $pppkDetailLabel = [
+        'I/1a', 'III/ 1c', 'V/2a', 'VII/2c', 'IX /3a', 'X/3b', 'XI/3c',
+    ];
+
     protected array $pnsAggList = ['I', 'II', 'III', 'IV'];
 
     protected int $headerRows = 7;
@@ -35,18 +56,21 @@ class RekapGolonganExport implements FromArray, WithEvents
         $rows = [];
         $no = 1;
         foreach ($this->data as $d) {
+            $pria = array_map(fn ($k) => $d['pria'][$k] ?? 0, $this->golonganDisplayOrder);
+            $wanita = array_map(fn ($k) => $d['wanita'][$k] ?? 0, $this->golonganDisplayOrder);
+
             $rows[] = array_merge(
                 [$no++, $d['instansi']],
-                array_values($d['pria']),
+                $pria,
                 [$d['jml_pria']],
-                array_values($d['wanita']),
+                $wanita,
                 [$d['jml_wanita']],
                 [$d['jml_total']],
-                ['', $d['instansi']], // AN: spacer, AO: instansi diulang
-                array_values($d['pns_agg']),
-                [$d['pns_total']],
-                array_values($d['pppk']),
-                [$d['pppk_total']]
+                ['', ''], // BB, BC: spacer kosong (sesuai referensi)
+                array_values($d['pns_agg']),   // BD-BG: I,II,III,IV
+                [$d['pns_total']],              // BH
+                array_values($d['pppk']),       // BI-BO
+                [$d['pppk_total']]              // BP
             );
         }
         return $rows;
@@ -70,57 +94,54 @@ class RekapGolonganExport implements FromArray, WithEvents
                 $sheet = $event->sheet->getDelegate();
                 $sheet->insertNewRowBefore(1, $this->headerRows);
 
+                $L = fn (int $i) => Coordinate::stringFromColumnIndex($i);
+
                 // Judul
                 $sheet->setCellValue('A1', 'REKAPITULASI JUMLAH ASN PEMERINTAH DAERAH/KABUPATEN/KOTA PEMERINTAH KOTA YOGYAKARTA');
-                $sheet->setCellValue('A2', 'DIPERINCI MENURUT GOLONGAN RUANG DAN JENIS KELAMIN');
+                $sheet->setCellValue('A2', 'DIPERINCI MENURUT INSTANSI, GOLONGAN RUANG DAN JENIS KELAMIN');
                 $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
-                $sheet->mergeCells('A1:BB1');
-                $sheet->mergeCells('A2:BB2');
-                $sheet->mergeCells('A3:BB3');
+                $sheet->mergeCells('A1:BA1');
+                $sheet->mergeCells('A2:BA2');
+                $sheet->mergeCells('A3:BA3');
 
-                // Header utama baris 5-7 (blok pertama, sudah ada sebelumnya)
+                // Header baris 5-7
                 $sheet->setCellValue('A5', 'NO');
                 $sheet->setCellValue('B5', 'INSTANSI');
-                $sheet->setCellValue('C5', 'PRIA');
-                $sheet->setCellValue('T5', 'JML');
-                $sheet->setCellValue('U5', 'WANITA');
-                $sheet->setCellValue('AL5', 'JML');
-                $sheet->setCellValue('AM5', 'JML TOTAL');
+                $sheet->setCellValue('F5', 'PRIA');
+                $sheet->setCellValue('AA5', 'Sub Total');
+                $sheet->setCellValue('AE5', 'WANITA');
+                $sheet->setCellValue('AZ5', 'Sub Total');
+                $sheet->setCellValue('BA5', 'TOTAL');
+                $sheet->setCellValue('BD5', 'PNS');
+                $sheet->setCellValue('BK5', 'PPPK');
 
                 $sheet->mergeCells('A5:A7');
                 $sheet->mergeCells('B5:B7');
-                $sheet->mergeCells('C5:S5');
-                $sheet->mergeCells('T5:T7');
-                $sheet->mergeCells('U5:AK5');
-                $sheet->mergeCells('AL5:AL7');
-                $sheet->mergeCells('AM5:AM7');
+                $sheet->mergeCells('F5:Z6');   // label PRIA (persis posisi referensi)
+                $sheet->mergeCells('AA5:AA7');
+                $sheet->mergeCells('AE5:AY6'); // label WANITA (persis posisi referensi)
+                $sheet->mergeCells('AZ5:AZ7');
+                $sheet->mergeCells('BA5:BA7');
+                $sheet->mergeCells('BD5:BH6');
+                $sheet->mergeCells('BK5:BP6');
 
-                $kolomPria = ['C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S'];
-                $kolomWanita = ['U','V','W','X','Y','Z','AA','AB','AC','AD','AE','AF','AG','AH','AI','AJ','AK'];
-                foreach ($this->golonganList as $i => $nama) {
-                    $sheet->setCellValue($kolomPria[$i] . '7', $nama);
-                    $sheet->setCellValue($kolomWanita[$i] . '7', $nama);
+                // Sub-kolom golongan baris 7: Pria C..Z, Wanita AB..AY
+                foreach ($this->golonganDisplayOrder as $i => $nama) {
+                    $sheet->setCellValue($L(3 + $i) . '7', $nama);
+                    $sheet->setCellValue($L(28 + $i) . '7', $nama);
                 }
 
-                // Blok kedua: AO = instansi, AP-AT = PNS (I,II,III,IV,Total), AU-BB = PPPK
-                $sheet->setCellValue('AO5', 'INSTANSI');
-                $sheet->setCellValue('AP5', 'PNS');
-                $sheet->setCellValue('AU5', 'PPPK');
-                $sheet->mergeCells('AO5:AO7');
-                $sheet->mergeCells('AP5:AT5');
-                $sheet->mergeCells('AU5:BB5');
-
-                $kolomPns = ['AP','AQ','AR','AS'];
+                // Blok PNS: BD..BG = I,II,III,IV ; BH = Total
                 foreach ($this->pnsAggList as $i => $romawi) {
-                    $sheet->setCellValue($kolomPns[$i] . '7', $romawi);
+                    $sheet->setCellValue($L(56 + $i) . '7', $romawi);
                 }
-                $sheet->setCellValue('AT7', 'Total');
+                $sheet->setCellValue('BH7', 'Total');
 
-                $kolomPppk = ['AU','AV','AW','AX','AY','AZ','BA'];
-                foreach ($this->pppkList as $i => $kode) {
-                    $sheet->setCellValue($kolomPppk[$i] . '7', $kode);
+                // Blok PPPK detail: BI..BO ; BP = Total
+                foreach ($this->pppkDetailLabel as $i => $label) {
+                    $sheet->setCellValue($L(61 + $i) . '7', $label);
                 }
-                $sheet->setCellValue('BB7', 'Total');
+                $sheet->setCellValue('BP7', 'Total');
 
                 $lastDataRow = $this->headerRows + count($this->data);
                 $totalRow = $lastDataRow + 1;
@@ -128,26 +149,24 @@ class RekapGolonganExport implements FromArray, WithEvents
                 $sheet->setCellValue('A' . $totalRow, 'TOTAL');
                 $sheet->mergeCells("A{$totalRow}:B{$totalRow}");
 
-                // SUM semua kolom angka: C..AM dan AP..BB (lewati AN spacer & AO instansi teks)
-                $kolomAngka = array_merge(
-                    range(Coordinate::columnIndexFromString('C'), Coordinate::columnIndexFromString('AM')),
-                    range(Coordinate::columnIndexFromString('AP'), Coordinate::columnIndexFromString('BB'))
-                );
+                // SUM semua kolom angka: C..BA (Pria, Sub Total, Wanita, Sub Total, TOTAL)
+                // dan BD..BP (PNS + PPPK). BB & BC (spacer) dilewati.
+                $kolomAngka = array_merge(range(3, 53), range(56, 68));
                 foreach ($kolomAngka as $colIdx) {
-                    $col = Coordinate::stringFromColumnIndex($colIdx);
+                    $col = $L($colIdx);
                     $sum = 0;
                     for ($r = $this->headerRows + 1; $r <= $lastDataRow; $r++) {
                         $sum += (float) $sheet->getCell($col . $r)->getValue();
                     }
                     $sheet->setCellValue($col . $totalRow, $sum);
                 }
-                $sheet->getStyle("A{$totalRow}:BB{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$totalRow}:BP{$totalRow}")->getFont()->setBold(true);
 
                 // Styling
                 $sheet->getStyle('A1:A3')->getFont()->setBold(true);
-                $sheet->getStyle('A5:BB7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:BB7')->getAlignment()->setHorizontal('center')->setVertical('center');
-                $sheet->getStyle("A5:BB{$totalRow}")->getBorders()->getAllBorders()
+                $sheet->getStyle('A5:BP7')->getFont()->setBold(true);
+                $sheet->getStyle('A5:BP7')->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getStyle("A5:BP{$totalRow}")->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
             },
         ];

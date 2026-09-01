@@ -63,90 +63,89 @@ class RekapService
         return array_values($perInstansi);
     }
 
-    public function rekapPendidikan(?string $periode = null): array
-    {
-        $pendidikanList = [
-            'SD',
-            'SLTP',
-            'SLTA',
-            'D I',
-            'D II',
-            'D III',
-            'D IV',
-            'S1',
-            'S2',
-            'S3',
-        ];
+public function rekapPendidikan(?string $periode = null): array
+{
+    $pendidikanList = [
+        'SD',
+        'SLTP',
+        'SLTA',
+        'D I',
+        'D II',
+        'D III',
+        'D IV',
+        'S1',
+        'S2',
+        'S3',
+        'BELUM DIISI', // <-- tambahan
+    ];
 
-        $rows = Pegawai::query()
-            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-            ->join('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
-            ->select(
-                'instansi.id as instansi_id',
-                'instansi.nama as instansi_nama',
-                'pendidikan.jenjang as pendidikan_nama',
-                'pegawai.jenis_kelamin',
-                DB::raw('COUNT(*) as jumlah')
-            )
-            ->where('pegawai.status_aktif', 'aktif')
-            ->groupBy(
-                'instansi.id',
-                'instansi.nama',
-                'pendidikan.jenjang',
-                'pegawai.jenis_kelamin'
-            )
-            ->get();
+    $rows = Pegawai::query()
+        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+        ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id') // <-- diubah dari join
+        ->select(
+            'instansi.id as instansi_id',
+            'instansi.nama as instansi_nama',
+            'pendidikan.jenjang as pendidikan_nama',
+            'pegawai.jenis_kelamin',
+            DB::raw('COUNT(*) as jumlah')
+        )
+        ->where('pegawai.status_aktif', 'aktif')
+        ->groupBy(
+            'instansi.id',
+            'instansi.nama',
+            'pendidikan.jenjang',
+            'pegawai.jenis_kelamin'
+        )
+        ->get();
 
-        $perInstansi = [];
+    $perInstansi = [];
 
-        foreach ($rows as $row) {
-            $id = $row->instansi_id;
+    foreach ($rows as $row) {
+        $id = $row->instansi_id;
 
-            if (!isset($perInstansi[$id])) {
-                $perInstansi[$id] = [
-                    'instansi' => $row->instansi_nama,
-                    'pria' => array_fill_keys($pendidikanList, 0),
-                    'wanita' => array_fill_keys($pendidikanList, 0),
-                ];
-            }
-
-            $pendidikan = strtoupper(trim($row->pendidikan_nama));
-
-            $pendidikan = match ($pendidikan) {
-                'SD'                                => 'SD',
-                'SMP','SLTP'                          => 'SLTP',
-                'SMA','SMK','SMA/SMK','SLTA'           => 'SLTA',
-                'D1','D-1','D I'                      => 'D I',
-                'D2','D-2','D II'                     => 'D II',
-                'D3','D-3','D III'                    => 'D III',
-                'D4','D-4','D IV','D4/S1'             => 'D IV',
-                'S1','S-1','S-1/SARJANA','SARJANA'    => 'S1',
-                'S2','S-2'                            => 'S2',
-                'S3','S-3'                            => 'S3',
-                default => null,
-            };
-
-            if (!$pendidikan) {
-                continue;
-            }
-
-            $kelompok = $row->jenis_kelamin === 'L'
-                ? 'pria'
-                : 'wanita';
-
-            $perInstansi[$id][$kelompok][$pendidikan] =
-                (int) $row->jumlah;
+        if (!isset($perInstansi[$id])) {
+            $perInstansi[$id] = [
+                'instansi' => $row->instansi_nama,
+                'pria' => array_fill_keys($pendidikanList, 0),
+                'wanita' => array_fill_keys($pendidikanList, 0),
+            ];
         }
 
-        foreach ($perInstansi as &$data) {
-            $data['jml_pria'] = array_sum($data['pria']);
-            $data['jml_wanita'] = array_sum($data['wanita']);
-            $data['jml_total'] =
-                $data['jml_pria'] + $data['jml_wanita'];
-        }
+        $pendidikan = $row->pendidikan_nama
+            ? strtoupper(trim($row->pendidikan_nama))
+            : null;
 
-        return array_values($perInstansi);
+        $pendidikan = $pendidikan ? match ($pendidikan) {
+            'SD'                                => 'SD',
+            'SMP','SLTP'                          => 'SLTP',
+            'SMA','SMK','SMA/SMK','SLTA'           => 'SLTA',
+            'D1','D-1','D I'                      => 'D I',
+            'D2','D-2','D II'                     => 'D II',
+            'D3','D-3','D III'                    => 'D III',
+            'D4','D-4','D IV','D4/S1'             => 'D IV',
+            'S1','S-1','S-1/SARJANA','SARJANA'    => 'S1',
+            'S2','S-2'                            => 'S2',
+            'S3','S-3'                            => 'S3',
+            default => 'BELUM DIISI', // <-- diubah dari null
+        } : 'BELUM DIISI';
+
+        $kelompok = $row->jenis_kelamin === 'L'
+            ? 'pria'
+            : 'wanita';
+
+        $perInstansi[$id][$kelompok][$pendidikan] =
+            ($perInstansi[$id][$kelompok][$pendidikan] ?? 0) + (int) $row->jumlah;
     }
+
+    foreach ($perInstansi as &$data) {
+        $data['jml_pria'] = array_sum($data['pria']);
+        $data['jml_wanita'] = array_sum($data['wanita']);
+        $data['jml_total'] =
+            $data['jml_pria'] + $data['jml_wanita'];
+    }
+
+    return array_values($perInstansi);
+}
 
     public function rekapGolongan(?string $periode = null): array
 {
@@ -156,12 +155,18 @@ class RekapService
         'III/a', 'III/b', 'III/c', 'III/d',
         'IV/a', 'IV/b', 'IV/c', 'IV/d',
         'IV/e',
+        'BELUM DIISI',
     ];
     $pppkList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
+    // Kolom pria/wanita mencakup golongan PNS + kode PPPK + BELUM DIISI,
+    // supaya PPPK ikut menyumbang ke jml_total (sesuai format laporan
+    // resmi: Sub Total Pria/Wanita = PNS + PPPK digabung).
+    $kolomList = array_merge($golonganList, $pppkList);
+
     $rows = Pegawai::query()
         ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-        ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+        ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id') // diubah dari join: golongan_ruang_id nullable
         ->select(
             'instansi.id as instansi_id',
             'instansi.nama as instansi_nama',
@@ -188,19 +193,38 @@ class RekapService
         if (!isset($perInstansi[$id])) {
             $perInstansi[$id] = [
                 'instansi' => $row->instansi_nama,
-                'pria' => array_fill_keys($golonganList, 0),
-                'wanita' => array_fill_keys($golonganList, 0),
+                'pria' => array_fill_keys($kolomList, 0),
+                'wanita' => array_fill_keys($kolomList, 0),
                 'pppk' => array_fill_keys($pppkList, 0),
             ];
         }
 
-        $kode = trim($row->golongan_kode);
         $jumlah = (int) $row->jumlah;
+        $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+
+        // golongan_kode NULL berarti golongan_ruang_id pegawai NULL (belum diisi)
+        if ($row->golongan_kode === null) {
+            $perInstansi[$id][$kelompok]['BELUM DIISI'] =
+                ($perInstansi[$id][$kelompok]['BELUM DIISI'] ?? 0) + $jumlah;
+            continue;
+        }
+
+        $kode = trim($row->golongan_kode);
 
         if ($row->golongan_kelompok === 'PPPK') {
-            if (in_array($kode, $pppkList, true)) {
-                $perInstansi[$id]['pppk'][$kode] += $jumlah;
+            if (!in_array($kode, $pppkList, true)) {
+                continue;
             }
+
+            // Masuk ke kolom Pria/Wanita utama supaya ikut jml_total...
+            $perInstansi[$id][$kelompok][$kode] =
+                ($perInstansi[$id][$kelompok][$kode] ?? 0) + $jumlah;
+
+            // ...sekaligus tetap dicatat di ringkasan PPPK terpisah
+            // (dipakai untuk pppk_total, bukan dipecah gender).
+            $perInstansi[$id]['pppk'][$kode] =
+                ($perInstansi[$id]['pppk'][$kode] ?? 0) + $jumlah;
+
             continue;
         }
 
@@ -208,8 +232,8 @@ class RekapService
             continue;
         }
 
-        $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
-        $perInstansi[$id][$kelompok][$kode] = $jumlah;
+        $perInstansi[$id][$kelompok][$kode] =
+            ($perInstansi[$id][$kelompok][$kode] ?? 0) + $jumlah;
     }
 
     foreach ($perInstansi as &$data) {
@@ -217,10 +241,24 @@ class RekapService
         $data['jml_wanita'] = array_sum($data['wanita']);
         $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
 
-        // Agregat PNS per romawi utama (I, II, III, IV) — gabung Pria+Wanita, gabung sub-grade a/b/c/d
-        $gabungan = array_map(fn($p, $w) => $p + $w, $data['pria'], $data['wanita']);
+        // Agregat PNS per romawi utama (I, II, III, IV) — HANYA dari kode
+        // bergaya PNS (mengandung '/'), supaya kode PPPK ('I','III',dst
+        // tanpa slash) dan 'BELUM DIISI' tidak ikut kehitung di sini.
+        //
+        // PENTING: gabungkan pria+wanita PER KEY (bukan array_map posisional),
+        // karena array_map(fn, $a, $b) mereset key ke index angka 0,1,2,...
+        // dan membuat str_contains($kode, '/') di bawah selalu false
+        // (sehingga pns_agg selalu kosong/0).
+        $gabungan = [];
+        foreach ($data['pria'] as $kode => $jumlah) {
+            $gabungan[$kode] = $jumlah + ($data['wanita'][$kode] ?? 0);
+        }
+
         $pnsAgg = ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0];
         foreach ($gabungan as $kode => $jumlah) {
+            if (!str_contains($kode, '/')) {
+                continue;
+            }
             $romawi = explode('/', $kode)[0];
             if (isset($pnsAgg[$romawi])) {
                 $pnsAgg[$romawi] += $jumlah;
@@ -248,8 +286,6 @@ class RekapService
                 DB::raw('COUNT(*) as jumlah')
             )
             ->where('pegawai.status_aktif', 'aktif')
-            ->whereNotNull('pegawai.jabatan')
-            ->where('pegawai.jabatan', '<>', '')
             ->groupBy(
                 'instansi.id',
                 'instansi.nama',
@@ -277,14 +313,16 @@ class RekapService
             $jumlah = (int) $row->jumlah;
             $kodeEselon = strtoupper(trim((string) $row->eselon_kode));
             $kodeEselon = preg_replace('/\s+/', ' ', $kodeEselon);
+            $jabatan = (string) $row->jabatan; // NULL/kosong tetap dihitung, jangan hilang
 
             if (in_array($kodeEselon, $eselonList, true)) {
                 $perInstansi[$id]['eselon'][$kodeEselon] += $jumlah;
-            }
-
-            if ($this->isJabatanFungsional($row->jabatan)) {
+            } elseif ($this->isJabatanFungsional($jabatan)) {
                 $perInstansi[$id]['fungsional_tertentu'] += $jumlah;
             } else {
+                // Termasuk pegawai yang jabatannya kosong/belum diisi:
+                // masuk default ke Fungsional Umum supaya JML TOTAL tetap
+                // konsisten dengan total pegawai aktif (sesuai laporan resmi).
                 $perInstansi[$id]['fungsional_umum'] += $jumlah;
             }
         }
