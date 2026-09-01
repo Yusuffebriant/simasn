@@ -94,6 +94,14 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'golonganJson'
     ]);
 
+<<<<<<< HEAD
+=======
+    Route::get('/rekap/eselon-golongan-gender', [
+        RekapController::class,
+        'eselonGolonganGenderJson'
+    ]);
+
+>>>>>>> origin/frontend/admin-pagev2
 
     // =========================================================
     // REKAP EXPORT EXCEL
