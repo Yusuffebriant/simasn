@@ -66,6 +66,21 @@ class RekapController extends Controller
         return response()->json($data);
     }
 
+    public function golonganJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.golongan.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapGolongan($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
 
     /*
     |--------------------------------------------------------------------------

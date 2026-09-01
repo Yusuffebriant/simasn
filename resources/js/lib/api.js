@@ -1,12 +1,11 @@
 // Helper API kecil untuk SIMASN.
-// Login/halaman auth belum dibuat — untuk sekarang token diambil dari
-// localStorage key "simasn_token". Setelah halaman login dibuat, ganti
-// bagian login untuk memanggil setToken(token) di sini.
+// Token disimpan di localStorage key "token" — sama seperti yang dipakai
+// Login.jsx (saat menyimpan token setelah login) dan Dashboard.jsx.
 
 export const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL || "/api";
 
-const TOKEN_KEY = "simasn_token";
+const TOKEN_KEY = "token";
 
 export function getToken() {
     return localStorage.getItem(TOKEN_KEY);
