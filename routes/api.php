@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PeriodeController;
 use App\Http\Controllers\Api\RekapController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\AuthController;
@@ -18,6 +19,12 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+    // =========================================================
+    // PERIODE
+    // =========================================================
+
+    Route::get('/periode/aktif', [PeriodeController::class, 'aktif']);
 
 
     // =========================================================

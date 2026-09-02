@@ -1,9 +1,10 @@
-import { formatPeriodeLabel } from "../../lib/periode";
+import { getCurrentPeriode, formatPeriodeLabel } from "../../lib/periode";
 
 function PreviewExcel({
     headers,
     preview,
     periode,
+    setPeriode,
     next,
     back
 }) {
@@ -18,13 +19,26 @@ function PreviewExcel({
                 </h2>
 
                 <p className="text-gray-600 mb-4">
-                    Data yang diimport akan otomatis tercatat untuk periode
-                    berjalan berikut.
+                    Pilih periode (bulan &amp; tahun) data pegawai yang ada
+                    di file Excel ini. Data hasil import akan tercatat
+                    untuk periode yang dipilih di sini — bukan otomatis
+                    bulan berjalan.
                 </p>
 
-                <div className="inline-block border rounded p-3 bg-gray-50 font-semibold text-gray-800">
-                    {formatPeriodeLabel(periode)}
-                </div>
+                <input
+                    type="month"
+                    value={periode}
+                    max={getCurrentPeriode()}
+                    onChange={(e) => e.target.value && setPeriode(e.target.value)}
+                    className="border p-3 rounded bg-white font-semibold text-gray-800"
+                />
+
+                <p className="text-xs text-gray-500 mt-2">
+                    Periode terpilih:{" "}
+                    <span className="font-semibold">
+                        {formatPeriodeLabel(periode)}
+                    </span>
+                </p>
 
             </div>
 

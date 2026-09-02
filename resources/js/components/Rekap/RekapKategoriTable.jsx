@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import { getCurrentPeriode, formatPeriodeLabel } from "../../lib/periode";
+import { getCurrentPeriode } from "../../lib/periode";
+import PeriodeLabel from "./PeriodeLabel";
 
 function filenameFromResponse(res, fallback) {
     const disposition = res.headers.get("Content-Disposition") || "";
@@ -34,8 +35,10 @@ function RekapKategoriTable({
     rowField = "instansi",
     rowHeaderLabel = "Instansi",
 }) {
-    // Periode selalu mengikuti bulan berjalan — tidak lagi bisa dipilih manual.
-    const periode = getCurrentPeriode();
+    // Default awal bulan berjalan; PeriodeLabel akan menimpanya begitu
+    // periode aktif (dari import terakhir yang berhasil) selesai dimuat.
+    // Periode di sini tidak bisa dipilih bebas, lihat PeriodeLabel.jsx.
+    const [periode, setPeriode] = useState(getCurrentPeriode());
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -146,9 +149,7 @@ function RekapKategoriTable({
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                             Periode
                         </label>
-                        <div className="border p-2 rounded text-sm bg-gray-50 text-gray-700 min-w-[10rem]">
-                            {formatPeriodeLabel(periode)}
-                        </div>
+                        <PeriodeLabel onLoaded={setPeriode} />
                     </div>
 
                     <button
