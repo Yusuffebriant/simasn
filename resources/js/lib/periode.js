@@ -1,10 +1,11 @@
-// Periode data sekarang otomatis mengikuti bulan berjalan (server/browser
-// time) — tidak lagi bisa dipilih manual oleh pengguna, baik saat import,
-// rekapitulasi, maupun export laporan.
+// Periode dalam format "YYYY-MM", sesuai format yang dipakai backend
+// (query param `periode` & Cache key di RekapController/RekapService).
+// Default-nya bulan berjalan, tapi pengguna tetap bisa memilih periode lain
+// secara manual lewat kalender bulan (input type="month").
 
 /**
- * Periode berjalan dalam format "YYYY-MM", sesuai format yang dipakai
- * backend (query param `periode` & Cache key di RekapController/RekapService).
+ * Periode berjalan (bulan ini), dipakai sebagai nilai default saat halaman
+ * rekap/export pertama kali dibuka.
  */
 export function getCurrentPeriode() {
     const now = new Date();

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LoaderCircle, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { getCurrentPeriode, formatPeriodeLabel } from "../../lib/periode";
+import PeriodeLabel from "../../components/Rekap/PeriodeLabel";
 
 // Ambil nama file dari header Content-Disposition kalau ada,
 // fallback ke nama default berdasarkan periode.
@@ -22,8 +23,10 @@ const REKAP_LIST = [
 ];
 
 function ExportLaporan() {
-    // Periode selalu mengikuti bulan berjalan — tidak lagi bisa dipilih manual.
-    const periode = getCurrentPeriode();
+    // Default awal bulan berjalan; PeriodeLabel akan menimpanya begitu
+    // periode aktif (dari import terakhir yang berhasil) selesai dimuat.
+    // Periode di sini tidak bisa dipilih bebas, lihat PeriodeLabel.jsx.
+    const [periode, setPeriode] = useState(getCurrentPeriode());
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -96,9 +99,7 @@ function ExportLaporan() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Periode
                         </label>
-                        <div className="border p-3 rounded bg-gray-50 text-gray-700 min-w-[10rem]">
-                            {formatPeriodeLabel(periode)}
-                        </div>
+                        <PeriodeLabel onLoaded={setPeriode} />
                     </div>
 
                     <button

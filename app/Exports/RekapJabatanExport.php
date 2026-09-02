@@ -39,9 +39,18 @@ class RekapJabatanExport implements FromArray, WithEvents
     protected function formatPeriode(string $periode): string
     {
         $bulan = [
-            '01'=>'JANUARI','02'=>'FEBRUARI','03'=>'MARET','04'=>'APRIL',
-            '05'=>'MEI','06'=>'JUNI','07'=>'JULI','08'=>'AGUSTUS',
-            '09'=>'SEPTEMBER','10'=>'OKTOBER','11'=>'NOVEMBER','12'=>'DESEMBER',
+            '01' => 'JANUARI',
+            '02' => 'FEBRUARI',
+            '03' => 'MARET',
+            '04' => 'APRIL',
+            '05' => 'MEI',
+            '06' => 'JUNI',
+            '07' => 'JULI',
+            '08' => 'AGUSTUS',
+            '09' => 'SEPTEMBER',
+            '10' => 'OKTOBER',
+            '11' => 'NOVEMBER',
+            '12' => 'DESEMBER',
         ];
         [$tahun, $bln] = explode('-', $periode);
         return ($bulan[$bln] ?? $bln) . ' ' . $tahun;
@@ -56,7 +65,7 @@ class RekapJabatanExport implements FromArray, WithEvents
 
                 $sheet->setCellValue('A1', 'REKAPITULASI ASN PEMERINTAH DAERAH KAB/KOTA PEMERINTAH KOTA YOGYAKARTA');
                 $sheet->setCellValue('A2', 'DIPERINCI MENURUT JABATAN');
-                $sheet->setCellValue('A3', 'KEADAAN AGUSTUS ' . $this->formatPeriode($this->periode));
+                $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
                 $sheet->mergeCells('A1:L1');
                 $sheet->mergeCells('A2:L2');
                 $sheet->mergeCells('A3:L3');
@@ -77,7 +86,7 @@ class RekapJabatanExport implements FromArray, WithEvents
                 $sheet->mergeCells('K5:K6');
                 $sheet->mergeCells('L5:L6');
 
-                $kolomEselon = ['C','D','E','F','G','H'];
+                $kolomEselon = ['C', 'D', 'E', 'F', 'G', 'H'];
                 foreach ($this->eselonList as $i => $kode) {
                     $sheet->setCellValue($kolomEselon[$i] . '6', $kode);
                 }
