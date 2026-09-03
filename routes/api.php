@@ -81,6 +81,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     // REKAP JSON
     // =========================================================
 
+    Route::get('/rekap/dashboard', [
+        RekapController::class,
+        'dashboardJson'
+    ]);
+
     Route::get('/rekap/agama', [
         RekapController::class,
         'agamaJson'
