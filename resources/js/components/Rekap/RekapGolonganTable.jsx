@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import { getCurrentPeriode, formatPeriodeLabel } from "../../lib/periode";
+import { getCurrentPeriode } from "../../lib/periode";
+import PeriodeLabel from "./PeriodeLabel";
 
 function filenameFromResponse(res, fallback) {
     const disposition = res.headers.get("Content-Disposition") || "";
@@ -23,8 +24,10 @@ const EXPORT_PATH = "/rekap/golongan/export";
 const FILENAME_PREFIX = "rekap-golongan";
 
 function RekapGolonganTable() {
-    // Periode selalu mengikuti bulan berjalan — tidak lagi bisa dipilih manual.
-    const periode = getCurrentPeriode();
+    // Default awal bulan berjalan; PeriodeLabel akan menimpanya begitu
+    // periode aktif (dari import terakhir yang berhasil) selesai dimuat.
+    // Periode di sini tidak bisa dipilih bebas, lihat PeriodeLabel.jsx.
+    const [periode, setPeriode] = useState(getCurrentPeriode());
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -125,7 +128,9 @@ function RekapGolonganTable() {
         totalJmlWanita += row.jml_wanita || 0;
         totalPnsTotal += row.jml_total || 0;
         totalPppkTotal += row.pppk_total || 0;
-        totalGrand += (row.jml_total || 0) + (row.pppk_total || 0);
+        // jml_total sudah termasuk PPPK (lihat RekapService::rekapGolongan),
+        // jadi TIDAK perlu ditambah pppk_total lagi di sini.
+        totalGrand += row.jml_total || 0;
     });
 
     return (
@@ -146,9 +151,7 @@ function RekapGolonganTable() {
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                             Periode
                         </label>
-                        <div className="border p-2 rounded text-sm bg-gray-50 text-gray-700 min-w-[10rem]">
-                            {formatPeriodeLabel(periode)}
-                        </div>
+                        <PeriodeLabel onLoaded={setPeriode} />
                     </div>
 
                     <button
@@ -248,7 +251,7 @@ function RekapGolonganTable() {
                                     ))}
                                     <td className="border px-2 py-2 text-center font-medium">{row.pppk_total}</td>
                                     <td className="border px-2 py-2 text-center font-bold">
-                                        {(row.jml_total || 0) + (row.pppk_total || 0)}
+                                        {row.jml_total || 0}
                                     </td>
                                 </tr>
                             ))}

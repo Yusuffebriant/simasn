@@ -1,6 +1,7 @@
 import '@vitejs/plugin-react/preamble';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/home/home';
 import Dashboard from './pages/Dashboard/Dashboard';
 import LoginPage from './pages/Login/Login';
@@ -64,6 +65,8 @@ function App() {
 
 createRoot(document.getElementById('app')).render(
     <React.StrictMode>
-        <App />
+        <ErrorBoundary>
+            <App />
+        </ErrorBoundary>
     </React.StrictMode>
 );

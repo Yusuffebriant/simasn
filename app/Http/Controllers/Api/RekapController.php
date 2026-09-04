@@ -23,6 +23,21 @@ class RekapController extends Controller
     |--------------------------------------------------------------------------
     */
 
+    public function dashboardJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.dashboard.{$periode}",
+            now()->addMinutes(10),
+            function () use ($periode) {
+                return (new RekapService())->rekapDashboard($periode);
+            }
+        );
+
+        return response()->json($data);
+    }
+
     public function agamaJson(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
@@ -164,4 +179,4 @@ class RekapController extends Controller
             "rekap-eselon-golongan-gender-{$periode}.xlsx"
         );
     }
-}
+} 
