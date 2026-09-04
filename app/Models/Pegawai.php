@@ -18,7 +18,7 @@ class Pegawai extends Model
         'nip', 'nama', 'instansi_id', 'unit', 'sub_unit',
         'jenis_kelamin', 'status_kepegawaian',
         'golongan_ruang_id', 'eselon_id', 'agama_id', 'pendidikan_id',
-        'jabatan', 'tanggal_lahir', 'tmt_pangkat', 'tanggal_pensiun',
+        'jabatan', 'jenis_kedudukan', 'tanggal_lahir', 'tmt_pangkat', 'tanggal_pensiun',
         'status_aktif', 'raw_import_id',
     ];
 

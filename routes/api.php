@@ -6,12 +6,28 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PegawaiController;
 use App\Http\Controllers\Api\ReferensiController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\StatistikPejabatStrukturalController;
+use App\Http\Controllers\Api\StatistikPejabatFungsionalController;
+
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
+
+    // STATISTIK PEJABAT STRUKTURAL
+    Route::get('/statistik/pejabat-struktural', [
+        StatistikPejabatStrukturalController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pejabat-fungsional', [
+        StatistikPejabatFungsionalController::class,
+        'index'
+    ]);
+
+    
     // =========================================================
     // AUTH
     // =========================================================

@@ -56,7 +56,7 @@ class RekapJabatanExport implements FromArray, WithEvents
 
                 $sheet->setCellValue('A1', 'REKAPITULASI ASN PEMERINTAH DAERAH KAB/KOTA PEMERINTAH KOTA YOGYAKARTA');
                 $sheet->setCellValue('A2', 'DIPERINCI MENURUT JABATAN');
-                $sheet->setCellValue('A3', 'KEADAAN AGUSTUS ' . $this->formatPeriode($this->periode));
+                $sheet->setCellValue('A3', 'KEADAAN ' . $this->formatPeriode($this->periode));
                 $sheet->mergeCells('A1:L1');
                 $sheet->mergeCells('A2:L2');
                 $sheet->mergeCells('A3:L3');
