@@ -5,6 +5,8 @@ function Setting() {
     const {
         accounts,
         totalAccounts,
+        loading,
+        error,
         searchTerm,
         setSearchTerm,
         openMenu,
@@ -30,7 +32,7 @@ function Setting() {
             {/* Topbar */}
             <div className="px-9 pt-6">
                 <h1 className="inline-block text-3xl font-extrabold pb-3 border-b-[3px] border-[#D4A017]">
-                    Setting
+                    Settings
                 </h1>
             </div>
 
@@ -42,6 +44,12 @@ function Setting() {
                         Tambahkan akun baru untuk pegawai BKPSDM yang membutuhkan akses ke sistem.
                     </p>
                 </div>
+
+                {error && (
+                    <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
+                        {error}
+                    </div>
+                )}
 
                 {/* Tambah akun */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6 shadow-sm">
@@ -66,7 +74,7 @@ function Setting() {
                                     </svg>
                                     <input
                                         type="text"
-                                        placeholder="Contoh: Siti Aminah"
+                                        placeholder="Contoh: Amanda Zahra"
                                         value={newAccount.name}
                                         onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
                                         className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-[#006A4E] focus:ring-4 focus:ring-[#E6F2EE] transition"
@@ -131,7 +139,7 @@ function Setting() {
                                 <line x1="12" y1="16" x2="12" y2="12" />
                                 <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            Akun baru akan menerima email verifikasi
+                            Akun baru langsung aktif dan bisa dipakai login
                         </div>
 
                         <button
@@ -168,7 +176,11 @@ function Setting() {
                         </div>
                     </div>
 
-                    {accounts.length === 0 ? (
+                    {loading ? (
+                        <div className="px-6 py-10 text-center">
+                            <p className="text-sm text-gray-400">Memuat akun...</p>
+                        </div>
+                    ) : accounts.length === 0 ? (
                         <div className="px-6 py-10 text-center">
                             <p className="text-sm text-gray-400">
                                 {searchTerm ? "Akun tidak ditemukan." : "Belum ada akun terdaftar."}
@@ -177,7 +189,7 @@ function Setting() {
                     ) : (
                         accounts.map((acc) => (
                             <div
-                                key={acc.email}
+                                key={acc.id}
                                 className="flex items-center gap-3.5 px-6 py-4 border-b border-gray-200 last:border-b-0"
                             >
                                 <div className="w-9 h-9 rounded-full bg-[#E6F2EE] text-[#006A4E] text-xs font-bold flex items-center justify-center shrink-0">
@@ -187,19 +199,10 @@ function Setting() {
                                     <p className="text-sm font-semibold">{acc.name}</p>
                                     <p className="text-xs text-gray-500">{acc.email}</p>
                                 </div>
-                                <span
-                                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
-                                        acc.role === "Admin"
-                                            ? "bg-[#FBF1DC] text-[#92720F]"
-                                            : "bg-[#E6F2EE] text-[#00543D]"
-                                    }`}
-                                >
-                                    {acc.role}
-                                </span>
                                 <div className="relative shrink-0">
                                     <button
                                         type="button"
-                                        onClick={() => toggleMenu(acc.email)}
+                                        onClick={() => toggleMenu(acc.id)}
                                         className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100"
                                     >
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -209,7 +212,7 @@ function Setting() {
                                         </svg>
                                     </button>
 
-                                    {openMenu === acc.email && (
+                                    {openMenu === acc.id && (
                                         <>
                                             <div className="fixed inset-0 z-10" onClick={closeMenu} />
                                             <div className="absolute right-0 top-8 z-20 w-36 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
@@ -226,7 +229,7 @@ function Setting() {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleDelete(acc.email, acc.name)}
+                                                    onClick={() => handleDelete(acc.id, acc.name)}
                                                     className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-[#C0392B] hover:bg-red-50 transition"
                                                 >
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -273,15 +276,16 @@ function Setting() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold mb-1.5">Role</label>
-                                <select
-                                    value={editing.role}
-                                    onChange={(e) => setEditing({ ...editing, role: e.target.value })}
-                                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#006A4E] focus:ring-4 focus:ring-[#E6F2EE] transition bg-white"
-                                >
-                                    <option value="Admin">Admin</option>
-                                    <option value="Staff">Staff</option>
-                                </select>
+                                <label className="block text-xs font-semibold mb-1.5">
+                                    Password Baru <span className="text-gray-400 font-normal">(opsional)</span>
+                                </label>
+                                <input
+                                    type="password"
+                                    placeholder="Kosongkan jika tidak ingin mengubah"
+                                    value={editing.password || ""}
+                                    onChange={(e) => setEditing({ ...editing, password: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#006A4E] focus:ring-4 focus:ring-[#E6F2EE] transition"
+                                />
                             </div>
                         </div>
 

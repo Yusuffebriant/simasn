@@ -1,8 +1,5 @@
-import { useState } from "react";
-
-const initialAccounts = [
-    { initials: "RW", name: "Rina Wulandari", email: "rina.wulandari@bkpsdm.jogjakota.go.id", role: "Admin" },
-];
+import { useEffect, useState } from "react";
+import { apiFetch } from "../../lib/api";
 
 function getInitials(name) {
     return name
@@ -15,74 +12,137 @@ function getInitials(name) {
 }
 
 export default function useAccounts() {
-    const [accounts, setAccounts] = useState(initialAccounts);
+    const [rawAccounts, setRawAccounts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     const [openMenu, setOpenMenu] = useState(null);
     const [editing, setEditing] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [newAccount, setNewAccount] = useState({ name: "", email: "", password: "" });
     const [searchTerm, setSearchTerm] = useState("");
 
-    const filteredAccounts = accounts.filter((acc) => {
-        const keyword = searchTerm.trim().toLowerCase();
-        if (!keyword) return true;
-        return (
-            acc.name.toLowerCase().includes(keyword) ||
-            acc.email.toLowerCase().includes(keyword)
-        );
-    });
+    async function loadAccounts() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await apiFetch("/users");
+            if (!res.ok) throw new Error("Gagal memuat akun.");
+            const json = await res.json();
+            setRawAccounts(json.data || []);
+        } catch (err) {
+            setError(err.message || "Gagal memuat akun.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        loadAccounts();
+    }, []);
+
+    const accounts = rawAccounts
+        .filter((acc) => {
+            const keyword = searchTerm.trim().toLowerCase();
+            if (!keyword) return true;
+            return (
+                acc.name.toLowerCase().includes(keyword) ||
+                acc.email.toLowerCase().includes(keyword)
+            );
+        })
+        .map((acc) => ({
+            ...acc,
+            initials: getInitials(acc.name),
+        }));
 
     // ---- Tambah akun ----
-    const handleAddAccount = (e) => {
+    const handleAddAccount = async (e) => {
         e.preventDefault();
         if (!newAccount.name || !newAccount.email || !newAccount.password) return;
 
-        setAccounts((prev) => [
-            ...prev,
-            {
-                initials: getInitials(newAccount.name),
-                name: newAccount.name,
-                email: newAccount.email,
-                role: "Staff",
-            },
-        ]);
-
-        setNewAccount({ name: "", email: "", password: "" });
-        setShowPassword(false);
+        setError(null);
+        try {
+            const res = await apiFetch("/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newAccount),
+            });
+            const json = await res.json();
+            if (!res.ok) {
+                throw new Error(json.message || "Gagal menambah akun.");
+            }
+            setRawAccounts((prev) => [...prev, json.data]);
+            setNewAccount({ name: "", email: "", password: "" });
+            setShowPassword(false);
+        } catch (err) {
+            setError(err.message || "Gagal menambah akun.");
+        }
     };
 
     // ---- Hapus akun ----
-    const handleDelete = (email, name) => {
+    const handleDelete = async (id, name) => {
         const yakin = window.confirm(`Hapus akun "${name}"? Tindakan ini tidak bisa dibatalkan.`);
         if (!yakin) return;
-        setAccounts((prev) => prev.filter((acc) => acc.email !== email));
-        setOpenMenu(null);
+
+        setError(null);
+        try {
+            const res = await apiFetch(`/users/${id}`, { method: "DELETE" });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.message || "Gagal menghapus akun.");
+            setRawAccounts((prev) => prev.filter((acc) => acc.id !== id));
+            setOpenMenu(null);
+        } catch (err) {
+            setError(err.message || "Gagal menghapus akun.");
+        }
     };
 
     // ---- Edit akun ----
     const startEdit = (acc) => {
-        setEditing({ ...acc, originalEmail: acc.email });
+        setEditing({ ...acc, password: "" });
         setOpenMenu(null);
     };
 
     const cancelEdit = () => setEditing(null);
 
-    const saveEdit = () => {
-        setAccounts((prev) =>
-            prev.map((acc) => (acc.email === editing.originalEmail ? editing : acc))
-        );
-        setEditing(null);
+    const saveEdit = async () => {
+        if (!editing) return;
+        setError(null);
+        try {
+            const payload = {
+                name: editing.name,
+                email: editing.email,
+            };
+            if (editing.password) payload.password = editing.password;
+
+            const res = await apiFetch(`/users/${editing.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.message || "Gagal menyimpan perubahan.");
+
+            setRawAccounts((prev) =>
+                prev.map((acc) => (acc.id === editing.id ? json.data : acc))
+            );
+            setEditing(null);
+        } catch (err) {
+            setError(err.message || "Gagal menyimpan perubahan.");
+        }
     };
 
     // ---- Menu titik-tiga ----
-    const toggleMenu = (email) => setOpenMenu((prev) => (prev === email ? null : email));
+    const toggleMenu = (id) => setOpenMenu((prev) => (prev === id ? null : id));
     const closeMenu = () => setOpenMenu(null);
 
     // ---- Toggle lihat password ----
     const togglePasswordVisibility = () => setShowPassword((v) => !v);
 
     return {
-        accounts: filteredAccounts,
-        totalAccounts: accounts.length,
+        accounts,
+        totalAccounts: rawAccounts.length,
+        loading,
+        error,
         searchTerm,
         setSearchTerm,
         openMenu,
