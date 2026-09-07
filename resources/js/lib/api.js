@@ -38,6 +38,21 @@ export function isLoggedIn() {
     return !!getToken();
 }
 
+// Role user yang sedang login diambil dari user.roles (array/collection
+// hasil getRoleNames() waktu login). Sistem ini pakai 1 role per akun,
+// jadi cukup ambil elemen pertama.
+export function getUserRole() {
+    const user = getUser();
+    if (!user || !user.roles) return null;
+    const roles = Array.isArray(user.roles) ? user.roles : Object.values(user.roles);
+    return roles.length > 0 ? roles[0] : null;
+}
+
+export function hasRole(...allowedRoles) {
+    const role = getUserRole();
+    return !!role && allowedRoles.includes(role);
+}
+
 export function clearAuth() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

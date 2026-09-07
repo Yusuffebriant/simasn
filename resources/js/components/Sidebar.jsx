@@ -1,4 +1,4 @@
-import { isLoggedIn, getUser, clearAuth, apiFetch } from "../lib/api";
+import { isLoggedIn, getUser, clearAuth, apiFetch, hasRole } from "../lib/api";
 
 // Sidebar dipakai di halaman publik (/) maupun halaman terproteksi
 // (/dashboard, /admin). Link "Admin" selalu mengarah ke /admin — kalau
@@ -42,27 +42,31 @@ function Sidebar() {
 
             <nav className="mt-5 flex-1">
 
-                <a
-                    href="/"
+                
+                 <a   href="/"
                     className="block px-6 py-3 hover:bg-white/20"
                 >
                     Dashboard
                 </a>
 
 
-                <a
-                    href="/admin"
-                    className="block px-6 py-3 hover:bg-white/20"
-                >
-                    Admin
-                </a>
+                {hasRole("admin") && (
+                    
+                     <a   href="/admin"
+                        className="block px-6 py-3 hover:bg-white/20"
+                    >
+                        Admin
+                    </a>
+                )}
 
-                <a 
-                    href="/setting"
-                    className="block px-6 py-3 hover:bg-white/20"
-                >
-                    Settings
-                </a>
+                {hasRole("admin") && (
+                    
+                     <a   href="/setting"
+                        className="block px-6 py-3 hover:bg-white/20"
+                    >
+                        Settings
+                    </a>
+                )}
 
             </nav>
 
@@ -84,8 +88,8 @@ function Sidebar() {
                         </button>
                     </>
                 ) : (
-                    <a
-                        href="/login"
+                    
+                     <a   href="/login"
                         className="block text-center w-full text-sm font-semibold border border-white/40 rounded-lg py-2 hover:bg-white/10"
                     >
                         Masuk sebagai Admin

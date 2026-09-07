@@ -89,8 +89,9 @@ export default function LoginPage() {
       setToken(data.token);
       if (data.user) setUser(data.user);
 
-      // Kembali ke halaman yang tadi mau diakses (mis. /admin),
-      // default ke /admin kalau tidak ada tujuan spesifik.
+      // Kembali ke halaman yang tadi mau diakses (mis. /admin), atau
+      // default ke /admin — satu-satunya akun yang bisa login adalah admin
+      // (viewer melihat dashboard tanpa login, jadi tidak lewat sini).
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get("redirect") || "/admin";
       window.location.assign(redirect);
