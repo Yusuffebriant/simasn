@@ -14,6 +14,15 @@ use App\Http\Controllers\Api\StatistikPejabatFungsionalController;
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1');
 
+// =========================================================
+// PUBLIC — tidak butuh login
+// =========================================================
+
+Route::get('/rekap/dashboard', [
+    RekapController::class,
+    'dashboardJson'
+]);
+
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
 
@@ -96,11 +105,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     // =========================================================
     // REKAP JSON
     // =========================================================
-
-    Route::get('/rekap/dashboard', [
-        RekapController::class,
-        'dashboardJson'
-    ]);
 
     Route::get('/rekap/agama', [
         RekapController::class,

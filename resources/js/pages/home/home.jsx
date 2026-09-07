@@ -17,11 +17,10 @@ function Home() {
     const displayName = user?.name || user?.email;
 
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(loggedIn);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (!loggedIn) return;
 
         let cancelled = false;
 
@@ -54,7 +53,7 @@ function Home() {
         return () => {
             cancelled = true;
         };
-    }, [loggedIn]);
+    }, []);
 
     return (
         <div className="flex min-h-screen bg-[#F5F7FA]">
@@ -93,22 +92,13 @@ function Home() {
                     </a>
                 </div>
 
-                {!loggedIn && (
-                    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                        <LockedStatCard title="Total Pegawai" />
-                        <LockedStatCard title="Jabatan Struktural" />
-                        <LockedStatCard title="JFU" />
-                        <LockedStatCard title="Instansi" />
-                    </div>
-                )}
-
-                {loggedIn && error && (
+                {error && (
                     <div className="bg-white border border-[#F3C6C6] text-[#B42318] rounded-xl p-5 mb-6">
                         {error}
                     </div>
                 )}
 
-                {loggedIn && loading && !data && (
+                {loading && !data && (
                     <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
                         <LockedStatCard title="Total Pegawai" loading />
                         <LockedStatCard title="Jabatan Struktural" loading />
@@ -117,7 +107,7 @@ function Home() {
                     </div>
                 )}
 
-                {loggedIn && data && (
+                {data && (
                     <>
                         {/* Total Pegawai */}
                         <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>

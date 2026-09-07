@@ -8,6 +8,7 @@ use App\Models\Pendidikan;
 use App\Models\Agama;
 use App\Models\Instansi;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class PegawaiNormalizer
 {
@@ -341,18 +342,75 @@ class PegawaiNormalizer
             : $val;
     }
 
+    /**
+     * Konversi nilai tanggal mentah dari Excel menjadi string 'Y-m-d'.
+     *
+     * FIX (lihat riwayat bug "semua pegawai tanggal_lahir = 1970-01-01"):
+     * Sebelumnya method ini hanya memanggil Carbon::parse($val) langsung.
+     * Kalau kolom tanggal di Excel diformat sebagai "Number" (bukan
+     * "Date"), Maatwebsite Excel mengirim nilai mentah berupa SERIAL
+     * NUMBER (mis. 25567), bukan string tanggal. Carbon::parse() pada
+     * angka semacam itu tidak melempar exception — dia malah
+     * menginterpretasikannya sebagai timestamp/format lain yang salah
+     * dan hasilnya konsisten jatuh ke Unix Epoch (1970-01-01). Karena
+     * kolom tanggal_lahir nullable tanpa default DB, nilai yang salah
+     * itu (bukan NULL) yang akhirnya tersimpan — makanya SEMUA baris
+     * kena, bukan cuma sebagian.
+     *
+     * Fix ini menangani 3 bentuk input secara eksplisit:
+     *  1) Object tanggal (kadang sudah dikembalikan oleh Maatwebsite)
+     *  2) Serial number Excel (angka) -> dikonversi lewat
+     *     PhpSpreadsheet's ExcelDate, bukan Carbon::parse()
+     *  3) String tanggal biasa ("1990-05-14", "14/05/1990", dst)
+     *
+     * Ditambah guard: kalau hasil parse tetap jatuh ke 1970-01-01
+     * padahal input mentahnya sama sekali tidak menyebut "1970",
+     * dianggap gagal parse -> return null. Ini sengaja lebih
+     * konservatif: data kosong (NULL) di database jauh lebih mudah
+     * dideteksi & diperbaiki lewat re-import ketimbang data yang
+     * terlihat "valid" tapi sebenarnya salah.
+     */
     private function toDate($val): ?string
     {
-        if (!$val) {
+        if ($val === null || $val === '' || $val === '-') {
             return null;
         }
 
+        // Kasus 1: sudah berupa object tanggal.
         if ($val instanceof \DateTimeInterface) {
             return Carbon::instance($val)->format('Y-m-d');
         }
 
+        // Kasus 2: serial number Excel (kolom diformat sebagai Number).
+        // Range aman: > 0 (setelah 31 Des 1899) dan < 60000 (~tahun 2064),
+        // supaya angka lain yang salah masuk kolom ini (mis. NIK) tidak
+        // dipaksakan jadi tanggal.
+        if (is_numeric($val)) {
+            $num = (float) $val;
+
+            if ($num > 0 && $num < 60000) {
+                try {
+                    return ExcelDate::excelToDateTimeObject($num)
+                        ->format('Y-m-d');
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        // Kasus 3: string tanggal biasa.
         try {
-            return Carbon::parse($val)->format('Y-m-d');
+            $tanggal = Carbon::parse($val);
+
+            // Guard anti-epoch-diam-diam.
+            if ($tanggal->format('Y-m-d') === '1970-01-01'
+                && !str_contains((string) $val, '1970')) {
+                return null;
+            }
+
+            return $tanggal->format('Y-m-d');
         } catch (\Throwable $e) {
             return null;
         }

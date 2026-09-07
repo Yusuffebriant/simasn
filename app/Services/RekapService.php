@@ -421,21 +421,35 @@ class RekapService
             }
 
             if ($row->tanggal_lahir) {
-                $tahun = (int) $row->tanggal_lahir->format('Y');
+    $tgl = trim((string) $row->tanggal_lahir);
 
-                $g = match (true) {
-                    $tahun >= 1946 && $tahun <= 1964 => 'Baby Boomer',
-                    $tahun >= 1965 && $tahun <= 1980 => 'Generasi X',
-                    $tahun >= 1981 && $tahun <= 1996 => 'Generasi Y',
-                    $tahun >= 1997 && $tahun <= 2012 => 'Generasi Z',
-                    default => null,
-                };
+    $tahun = null;
 
-                if ($g) {
-                    $generasi[$g][$isPria ? 'pria' : 'wanita']++;
-                }
-            }
+    // Format: YYYY-MM-DD / YYYY-MM-DD HH:MM:SS
+    if (preg_match('/^(\d{4})[-\/]/', $tgl, $matches)) {
+        $tahun = (int) $matches[1];
+    }
 
+    // Format: DD/MM/YYYY atau DD-MM-YYYY
+    elseif (preg_match('/^\d{1,2}[-\/]\d{1,2}[-\/](\d{4})/', $tgl, $matches)) {
+        $tahun = (int) $matches[1];
+    }
+
+    // Jika tahun berhasil dibaca, klasifikasikan
+    if ($tahun !== null) {
+        $g = match (true) {
+            $tahun >= 1946 && $tahun <= 1964 => 'Baby Boomer',
+            $tahun >= 1965 && $tahun <= 1980 => 'Generasi X',
+            $tahun >= 1981 && $tahun <= 1996 => 'Generasi Y',
+            $tahun >= 1997 && $tahun <= 2012 => 'Generasi Z',
+            default => null,
+        };
+
+        if ($g) {
+            $generasi[$g][$isPria ? 'pria' : 'wanita']++;
+        }
+    }
+}
             if (!$row->golongan_kode) {
                 $golonganGroup['BELUM DIISI']++;
             } elseif ($row->golongan_kelompok === 'PPPK') {
@@ -624,30 +638,6 @@ class RekapService
         ];
     }
 
-    /**
-     * Statistik Pejabat Fungsional (Umum & Tertentu) per jenis kelamin.
-     *
-     * Sumber klasifikasi: pegawai.jenis_kedudukan
-     *   'PELAKSANA'  => Fungsional Umum
-     *   'FUNGSIONAL' => Fungsional Tertentu
-     *   'STRUKTURAL' / NULL => sengaja TIDAK dihitung di sini (struktural
-     *   sudah dihitung terpisah di statistikPejabatStruktural(); NULL berarti
-     *   data belum diklasifikasi / belum backfill).
-     *
-     * PENTING: kolom jenis_kedudukan pada data production saat ini masih
-     * NULL untuk pegawai lama sampai proses backfill/re-import selesai
-     * dijalankan. Method ini akan mengembalikan 0 untuk fungsional_umum &
-     * fungsional_tertentu sampai backfill itu selesai — ini BUKAN bug di
-     * query.
-     *
-     * Breakdown Dosen/Guru/Medis/Teknis: lihat method rumpunJabatanFungsional()
-     * di bawah — berbasis pencocokan teks pegawai.jabatan yang sudah
-     * divalidasi terhadap data nyata dan angka referensi BKPSDM.
-     *
-     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
-     * periode/tahun), dipertahankan untuk konsistensi dengan method
-     * statistikPejabatStruktural() dan rekap* lainnya.
-     */
     public function statistikPejabatFungsional(?string $periode = null): array
     {
         $rows = Pegawai::query()
@@ -708,26 +698,7 @@ class RekapService
         ];
     }
 
-    /**
-     * Klasifikasi pegawai jenis_kedudukan='FUNGSIONAL' ke rumpun
-     * Dosen / Guru / Medis / Teknis, berdasarkan teks pegawai.jabatan.
-     *
-     * Mapping ini didapat dari menganalisis 196 judul jabatan nyata pada
-     * data pegawai, dan hasil hitungnya sudah dicocokkan ke angka
-     * referensi BKPSDM 2024/2025 (Medis ~167-176, Guru ~280-337,
-     * Teknis ~284-318, Dosen=0).
-     *
-     * Definisi "Teknis" = SEMUA jabatan fungsional tertentu yang BUKAN
-     * Dosen/Guru/Medis (rumpun campuran: Analis, Pranata Komputer,
-     * Auditor, Arsiparis, Pustakawan, Perencana, Polisi Pamong Praja,
-     * Pemadam Kebakaran, dll).
-     *
-     * RISIKO: karena berbasis pencocokan teks (bukan kolom master data),
-     * judul jabatan BARU yang belum pernah muncul di data akan otomatis
-     * masuk kategori Teknis (default/catch-all) kalau tidak diawali
-     * "GURU", tidak mengandung "DOSEN", dan tidak ada di daftar keyword
-     * medis di bawah.
-     */
+    
     protected function rumpunJabatanFungsional(): array
     {
         $medisKeywords = [

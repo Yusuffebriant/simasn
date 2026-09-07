@@ -3,7 +3,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/home/home';
-import Dashboard from './pages/Dashboard/Dashboard';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
 
@@ -36,15 +35,6 @@ function App() {
         return <LoginPage />;
     }
 
-    // "/dashboard" — versi dashboard lengkap dengan data user (protected).
-    if (path === '/dashboard') {
-        if (!isLoggedIn()) {
-            window.location.replace(withRedirectTo('/dashboard'));
-            return null;
-        }
-        return <Dashboard />;
-    }
-
     // "/admin" — hanya boleh diakses setelah login. Ini yang dipicu
     // saat user klik "Admin" di sidebar dari halaman publik.
     if (path === '/admin') {
@@ -54,7 +44,7 @@ function App() {
         }
         return <Admin />;
     }
-    
+
     if (path === "/setting") {
         return <Setting />;
     }
