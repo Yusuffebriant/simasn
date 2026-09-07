@@ -27,18 +27,16 @@ class RoleSeeder extends Seeder
                 $role->delete();                    // role lama dihapus dari tabel roles
             }
         }
-        // Jaga-jaga supaya instalasi baru tidak berakhir dengan akun tanpa
-        // role sama sekali (yang bikin semua fitur ke-block middleware role).
-        // Kalau belum ada satupun user yang punya role, jadikan user paling
-        // lama terdaftar sebagai admin.
-        $adaUserBerRole = User::query()->whereHas('roles')->exists();
+        // Jaga-jaga supaya tidak ada akun yang "nyangkut" tanpa role sama
+        // sekali (yang bikin menu Admin & Settings hilang walau sudah login),
+        // misalnya akun lama dari sebelum Spatie Permission dipasang, atau
+        // akun yang dibuat lewat seeder/tinker tanpa syncRoles().
+        // Semua akun yang belum punya role apapun otomatis dijadikan admin,
+        // karena sistem ini memang cuma mengenal satu jenis akun login: admin.
+        $userTanpaRole = User::query()->whereDoesntHave('roles')->get();
 
-        if (!$adaUserBerRole) {
-            $userPertama = User::query()->oldest('id')->first();
-
-            if ($userPertama) {
-                $userPertama->syncRoles(['admin']);
-            }
+        foreach ($userTanpaRole as $user) {
+            $user->syncRoles(['admin']);
         }
     }
 }

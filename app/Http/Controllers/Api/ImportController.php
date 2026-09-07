@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessPegawaiImport;
 use App\Models\ImportBatch;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreImportRequest;
@@ -71,9 +72,12 @@ class ImportController extends Controller
      */
     protected function authorizeBatch(ImportBatch $batch): void
     {
+        /** @var User|null $user */
         $user = Auth::user();
 
-        if ($user->hasRole('super-admin')) {
+        abort_if(!$user, 403, 'Anda harus login untuk mengakses ini.');
+
+        if ($user->hasRole('admin')) {
             return;
         }
 
