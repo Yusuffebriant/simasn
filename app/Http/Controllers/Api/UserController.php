@@ -34,8 +34,9 @@ class UserController extends Controller
 
     /**
      * POST /api/users — tambah akun baru.
-     * Semua akun yang dibuat lewat sini otomatis berperan sebagai admin
-     * (viewer tidak punya akun karena dashboard-nya sudah publik).
+     * Role 'admin' sudah tidak dipakai lagi. Setiap akun baru langsung
+     * dapat kedua role sekaligus: super-admin + admin-instansi (levelnya
+     * sama, tidak dibedakan dari instansi_id).
      */
     public function store(Request $request)
     {
@@ -53,7 +54,7 @@ class UserController extends Controller
             'instansi_id' => $validated['instansi_id'] ?? null,
         ]);
 
-        $user->syncRoles(['admin']);
+        $user->syncRoles(['super-admin', 'admin-instansi']);
 
         return response()->json([
             'message' => 'Akun berhasil ditambahkan.',

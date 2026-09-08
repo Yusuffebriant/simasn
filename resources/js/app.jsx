@@ -17,8 +17,13 @@ function withRedirectTo(path) {
 // Setelah login berhasil / saat akun mencoba buka halaman yang bukan
 // haknya, arahkan ke halaman "rumah" sesuai role-nya masing-masing.
 // "/" (Home) itulah dashboard-nya — tidak ada halaman /dashboard terpisah.
+// Role 'admin' sudah tidak dipakai lagi. Kendali diambil alih oleh
+// super-admin (akses semua instansi) dan admin-instansi (akses instansi
+// sendiri) — keduanya berhak masuk /admin dan /setting.
+const ADMIN_ROLES = ['super-admin', 'admin-instansi'];
+
 function homeFor(role) {
-    if (role === 'admin') return '/admin';
+    if (ADMIN_ROLES.includes(role)) return '/admin';
     return '/';
 }
 
@@ -43,27 +48,27 @@ function App() {
         return <LoginPage />;
     }
 
-    // "/admin" — hanya boleh diakses role admin.
+    // "/admin" — boleh diakses role admin, super-admin, admin-instansi.
     // Viewer TIDAK boleh masuk sini, dilempar balik ke "/" (Home/dashboard).
     if (path === '/admin') {
         if (!isLoggedIn()) {
             window.location.replace(withRedirectTo('/admin'));
             return null;
         }
-        if (!hasRole('admin')) {
+        if (!hasRole(...ADMIN_ROLES)) {
             window.location.replace('/');
             return null;
         }
         return <Admin />;
     }
 
-    // "/setting" — hanya boleh diakses role admin.
+    // "/setting" — boleh diakses role admin, super-admin, admin-instansi.
     if (path === '/setting') {
         if (!isLoggedIn()) {
             window.location.replace(withRedirectTo('/setting'));
             return null;
         }
-        if (!hasRole('admin')) {
+        if (!hasRole(...ADMIN_ROLES)) {
             window.location.replace(homeFor(getUserRole()));
             return null;
         }
