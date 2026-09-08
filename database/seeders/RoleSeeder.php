@@ -9,34 +9,38 @@ use Illuminate\Database\Seeder;
 class RoleSeeder extends Seeder
 {
     /**
-     * Sistem ini cuma pakai 2 role:
-     * - viewer : cuma boleh lihat dashboard
-     * - admin  : boleh lihat dashboard, akses Admin, dan akses Settings
+     * Role 'admin' SUDAH TIDAK DIPAKAI LAGI di sistem ini. Kendali yang
+     * dulu dipegang admin sekarang diambil alih oleh super-admin dan
+     * admin-instansi — keduanya levelnya SAMA (bukan dibedakan dari
+     * instansi_id).
+     *
+     * User yang masih ke-assign role 'admin' (dari data lama) dipindah ke
+     * KEDUA role sekaligus (super-admin + admin-instansi), lalu role
+     * 'admin' dihapus dari tabel roles.
      */
     public function run(): void
     {
-        Role::firstOrCreate(['name' => 'admin']);
+        Role::firstOrCreate(['name' => 'super-admin']);
+        Role::firstOrCreate(['name' => 'admin-instansi']);
+        Role::firstOrCreate(['name' => 'viewer']);
 
-        $roleLama = Role::whereIn('name', ['super-admin', 'admin-instansi', 'viewer'])->get();
+        $roleAdminLama = Role::where('name', 'admin')->first();
 
-        if ($roleLama->isNotEmpty()) {
-            foreach ($roleLama as $role) {
-                foreach ($role->users as $user) {
-                    $user->syncRoles(['admin']);   // user yang masih ke-assign role lama → jadi admin
-                }
-                $role->delete();                    // role lama dihapus dari tabel roles
+        if ($roleAdminLama) {
+            foreach ($roleAdminLama->users as $user) {
+                $user->syncRoles(['super-admin', 'admin-instansi']);
             }
+            $roleAdminLama->delete();
         }
+
         // Jaga-jaga supaya tidak ada akun yang "nyangkut" tanpa role sama
         // sekali (yang bikin menu Admin & Settings hilang walau sudah login),
         // misalnya akun lama dari sebelum Spatie Permission dipasang, atau
         // akun yang dibuat lewat seeder/tinker tanpa syncRoles().
-        // Semua akun yang belum punya role apapun otomatis dijadikan admin,
-        // karena sistem ini memang cuma mengenal satu jenis akun login: admin.
         $userTanpaRole = User::query()->whereDoesntHave('roles')->get();
 
         foreach ($userTanpaRole as $user) {
-            $user->syncRoles(['admin']);
+            $user->syncRoles(['super-admin', 'admin-instansi']);
         }
     }
 }

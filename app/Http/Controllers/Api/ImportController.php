@@ -77,7 +77,9 @@ class ImportController extends Controller
 
         abort_if(!$user, 403, 'Anda harus login untuk mengakses ini.');
 
-        if ($user->hasRole('admin')) {
+        // role admin sudah tidak dipakai; super-admin & admin-instansi
+        // yang sekarang punya akses penuh ke semua batch import.
+        if ($user->hasAnyRole(['super-admin', 'admin-instansi'])) {
             return;
         }
 

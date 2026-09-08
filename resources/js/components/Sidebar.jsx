@@ -50,7 +50,7 @@ function Sidebar() {
                 </a>
 
 
-                {hasRole("admin") && (
+                {hasRole("super-admin", "admin-instansi") && (
                     
                      <a   href="/admin"
                         className="block px-6 py-3 hover:bg-white/20"
@@ -59,7 +59,7 @@ function Sidebar() {
                     </a>
                 )}
 
-                {hasRole("admin") && (
+                {hasRole("super-admin", "admin-instansi") && (
                     
                      <a   href="/setting"
                         className="block px-6 py-3 hover:bg-white/20"

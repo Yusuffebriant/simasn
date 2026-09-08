@@ -46,10 +46,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     // =========================================================
-    // ADMIN + SETTINGS — hanya role admin
+    // ADMIN + SETTINGS — role admin SUDAH TIDAK DIPAKAI.
+    // Kendali diambil alih oleh super-admin dan admin-instansi.
     // =========================================================
 
-    Route::middleware(['role:admin'])->group(function () {
+    Route::middleware(['role:super-admin|admin-instansi'])->group(function () {
 
         Route::get('/periode/aktif', [PeriodeController::class, 'aktif']);
 
