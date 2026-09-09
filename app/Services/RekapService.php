@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Log;
 
 class RekapService
 {
-    public function rekapAgama(?string $periode = null): array
+
+public function rekapAgama(?string $periode = null): array
     {
         $agamaList = ['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha'];
 
@@ -64,7 +65,7 @@ class RekapService
         return array_values($perInstansi);
     }
 
-    public function rekapPendidikan(?string $periode = null): array
+public function rekapPendidikan(?string $periode = null): array
     {
         // Sesuai laporan final: 10 kategori, tanpa kolom "BELUM DIISI".
         $pendidikanList = [
@@ -162,7 +163,7 @@ class RekapService
         return array_values($perInstansi);
     }
 
-    public function rekapGolongan(?string $periode = null): array
+public function rekapGolongan(?string $periode = null): array
     {
         $golonganList = [
             'I/a', 'I/b', 'I/c', 'I/d',
@@ -273,7 +274,7 @@ class RekapService
         return array_values($perInstansi);
     }
 
-    public function rekapJabatan(?string $periode = null): array
+public function rekapJabatan(?string $periode = null): array
     {
         // Klasifikasi Fungsional Umum vs Fungsional Tertentu memakai
         // pegawai.jenis_kedudukan langsung (nilai: 'FUNGSIONAL',
@@ -343,7 +344,7 @@ class RekapService
         return array_values($perInstansi);
     }
 
-    /**
+/**
      * Ringkasan dashboard: total pegawai, jabatan (struktural/JFU/JFT),
      * distribusi generasi, golongan, dan pendidikan — semuanya dari satu
      * query (tidak N+1).
@@ -414,42 +415,34 @@ class RekapService
             } elseif ($jenisKedudukan === 'FUNGSIONAL') {
                 $jft++;
             } else {
-                // 'PELAKSANA', 'STRUKTURAL' (eselon kosong/tidak baku), NULL,
-                // atau varian lain masuk default ke JFU — sama seperti
-                // rekapJabatan(), supaya konsisten di seluruh service ini.
                 $jfu++;
             }
 
             if ($row->tanggal_lahir) {
-    $tgl = trim((string) $row->tanggal_lahir);
+                $tgl = trim((string) $row->tanggal_lahir);
+                $tahun = null;
 
-    $tahun = null;
+                if (preg_match('/^(\d{4})[-\/]/', $tgl, $matches)) {
+                    $tahun = (int) $matches[1];
+                } elseif (preg_match('/^\d{1,2}[-\/]\d{1,2}[-\/](\d{4})/', $tgl, $matches)) {
+                    $tahun = (int) $matches[1];
+                }
 
-    // Format: YYYY-MM-DD / YYYY-MM-DD HH:MM:SS
-    if (preg_match('/^(\d{4})[-\/]/', $tgl, $matches)) {
-        $tahun = (int) $matches[1];
-    }
+                if ($tahun !== null) {
+                    $g = match (true) {
+                        $tahun >= 1946 && $tahun <= 1964 => 'Baby Boomer',
+                        $tahun >= 1965 && $tahun <= 1980 => 'Generasi X',
+                        $tahun >= 1981 && $tahun <= 1996 => 'Generasi Y',
+                        $tahun >= 1997 && $tahun <= 2012 => 'Generasi Z',
+                        default => null,
+                    };
 
-    // Format: DD/MM/YYYY atau DD-MM-YYYY
-    elseif (preg_match('/^\d{1,2}[-\/]\d{1,2}[-\/](\d{4})/', $tgl, $matches)) {
-        $tahun = (int) $matches[1];
-    }
+                    if ($g) {
+                        $generasi[$g][$isPria ? 'pria' : 'wanita']++;
+                    }
+                }
+            }
 
-    // Jika tahun berhasil dibaca, klasifikasikan
-    if ($tahun !== null) {
-        $g = match (true) {
-            $tahun >= 1946 && $tahun <= 1964 => 'Baby Boomer',
-            $tahun >= 1965 && $tahun <= 1980 => 'Generasi X',
-            $tahun >= 1981 && $tahun <= 1996 => 'Generasi Y',
-            $tahun >= 1997 && $tahun <= 2012 => 'Generasi Z',
-            default => null,
-        };
-
-        if ($g) {
-            $generasi[$g][$isPria ? 'pria' : 'wanita']++;
-        }
-    }
-}
             if (!$row->golongan_kode) {
                 $golonganGroup['BELUM DIISI']++;
             } elseif ($row->golongan_kelompok === 'PPPK') {
@@ -518,7 +511,7 @@ class RekapService
         ];
     }
 
-    public function rekapEselonGolonganGender(?string $periode = null): array
+public function rekapEselonGolonganGender(?string $periode = null): array
     {
         $golonganList = ['III/a','III/b','III/c','III/d','IV/a','IV/b','IV/c','IV/d','IV/e'];
         $eselonList = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
@@ -565,187 +558,7 @@ class RekapService
         return array_values($perEselon);
     }
 
-    /**
-     * Statistik Pejabat Struktural (Eselon II/III/IV) per jenis kelamin.
-     *
-     * Pejabat struktural ditentukan dari eselon.kode (bukan
-     * pegawai.jenis_kedudukan) karena kolom jenis_kedudukan pada data
-     * production saat ini masih NULL untuk pegawai lama (belum backfill).
-     * eselon.kode sudah terbukti akurat di rekapJabatan()/rekapEselonGolonganGender().
-     *
-     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
-     * periode/tahun) — parameter dipertahankan untuk konsistensi dengan
-     * method rekap* lain di service ini.
-     */
-    public function statistikPejabatStruktural(?string $periode = null): array
-    {
-        $eselonMap = [
-            'II A' => 'II', 'II B' => 'II',
-            'III A' => 'III', 'III B' => 'III',
-            'IV A' => 'IV', 'IV B' => 'IV',
-        ];
-
-        $rows = Pegawai::query()
-            ->join('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
-            ->select(
-                'eselon.kode as eselon_kode',
-                'pegawai.jenis_kelamin',
-                DB::raw('COUNT(*) as jumlah')
-            )
-            ->where('pegawai.status_aktif', 'aktif')
-            ->whereIn('eselon.kode', array_keys($eselonMap))
-            ->groupBy('eselon.kode', 'pegawai.jenis_kelamin')
-            ->get();
-
-        $agregat = [
-            'II' => ['laki_laki' => 0, 'perempuan' => 0],
-            'III' => ['laki_laki' => 0, 'perempuan' => 0],
-            'IV' => ['laki_laki' => 0, 'perempuan' => 0],
-        ];
-
-        foreach ($rows as $row) {
-            $tingkat = $eselonMap[$row->eselon_kode] ?? null;
-
-            if (!$tingkat) {
-                continue;
-            }
-
-            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
-            $agregat[$tingkat][$gender] += (int) $row->jumlah;
-        }
-
-        $totalII = $agregat['II']['laki_laki'] + $agregat['II']['perempuan'];
-        $totalIII = $agregat['III']['laki_laki'] + $agregat['III']['perempuan'];
-        $totalIV = $agregat['IV']['laki_laki'] + $agregat['IV']['perempuan'];
-
-        return [
-            'jumlah_pejabat_struktural' => $totalII + $totalIII + $totalIV,
-            'eselon_ii' => [
-                'total' => $totalII,
-                'laki_laki' => $agregat['II']['laki_laki'],
-                'perempuan' => $agregat['II']['perempuan'],
-            ],
-            'eselon_iii' => [
-                'total' => $totalIII,
-                'laki_laki' => $agregat['III']['laki_laki'],
-                'perempuan' => $agregat['III']['perempuan'],
-            ],
-            'eselon_iv' => [
-                'total' => $totalIV,
-                'laki_laki' => $agregat['IV']['laki_laki'],
-                'perempuan' => $agregat['IV']['perempuan'],
-            ],
-        ];
-    }
-
-    public function statistikPejabatFungsional(?string $periode = null): array
-    {
-        $rows = Pegawai::query()
-            ->select(
-                'jenis_kedudukan',
-                'jenis_kelamin',
-                DB::raw('COUNT(*) as jumlah')
-            )
-            ->where('status_aktif', 'aktif')
-            ->groupBy('jenis_kedudukan', 'jenis_kelamin')
-            ->get();
-
-        $umum = ['laki_laki' => 0, 'perempuan' => 0];
-        $tertentu = ['laki_laki' => 0, 'perempuan' => 0];
-
-        foreach ($rows as $row) {
-            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
-            $jumlah = (int) $row->jumlah;
-
-            if ($row->jenis_kedudukan === 'PELAKSANA') {
-                $umum[$gender] += $jumlah;
-            } elseif ($row->jenis_kedudukan === 'FUNGSIONAL') {
-                $tertentu[$gender] += $jumlah;
-            }
-            // 'STRUKTURAL' dan NULL sengaja diabaikan, lihat docblock.
-        }
-
-        $totalUmum = $umum['laki_laki'] + $umum['perempuan'];
-        $totalTertentu = $tertentu['laki_laki'] + $tertentu['perempuan'];
-
-        $rumpun = $this->rumpunJabatanFungsional();
-
-        return [
-            'jumlah_fungsional_umum' => $totalUmum,
-            'fungsional_umum' => [
-                'total' => $totalUmum,
-                'laki_laki' => $umum['laki_laki'],
-                'perempuan' => $umum['perempuan'],
-            ],
-            'jumlah_fungsional_tertentu' => $totalTertentu,
-            'fungsional_tertentu' => [
-                'total' => $totalTertentu,
-                'laki_laki' => $tertentu['laki_laki'],
-                'perempuan' => $tertentu['perempuan'],
-            ],
-            'fungsional_tertentu_laki_laki' => [
-                'dosen' => $rumpun['dosen']['laki_laki'],
-                'guru' => $rumpun['guru']['laki_laki'],
-                'medis' => $rumpun['medis']['laki_laki'],
-                'teknis' => $rumpun['teknis']['laki_laki'],
-            ],
-            'fungsional_tertentu_perempuan' => [
-                'dosen' => $rumpun['dosen']['perempuan'],
-                'guru' => $rumpun['guru']['perempuan'],
-                'medis' => $rumpun['medis']['perempuan'],
-                'teknis' => $rumpun['teknis']['perempuan'],
-            ],
-        ];
-    }
-
-    
-    protected function rumpunJabatanFungsional(): array
-    {
-        $medisKeywords = [
-            'DOKTER', 'PERAWAT', 'BIDAN', 'APOTEKER', 'PEREKAM MEDIS',
-            'PRANATA LABORATORIUM KESEHATAN', 'NUTRISIONIS', 'EPIDEMIOLOG',
-            'ADMINISTRATOR KESEHATAN', 'PENYULUH KESEHATAN', 'RADIOGRAFER',
-            'TEKNISI TRANSFUSI DARAH', 'SANITARIAN', 'TERAPIS GIGI',
-            'MEDIK VETERINER', 'PARAMEDIK VETERINER', 'PROMOSI KESEHATAN',
-            'SANITASI LINGKUNGAN', 'FISIOTERAPIS', 'FISIKAWAN MEDIS',
-            'PSIKOLOG KLINIS', 'TEKNISI ELEKTROMEDIS', 'TERAPIS WICARA',
-            'PENATA ANESTESI', 'OKUPASI TERAPIS', 'PEMBIMBING KESEHATAN KERJA',
-        ];
-
-        $rows = Pegawai::query()
-            ->select('jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
-            ->where('status_aktif', 'aktif')
-            ->where('jenis_kedudukan', 'FUNGSIONAL')
-            ->groupBy('jabatan', 'jenis_kelamin')
-            ->get();
-
-        $rumpun = [
-            'dosen' => ['laki_laki' => 0, 'perempuan' => 0],
-            'guru' => ['laki_laki' => 0, 'perempuan' => 0],
-            'medis' => ['laki_laki' => 0, 'perempuan' => 0],
-            'teknis' => ['laki_laki' => 0, 'perempuan' => 0],
-        ];
-
-        foreach ($rows as $row) {
-            $jabatan = strtoupper(trim((string) $row->jabatan));
-            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
-            $jumlah = (int) $row->jumlah;
-
-            if (str_starts_with($jabatan, 'GURU')) {
-                $rumpun['guru'][$gender] += $jumlah;
-            } elseif (str_contains($jabatan, 'DOSEN')) {
-                $rumpun['dosen'][$gender] += $jumlah;
-            } elseif ($this->containsAny($jabatan, $medisKeywords)) {
-                $rumpun['medis'][$gender] += $jumlah;
-            } else {
-                $rumpun['teknis'][$gender] += $jumlah;
-            }
-        }
-
-        return $rumpun;
-    }
-
-    private function containsAny(string $haystack, array $needles): bool
+private function containsAny(string $haystack, array $needles): bool
     {
         foreach ($needles as $needle) {
             if (str_contains($haystack, $needle)) {

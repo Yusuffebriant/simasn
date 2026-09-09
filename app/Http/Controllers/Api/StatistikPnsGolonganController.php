@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\StatistikService;  
+use App\Services\StatistikService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class StatistikPejabatStrukturalController extends Controller
+class StatistikPnsGolonganController extends Controller
 {
     public function __construct(protected StatistikService $statistikService)
     {
@@ -17,7 +17,7 @@ class StatistikPejabatStrukturalController extends Controller
     {
         $periode = $request->query('periode');
 
-        $data = $this->statistikService->statistikPejabatStruktural($periode);
+        $data = $this->statistikService->statistikPnsGolongan($periode);
 
         return response()->json([
             'data' => $data,
