@@ -9,6 +9,20 @@ use App\Http\Controllers\Api\ReferensiController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\StatistikPejabatStrukturalController;
 use App\Http\Controllers\Api\StatistikPejabatFungsionalController;
+use App\Http\Controllers\Api\StatistikPnsGolonganController;
+use App\Http\Controllers\Api\StatistikPppkGolonganController;
+use App\Http\Controllers\Api\StatistikAsnPendidikanController;
+use App\Http\Controllers\Api\StatistikPnsPendidikanController;
+use App\Http\Controllers\Api\StatistikStafDinasPendidikanController;
+use App\Http\Controllers\Api\StatistikPejabatStrukturalDinasController;
+use App\Http\Controllers\Api\StatistikPejabatFungsionalDinasController;
+use App\Http\Controllers\Api\StatistikPensiunanDinasController;
+use App\Http\Controllers\Api\StatistikAsnPerangkatDaerahJenisKelaminController;
+use App\Http\Controllers\Api\StatistikPenjabatPerangkatDaerahController; 
+use App\Http\Controllers\Api\StatistikAsnKemantrenPendidikanController;   
+use App\Http\Controllers\Api\StatistikPnsKemantrenPendidikanController;
+use App\Http\Controllers\Api\StatistikPppkKemantrenPendidikanController;
+use App\Http\Controllers\Api\StatistikPensiunanPNSController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -37,6 +51,85 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         StatistikPejabatFungsionalController::class,
         'index'
     ]);
+
+    Route::get('/statistik/pejabat-fungsional-dinas', [
+        StatistikPejabatFungsionalDinasController::class,
+        'index'
+    ]); 
+
+    Route::get('/statistik/pensiunan-dinas', [
+        StatistikPensiunanDinasController::class,
+        'index'
+    ]); 
+
+    Route::get('/statistik/penjabat-perangkat-daerah', [
+        StatistikPenjabatPerangkatDaerahController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/asn-kemantren-pendidikan', [
+        StatistikAsnKemantrenPendidikanController::class,
+        'index'
+    ]);
+    
+    Route::get('/statistik/pns-kemantren-pendidikan', [
+        StatistikPnsKemantrenPendidikanController::class,
+        'index'
+    ]); 
+     
+    Route::get('/statistik/pppk-kemantren-pendidikan', [
+        StatistikPppkKemantrenPendidikanController::class,
+        'insdex'
+    ]); 
+
+    // =========================================================
+    // STATISTIK ASN BERDASARKAN JENIS DAN PENDIDIKAN
+    // =========================================================
+
+    Route::get('/statistik/pns-golongan', [
+        StatistikPnsGolonganController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pppk-golongan', [
+        StatistikPppkGolonganController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/asn-pendidikan', [
+        StatistikAsnPendidikanController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pns-pendidikan', [
+        StatistikPnsPendidikanController::class,
+        'index'
+    ]); 
+
+    Route::get('/statistik/staf-dinas/pendidikan', [
+        StatistikStafDinasPendidikanController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pejabat-struktural-dinas', [
+        StatistikPejabatStrukturalDinasController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/asn-perangkat-daerah-jenis-kelamin', [
+        StatistikAsnPerangkatDaerahJenisKelaminController::class,
+        'index'
+    ]);
+
+    // =========================================================
+    // STATISTIK PENSIUN
+    // =========================================================
+
+    Route::get('/statistik/pensiunan-pns', [
+        StatistikPensiunanPNSController::class,
+        'index'
+    ]);
+
 
     // =========================================================
     // AUTH — boleh diakses semua user yang sudah login

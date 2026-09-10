@@ -7,9 +7,9 @@ use App\Services\StatistikService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class StatistikPejabatFungsionalController extends Controller
+class StatistikPppkKemantrenPendidikanController extends Controller
 {
-    public function __construct(protected StatistikService $statistikService)
+    public function __construct(private StatistikService $statistikService)
     {
     }
 
@@ -17,10 +17,8 @@ class StatistikPejabatFungsionalController extends Controller
     {
         $periode = $request->query('periode');
 
-        $data = $this->StatistikService->statistikPejabatFungsional($periode);
-
-        return response()->json([
-            'data' => $data,
-        ]);
+        return response()->json(
+            $this->statistikService->statistikPppkKemantrenPendidikan($periode)
+        );
     }
 }
