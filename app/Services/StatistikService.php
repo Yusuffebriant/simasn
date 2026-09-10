@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 class StatistikService
 {
 
-/**
+    /**
      * Statistik Pejabat Struktural (Eselon II/III/IV) per jenis kelamin.
      *
      * Pejabat struktural ditentukan dari eselon.kode (bukan
@@ -24,9 +24,12 @@ class StatistikService
     public function statistikPejabatStruktural(?string $periode = null): array
     {
         $eselonMap = [
-            'II A' => 'II', 'II B' => 'II',
-            'III A' => 'III', 'III B' => 'III',
-            'IV A' => 'IV', 'IV B' => 'IV',
+            'II A' => 'II',
+            'II B' => 'II',
+            'III A' => 'III',
+            'III B' => 'III',
+            'IV A' => 'IV',
+            'IV B' => 'IV',
         ];
 
         $rows = Pegawai::query()
@@ -82,7 +85,7 @@ class StatistikService
         ];
     }
 
-public function statistikPejabatFungsional(?string $periode = null): array
+    public function statistikPejabatFungsional(?string $periode = null): array
     {
         $rows = Pegawai::query()
             ->select(
@@ -146,109 +149,110 @@ public function statistikPejabatFungsional(?string $periode = null): array
         ];
     }
 
-/**
-     * Helper: hitung jumlah pegawai per rumpun Jabatan Fungsional Tertentu
-     * (Dosen, Guru, Auditor, P2UPD, Medis, Teknis), dipecah per jenis kelamin.
+    /**
+     * Hitung jumlah PNS per jabatan fungsional berdasarkan rumpun jabatan (dosen, guru, medis, teknis) dan jenis kelamin.
      *
-     * BUG SEBELUMNYA: method ini DIPANGGIL oleh statistikPejabatFungsional()
-     * tapi TIDAK PERNAH DIDEFINISIKAN di service ini ("Call to undefined
-     * method"), itu sebabnya endpoint /statistik/pejabat-fungsional selalu
-     * error 500. Implementasi di bawah ini pertama kali dibuat sekarang,
-     * memakai pendekatan yang sama seperti klasifikasi jabatan lain di file
-     * ini (LIKE UPPER(TRIM(pegawai.jabatan))), dibatasi hanya pegawai aktif
-     * dengan jenis_kedudukan = 'FUNGSIONAL'.
-     *
-     * PENTING — kata kunci per rumpun di bawah ini masih PERLU DIKONFIRMASI
-     * terhadap penamaan jabatan yang sebenarnya ada di database kamu:
-     * - dosen   : jabatan mengandung "DOSEN"
-     * - guru    : jabatan mengandung "GURU"
-     * - auditor : jabatan mengandung "AUDITOR"
-     * - p2upd   : jabatan mengandung "P2UPD" atau "PENGAWAS PENYELENGGARAAN
-     *             URUSAN PEMERINTAHAN DAERAH"
-     * - medis   : jabatan mengandung salah satu dari DOKTER, PERAWAT, BIDAN,
-     *             APOTEKER, NUTRISIONIS, SANITARIAN (rumpun tenaga kesehatan)
-     * - teknis  : bucket "sisa" — semua pegawai FUNGSIONAL yang tidak masuk
-     *             5 kategori di atas
-     *
-     * Kalau daftar kata kunci ini tidak cocok dengan jabatan riil di database
-     * kamu, kabari saya supaya saya sesuaikan.
+     * @return array
      */
     protected function rumpunJabatanFungsional(): array
     {
-        $hitung = function (callable $queryCallback) {
-            $query = Pegawai::query()
-                ->where('status_aktif', 'aktif')
-                ->whereRaw('UPPER(TRIM(jenis_kedudukan)) = ?', ['FUNGSIONAL']);
-
-            $queryCallback($query);
-
-            $lakiLaki = (clone $query)->where('jenis_kelamin', 'L')->count();
-            $perempuan = (clone $query)->where('jenis_kelamin', 'P')->count();
-
-            return [
-                'laki_laki' => $lakiLaki,
-                'perempuan' => $perempuan,
-            ];
-        };
-
-        $dosen = $hitung(function ($q) {
-            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%DOSEN%']);
-        });
-
-        $guru = $hitung(function ($q) {
-            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%GURU%']);
-        });
-
-        $auditor = $hitung(function ($q) {
-            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%AUDITOR%']);
-        });
-
-        $p2upd = $hitung(function ($q) {
-            $q->where(function ($qq) {
-                $qq->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%P2UPD%'])
-                    ->orWhereRaw(
-                        'UPPER(TRIM(jabatan)) LIKE ?',
-                        ['%PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN DAERAH%']
-                    );
-            });
-        });
-
-        $medis = $hitung(function ($q) {
-            $q->where(function ($qq) {
-                $qq->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%DOKTER%'])
-                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%PERAWAT%'])
-                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%BIDAN%'])
-                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%APOTEKER%'])
-                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%NUTRISIONIS%'])
-                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%SANITARIAN%']);
-            });
-        });
-
-        $teknis = $hitung(function ($q) {
-            $q->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%DOSEN%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%GURU%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%AUDITOR%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%P2UPD%'])
-                ->whereRaw(
-                    'UPPER(TRIM(jabatan)) NOT LIKE ?',
-                    ['%PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN DAERAH%']
-                )
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%DOKTER%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%PERAWAT%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%BIDAN%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%APOTEKER%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%NUTRISIONIS%'])
-                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%SANITARIAN%']);
-        });
-
-        return [
-            'dosen' => $dosen,
-            'guru' => $guru,
-            'auditor' => $auditor,
-            'p2upd' => $p2upd,
-            'medis' => $medis,
-            'teknis' => $teknis,
+        $medisKeywords = [
+            'DOKTER',
+            'PERAWAT',
+            'BIDAN',
+            'APOTEKER',
+            'PEREKAM MEDIS',
+            'PRANATA LABORATORIUM KESEHATAN',
+            'NUTRISIONIS',
+            'EPIDEMIOLOG',
+            'ADMINISTRATOR KESEHATAN',
+            'PENYULUH KESEHATAN',
+            'RADIOGRAFER',
+            'TEKNISI TRANSFUSI DARAH',
+            'SANITARIAN',
+            'TERAPIS GIGI',
+            'MEDIK VETERINER',
+            'PARAMEDIK VETERINER',
+            'PROMOSI KESEHATAN',
+            'SANITASI LINGKUNGAN',
+            'FISIOTERAPIS',
+            'FISIKAWAN MEDIS',
+            'PSIKOLOG KLINIS',
+            'TEKNISI ELEKTROMEDIS',
+            'TERAPIS WICARA',
+            'PENATA ANESTESI',
+            'OKUPASI TERAPIS',
+            'PEMBIMBING KESEHATAN KERJA',
         ];
+
+        // FIX: kata kunci P2UPD ditulis lengkap plus singkatannya, supaya
+        // menangkap varian penulisan "Pengawas Penyelenggaraan Urusan
+        // Pemerintahan di Daerah (Pengawas Pemerintah)" maupun kalau suatu
+        // saat ditulis singkat "P2UPD" saja.
+        $p2updKeywords = [
+            'PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN',
+            'P2UPD',
+        ];
+
+        $rows = Pegawai::query()
+            ->select('jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
+            ->where('status_aktif', 'aktif')
+            ->where('jenis_kedudukan', 'FUNGSIONAL')
+            ->groupBy('jabatan', 'jenis_kelamin')
+            ->get();
+
+        // FIX: tambahkan key 'auditor' dan 'p2upd' yang sebelumnya hilang
+        // dari inisialisasi — inilah penyebab "Undefined array key" dan
+        // nilainya jadi null/0 di statistikPejabatFungsional().
+        $rumpun = [
+            'dosen' => ['laki_laki' => 0, 'perempuan' => 0],
+            'guru' => ['laki_laki' => 0, 'perempuan' => 0],
+            'auditor' => ['laki_laki' => 0, 'perempuan' => 0],
+            'p2upd' => ['laki_laki' => 0, 'perempuan' => 0],
+            'medis' => ['laki_laki' => 0, 'perempuan' => 0],
+            'teknis' => ['laki_laki' => 0, 'perempuan' => 0],
+        ];
+
+        foreach ($rows as $row) {
+            $jabatan = strtoupper(trim((string) $row->jabatan));
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+            $jumlah = (int) $row->jumlah;
+
+            // FIX: cek P2UPD dan AUDITOR dulu SEBELUM medisKeywords/else,
+            // supaya tidak ke-fallback ke 'teknis' seperti sebelumnya.
+            if (str_starts_with($jabatan, 'GURU')) {
+                $rumpun['guru'][$gender] += $jumlah;
+            } elseif (str_contains($jabatan, 'DOSEN')) {
+                $rumpun['dosen'][$gender] += $jumlah;
+            } elseif ($this->containsAny($jabatan, $p2updKeywords)) {
+                $rumpun['p2upd'][$gender] += $jumlah;
+            } elseif (str_starts_with($jabatan, 'AUDITOR')) {
+                $rumpun['auditor'][$gender] += $jumlah;
+            } elseif ($this->containsAny($jabatan, $medisKeywords)) {
+                $rumpun['medis'][$gender] += $jumlah;
+            } else {
+                $rumpun['teknis'][$gender] += $jumlah;
+            }
+        }
+
+        return $rumpun;
+    }
+    /**
+     * Cek apakah string mengandung salah satu dari string dalam array
+     *
+     * @param string $haystack String yang akan dicari
+     * @param array $needles Array of strings to search for
+     * @return bool
+     */
+    private function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if (str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -367,7 +371,7 @@ public function statistikPejabatFungsional(?string $periode = null): array
         ];
     }
 
-/**
+    /**
      * Statistik PNS berdasarkan Golongan (I-IV) dan jenis kelamin, dengan
      * rincian per kode golongan spesifik (I/a, I/b, dst — IV/a s.d. IV/e).
      *
@@ -454,7 +458,7 @@ public function statistikPejabatFungsional(?string $periode = null): array
         return $hasil;
     }
 
-/**
+    /**
      * Statistik PPPK berdasarkan Golongan (I-XI) dan jenis kelamin.
      *
      * Hanya golongan_ruang.kelompok = 'PPPK' yang dihitung. Semua 11
@@ -517,7 +521,7 @@ public function statistikPejabatFungsional(?string $periode = null): array
         return $hasil;
     }
 
-/**
+    /**
      * Statistik ASN (PNS + PPPK digabung) berdasarkan tingkat pendidikan
      * dan jenis kelamin.
      *
@@ -629,613 +633,613 @@ public function statistikPejabatFungsional(?string $periode = null): array
         return $hasil;
     }
 
-/**
- * Statistik PNS berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
- *
- * Scope: 5.03.009
- *
- * Hanya PNS aktif yang dihitung.
- * Mapping pendidikan mengikuti mapping pada statistikAsnPendidikan().
- */
-public function statistikPnsPendidikan(?string $periode = null): array
-{
-    $pendidikanList = [
-        'SD',
-        'SLTP',
-        'SLTA',
-        'D I',
-        'D II',
-        'D III',
-        'D IV',
-        'S1',
-        'S2',
-        'S3',
-    ];
-
-    $keyMap = [
-        'SD'   => 'sd',
-        'SLTP' => 'smp',
-        'SLTA' => 'sma',
-        'D I'  => 'diploma_i',
-        'D II' => 'diploma_ii',
-        'D III' => 'diploma_iii',
-        'D IV' => 'diploma_iv',
-        'S1'   => 'strata_1',
-        'S2'   => 'strata_2',
-        'S3'   => 'strata_3',
-    ];
-
-    $rows = Pegawai::query()
-        ->leftJoin(
-            'pendidikan',
-            'pendidikan.id',
-            '=',
-            'pegawai.pendidikan_id'
-        )
-        ->select(
-            'pendidikan.jenjang as pendidikan_nama',
-            'pegawai.jenis_kelamin',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.status_kepegawaian', 'PNS')
-        ->groupBy(
-            'pendidikan.jenjang',
-            'pegawai.jenis_kelamin'
-        )
-        ->get();
-
-    $agregat = [];
-
-    foreach ($pendidikanList as $jenjang) {
-        $agregat[$jenjang] = [
-            'laki_laki' => 0,
-            'perempuan' => 0,
-        ];
-    }
-
-    $tidakDikenali = 0;
-
-    foreach ($rows as $row) {
-        $raw = $row->pendidikan_nama
-            ? strtoupper(trim($row->pendidikan_nama))
-            : null;
-
-        $jenjang = $raw ? match ($raw) {
+    /**
+     * Statistik PNS berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
+     *
+     * Scope: 5.03.009
+     *
+     * Hanya PNS aktif yang dihitung.
+     * Mapping pendidikan mengikuti mapping pada statistikAsnPendidikan().
+     */
+    public function statistikPnsPendidikan(?string $periode = null): array
+    {
+        $pendidikanList = [
             'SD',
-            'SEKOLAH DASAR'
+            'SLTP',
+            'SLTA',
+            'D I',
+            'D II',
+            'D III',
+            'D IV',
+            'S1',
+            'S2',
+            'S3',
+        ];
+
+        $keyMap = [
+            'SD'   => 'sd',
+            'SLTP' => 'smp',
+            'SLTA' => 'sma',
+            'D I'  => 'diploma_i',
+            'D II' => 'diploma_ii',
+            'D III' => 'diploma_iii',
+            'D IV' => 'diploma_iv',
+            'S1'   => 'strata_1',
+            'S2'   => 'strata_2',
+            'S3'   => 'strata_3',
+        ];
+
+        $rows = Pegawai::query()
+            ->leftJoin(
+                'pendidikan',
+                'pendidikan.id',
+                '=',
+                'pegawai.pendidikan_id'
+            )
+            ->select(
+                'pendidikan.jenjang as pendidikan_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->groupBy(
+                'pendidikan.jenjang',
+                'pegawai.jenis_kelamin'
+            )
+            ->get();
+
+        $agregat = [];
+
+        foreach ($pendidikanList as $jenjang) {
+            $agregat[$jenjang] = [
+                'laki_laki' => 0,
+                'perempuan' => 0,
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $raw = $row->pendidikan_nama
+                ? strtoupper(trim($row->pendidikan_nama))
+                : null;
+
+            $jenjang = $raw ? match ($raw) {
+                'SD',
+                'SEKOLAH DASAR'
                 => 'SD',
 
-            'SMP',
-            'SLTP'
+                'SMP',
+                'SLTP'
                 => 'SLTP',
 
-            'SMA',
-            'SMK',
-            'SMA/SMK',
-            'SLTA',
-            'SLTA KEJURUAN'
+                'SMA',
+                'SMK',
+                'SMA/SMK',
+                'SLTA',
+                'SLTA KEJURUAN'
                 => 'SLTA',
 
-            'D1',
-            'D-1',
-            'D I',
-            'DIPLOMA I'
+                'D1',
+                'D-1',
+                'D I',
+                'DIPLOMA I'
                 => 'D I',
 
-            'D2',
-            'D-2',
-            'D II',
-            'DIPLOMA II'
+                'D2',
+                'D-2',
+                'D II',
+                'DIPLOMA II'
                 => 'D II',
 
-            'D3',
-            'D-3',
-            'D III',
-            'DIPLOMA III/SARJANA'
+                'D3',
+                'D-3',
+                'D III',
+                'DIPLOMA III/SARJANA'
                 => 'D III',
 
-            'D4',
-            'D-4',
-            'D IV',
-            'D4/S1',
-            'DIPLOMA IV'
+                'D4',
+                'D-4',
+                'D IV',
+                'D4/S1',
+                'DIPLOMA IV'
                 => 'D IV',
 
-            'S1',
-            'S-1',
-            'S-1/SARJANA',
-            'SARJANA'
+                'S1',
+                'S-1',
+                'S-1/SARJANA',
+                'SARJANA'
                 => 'S1',
 
-            'S2',
-            'S-2',
-            'S-2/MAGISTER'
+                'S2',
+                'S-2',
+                'S-2/MAGISTER'
                 => 'S2',
 
-            'S3',
-            'S-3',
-            'S-3/DOKTOR'
+                'S3',
+                'S-3',
+                'S-3/DOKTOR'
                 => 'S3',
 
-            default => null,
-        } : null;
+                default => null,
+            } : null;
 
-        if ($jenjang === null) {
-            $tidakDikenali += (int) $row->jumlah;
-            continue;
+            if ($jenjang === null) {
+                $tidakDikenali += (int) $row->jumlah;
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L'
+                ? 'laki_laki'
+                : 'perempuan';
+
+            $agregat[$jenjang][$gender] += (int) $row->jumlah;
         }
 
-        $gender = $row->jenis_kelamin === 'L'
-            ? 'laki_laki'
-            : 'perempuan';
-
-        $agregat[$jenjang][$gender] += (int) $row->jumlah;
-    }
-
-    $hasil = [
-        'jumlah_pns' => 0,
-    ];
-
-    foreach ($agregat as $jenjang => $gender) {
-        $total = $gender['laki_laki'] + $gender['perempuan'];
-
-        $key = $keyMap[$jenjang];
-
-        $hasil[$key] = [
-            'total' => $total,
-            'laki_laki' => $gender['laki_laki'],
-            'perempuan' => $gender['perempuan'],
+        $hasil = [
+            'jumlah_pns' => 0,
         ];
 
-        $hasil['jumlah_pns'] += $total;
+        foreach ($agregat as $jenjang => $gender) {
+            $total = $gender['laki_laki'] + $gender['perempuan'];
+
+            $key = $keyMap[$jenjang];
+
+            $hasil[$key] = [
+                'total' => $total,
+                'laki_laki' => $gender['laki_laki'],
+                'perempuan' => $gender['perempuan'],
+            ];
+
+            $hasil['jumlah_pns'] += $total;
+        }
+
+        $hasil['tidak_dikenali'] = $tidakDikenali;
+
+        return $hasil;
     }
 
-    $hasil['tidak_dikenali'] = $tidakDikenali;
-
-    return $hasil;
-}
-
-/**
- * Statistik PPPK berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
- *
- * Scope: 5.03.010
- *
- * Hanya PPPK aktif yang dihitung.
- */
-public function statistikPppkPendidikan(?string $periode = null): array
-{
-    $pendidikanList = [
-        'SD',
-        'SLTP',
-        'SLTA',
-        'D I',
-        'D II',
-        'D III',
-        'D IV',
-        'S1',
-        'S2',
-        'S3',
-    ];
-
-    $keyMap = [
-        'SD'   => 'sd',
-        'SLTP' => 'smp',
-        'SLTA' => 'sma',
-        'D I'  => 'diploma_i',
-        'D II' => 'diploma_ii',
-        'D III' => 'diploma_iii',
-        'D IV' => 'diploma_iv',
-        'S1'   => 'strata_1',
-        'S2'   => 'strata_2',
-        'S3'   => 'strata_3',
-    ];
-
-    $rows = Pegawai::query()
-        ->leftJoin(
-            'pendidikan',
-            'pendidikan.id',
-            '=',
-            'pegawai.pendidikan_id'
-        )
-        ->select(
-            'pendidikan.jenjang as pendidikan_nama',
-            'pegawai.jenis_kelamin',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.status_kepegawaian', 'PPPK')
-        ->groupBy(
-            'pendidikan.jenjang',
-            'pegawai.jenis_kelamin'
-        )
-        ->get();
-
-    $agregat = [];
-
-    foreach ($pendidikanList as $jenjang) {
-        $agregat[$jenjang] = [
-            'laki_laki' => 0,
-            'perempuan' => 0,
-        ];
-    }
-
-    $tidakDikenali = 0;
-
-    foreach ($rows as $row) {
-        $raw = $row->pendidikan_nama
-            ? strtoupper(trim($row->pendidikan_nama))
-            : null;
-
-        $jenjang = $raw ? match ($raw) {
+    /**
+     * Statistik PPPK berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
+     *
+     * Scope: 5.03.010
+     *
+     * Hanya PPPK aktif yang dihitung.
+     */
+    public function statistikPppkPendidikan(?string $periode = null): array
+    {
+        $pendidikanList = [
             'SD',
-            'SEKOLAH DASAR'
+            'SLTP',
+            'SLTA',
+            'D I',
+            'D II',
+            'D III',
+            'D IV',
+            'S1',
+            'S2',
+            'S3',
+        ];
+
+        $keyMap = [
+            'SD'   => 'sd',
+            'SLTP' => 'smp',
+            'SLTA' => 'sma',
+            'D I'  => 'diploma_i',
+            'D II' => 'diploma_ii',
+            'D III' => 'diploma_iii',
+            'D IV' => 'diploma_iv',
+            'S1'   => 'strata_1',
+            'S2'   => 'strata_2',
+            'S3'   => 'strata_3',
+        ];
+
+        $rows = Pegawai::query()
+            ->leftJoin(
+                'pendidikan',
+                'pendidikan.id',
+                '=',
+                'pegawai.pendidikan_id'
+            )
+            ->select(
+                'pendidikan.jenjang as pendidikan_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PPPK')
+            ->groupBy(
+                'pendidikan.jenjang',
+                'pegawai.jenis_kelamin'
+            )
+            ->get();
+
+        $agregat = [];
+
+        foreach ($pendidikanList as $jenjang) {
+            $agregat[$jenjang] = [
+                'laki_laki' => 0,
+                'perempuan' => 0,
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $raw = $row->pendidikan_nama
+                ? strtoupper(trim($row->pendidikan_nama))
+                : null;
+
+            $jenjang = $raw ? match ($raw) {
+                'SD',
+                'SEKOLAH DASAR'
                 => 'SD',
 
-            'SMP',
-            'SLTP'
+                'SMP',
+                'SLTP'
                 => 'SLTP',
 
-            'SMA',
-            'SMK',
-            'SMA/SMK',
-            'SLTA',
-            'SLTA KEJURUAN'
+                'SMA',
+                'SMK',
+                'SMA/SMK',
+                'SLTA',
+                'SLTA KEJURUAN'
                 => 'SLTA',
 
-            'D1',
-            'D-1',
-            'D I',
-            'DIPLOMA I'
+                'D1',
+                'D-1',
+                'D I',
+                'DIPLOMA I'
                 => 'D I',
 
-            'D2',
-            'D-2',
-            'D II',
-            'DIPLOMA II'
+                'D2',
+                'D-2',
+                'D II',
+                'DIPLOMA II'
                 => 'D II',
 
-            'D3',
-            'D-3',
-            'D III',
-            'DIPLOMA III/SARJANA'
+                'D3',
+                'D-3',
+                'D III',
+                'DIPLOMA III/SARJANA'
                 => 'D III',
 
-            'D4',
-            'D-4',
-            'D IV',
-            'D4/S1',
-            'DIPLOMA IV'
+                'D4',
+                'D-4',
+                'D IV',
+                'D4/S1',
+                'DIPLOMA IV'
                 => 'D IV',
 
-            'S1',
-            'S-1',
-            'S-1/SARJANA',
-            'SARJANA'
+                'S1',
+                'S-1',
+                'S-1/SARJANA',
+                'SARJANA'
                 => 'S1',
 
-            'S2',
-            'S-2',
-            'S-2/MAGISTER'
+                'S2',
+                'S-2',
+                'S-2/MAGISTER'
                 => 'S2',
 
-            'S3',
-            'S-3',
-            'S-3/DOKTOR'
+                'S3',
+                'S-3',
+                'S-3/DOKTOR'
                 => 'S3',
 
-            default => null,
-        } : null;
+                default => null,
+            } : null;
 
-        if ($jenjang === null) {
-            $tidakDikenali += (int) $row->jumlah;
-            continue;
+            if ($jenjang === null) {
+                $tidakDikenali += (int) $row->jumlah;
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L'
+                ? 'laki_laki'
+                : 'perempuan';
+
+            $agregat[$jenjang][$gender] += (int) $row->jumlah;
         }
 
-        $gender = $row->jenis_kelamin === 'L'
-            ? 'laki_laki'
-            : 'perempuan';
-
-        $agregat[$jenjang][$gender] += (int) $row->jumlah;
-    }
-
-    $hasil = [
-        'jumlah_pppk' => 0,
-    ];
-
-    foreach ($agregat as $jenjang => $gender) {
-        $total = $gender['laki_laki'] + $gender['perempuan'];
-
-        $key = $keyMap[$jenjang];
-
-        $hasil[$key] = [
-            'total' => $total,
-            'laki_laki' => $gender['laki_laki'],
-            'perempuan' => $gender['perempuan'],
+        $hasil = [
+            'jumlah_pppk' => 0,
         ];
 
-        $hasil['jumlah_pppk'] += $total;
+        foreach ($agregat as $jenjang => $gender) {
+            $total = $gender['laki_laki'] + $gender['perempuan'];
+
+            $key = $keyMap[$jenjang];
+
+            $hasil[$key] = [
+                'total' => $total,
+                'laki_laki' => $gender['laki_laki'],
+                'perempuan' => $gender['perempuan'],
+            ];
+
+            $hasil['jumlah_pppk'] += $total;
+        }
+
+        $hasil['tidak_dikenali'] = $tidakDikenali;
+
+        return $hasil;
     }
 
-    $hasil['tidak_dikenali'] = $tidakDikenali;
-
-    return $hasil;
-}
-
-/**
- * 5.03.011.001
- * Jumlah Staf Kantor Dinas Daerah Berdasarkan Tingkat Pendidikan
- *
- * STAF = JABATAN PELAKSANA
- * Scope hanya 18 Dinas.
- */
-public function statistikStafDinasPendidikan(?string $periode = null): array
-{
-    $dinasList = [
-        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
-        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
-        'DINAS KESEHATAN',
-        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
-        'DINAS LINGKUNGAN HIDUP',
-        'DINAS PARIWISATA',
-        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
-        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
-        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
-        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
-        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
-        'DINAS PERDAGANGAN',
-        'DINAS PERHUBUNGAN',
-        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
-        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
-        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
-        'DINAS PERTANIAN DAN PANGAN',
-        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
-    ];
-
-    $rows = Pegawai::query()
-        ->join(
-            'instansi',
-            'instansi.id',
-            '=',
-            'pegawai.instansi_id'
-        )
-        ->leftJoin(
-            'pendidikan',
-            'pendidikan.id',
-            '=',
-            'pegawai.pendidikan_id'
-        )
-        ->select(
-            'instansi.nama as instansi_nama',
-            'pendidikan.jenjang as pendidikan_nama',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
-        ->whereIn('instansi.nama', $dinasList)
-        ->groupBy(
-            'instansi.nama',
-            'pendidikan.jenjang'
-        )
-        ->get();
-
-    $hasilDinas = [];
-
-    foreach ($dinasList as $dinas) {
-        $hasilDinas[$dinas] = [
-            'sd' => 0,
-            'smp' => 0,
-            'sma' => 0,
-            'diploma' => 0,
-            'strata_1' => 0,
-            'strata_2' => 0,
-            'strata_3' => 0,
-            'tidak_dikenali' => 0,
+    /**
+     * 5.03.011.001
+     * Jumlah Staf Kantor Dinas Daerah Berdasarkan Tingkat Pendidikan
+     *
+     * STAF = JABATAN PELAKSANA
+     * Scope hanya 18 Dinas.
+     */
+    public function statistikStafDinasPendidikan(?string $periode = null): array
+    {
+        $dinasList = [
+            'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+            'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+            'DINAS KESEHATAN',
+            'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+            'DINAS LINGKUNGAN HIDUP',
+            'DINAS PARIWISATA',
+            'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+            'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+            'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+            'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+            'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+            'DINAS PERDAGANGAN',
+            'DINAS PERHUBUNGAN',
+            'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+            'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+            'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+            'DINAS PERTANIAN DAN PANGAN',
+            'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
         ];
-    }
 
-    foreach ($rows as $row) {
+        $rows = Pegawai::query()
+            ->join(
+                'instansi',
+                'instansi.id',
+                '=',
+                'pegawai.instansi_id'
+            )
+            ->leftJoin(
+                'pendidikan',
+                'pendidikan.id',
+                '=',
+                'pegawai.pendidikan_id'
+            )
+            ->select(
+                'instansi.nama as instansi_nama',
+                'pendidikan.jenjang as pendidikan_nama',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
+            ->whereIn('instansi.nama', $dinasList)
+            ->groupBy(
+                'instansi.nama',
+                'pendidikan.jenjang'
+            )
+            ->get();
 
-        $dinas = trim((string) $row->instansi_nama);
+        $hasilDinas = [];
 
-        if (!isset($hasilDinas[$dinas])) {
-            continue;
+        foreach ($dinasList as $dinas) {
+            $hasilDinas[$dinas] = [
+                'sd' => 0,
+                'smp' => 0,
+                'sma' => 0,
+                'diploma' => 0,
+                'strata_1' => 0,
+                'strata_2' => 0,
+                'strata_3' => 0,
+                'tidak_dikenali' => 0,
+            ];
         }
 
-        $raw = $row->pendidikan_nama
-            ? strtoupper(trim($row->pendidikan_nama))
-            : null;
+        foreach ($rows as $row) {
 
-        $pendidikan = match ($raw) {
+            $dinas = trim((string) $row->instansi_nama);
 
-    'SD',
-    'SEKOLAH DASAR'
-        => 'sd',
+            if (!isset($hasilDinas[$dinas])) {
+                continue;
+            }
 
-    'SMP',
-    'SLTP',
-    'SEKOLAH MENENGAH PERTAMA'
-        => 'smp',
+            $raw = $row->pendidikan_nama
+                ? strtoupper(trim($row->pendidikan_nama))
+                : null;
 
-    'SMA',
-    'SMK',
-    'SMA/SMK',
-    'SLTA',
-    'SLTA KEJURUAN',
-    'SEKOLAH MENENGAH ATAS'
-        => 'sma',
+            $pendidikan = match ($raw) {
 
-    'D1',
-    'D-1',
-    'D I',
-    'DIPLOMA I',
-    'DIPLOMA 1',
+                'SD',
+                'SEKOLAH DASAR'
+                => 'sd',
 
-    'D2',
-    'D-2',
-    'D II',
-    'DIPLOMA II',
-    'DIPLOMA 2',
+                'SMP',
+                'SLTP',
+                'SEKOLAH MENENGAH PERTAMA'
+                => 'smp',
 
-    'D3',
-    'D-3',
-    'D III',
-    'DIPLOMA III',
-    'DIPLOMA 3',
-    'DIPLOMA III/SARJANA',
+                'SMA',
+                'SMK',
+                'SMA/SMK',
+                'SLTA',
+                'SLTA KEJURUAN',
+                'SEKOLAH MENENGAH ATAS'
+                => 'sma',
 
-    'D4',
-    'D-4',
-    'D IV',
-    'DIPLOMA IV',
-    'DIPLOMA 4',
-    'D4/S1'
-        => 'diploma',
+                'D1',
+                'D-1',
+                'D I',
+                'DIPLOMA I',
+                'DIPLOMA 1',
 
-    'S1',
-    'S-1',
-    'S-1/SARJANA',
-    'SARJANA',
-    'STRATA 1'
-        => 'strata_1',
+                'D2',
+                'D-2',
+                'D II',
+                'DIPLOMA II',
+                'DIPLOMA 2',
 
-    'S2',
-    'S-2',
-    'S-2/MAGISTER',
-    'MAGISTER',
-    'STRATA 2'
-        => 'strata_2',
+                'D3',
+                'D-3',
+                'D III',
+                'DIPLOMA III',
+                'DIPLOMA 3',
+                'DIPLOMA III/SARJANA',
 
-    'S3',
-    'S-3',
-    'S-3/DOKTOR',
-    'DOKTOR',
-    'STRATA 3'
-        => 'strata_3',
+                'D4',
+                'D-4',
+                'D IV',
+                'DIPLOMA IV',
+                'DIPLOMA 4',
+                'D4/S1'
+                => 'diploma',
 
-    default => null,
-};
+                'S1',
+                'S-1',
+                'S-1/SARJANA',
+                'SARJANA',
+                'STRATA 1'
+                => 'strata_1',
 
-        if ($pendidikan === null) {
-            $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
-            continue;
+                'S2',
+                'S-2',
+                'S-2/MAGISTER',
+                'MAGISTER',
+                'STRATA 2'
+                => 'strata_2',
+
+                'S3',
+                'S-3',
+                'S-3/DOKTOR',
+                'DOKTOR',
+                'STRATA 3'
+                => 'strata_3',
+
+                default => null,
+            };
+
+            if ($pendidikan === null) {
+                $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
+                continue;
+            }
+
+            $hasilDinas[$dinas][$pendidikan] += (int) $row->jumlah;
         }
 
-        $hasilDinas[$dinas][$pendidikan] += (int) $row->jumlah;
-    }
+        $jumlahStafDinas = 0;
 
-    $jumlahStafDinas = 0;
+        foreach ($hasilDinas as &$data) {
 
-    foreach ($hasilDinas as &$data) {
+            $data['total'] =
+                $data['sd'] +
+                $data['smp'] +
+                $data['sma'] +
+                $data['diploma'] +
+                $data['strata_1'] +
+                $data['strata_2'] +
+                $data['strata_3'] +
+                $data['tidak_dikenali'];
 
-        $data['total'] =
-            $data['sd'] +
-            $data['smp'] +
-            $data['sma'] +
-            $data['diploma'] +
-            $data['strata_1'] +
-            $data['strata_2'] +
-            $data['strata_3'] +
-            $data['tidak_dikenali'];
+            $jumlahStafDinas += $data['total'];
+        }
 
-        $jumlahStafDinas += $data['total'];
-    }
+        unset($data);
 
-    unset($data);
-
-    return [
-        'jumlah_staf_dinas' => $jumlahStafDinas,
-        'jumlah_dinas' => count($dinasList),
-        'dinas' => $hasilDinas,
-    ];
-}
-
-/**
- * 5.03.011.002
- * Jumlah Staf Kantor Dinas Daerah Berdasarkan Golongan
- *
- * STAF = JABATAN PELAKSANA
- * Golongan I-IV hanya menghitung PNS.
- */
-public function statistikStafDinasGolongan(?string $periode = null): array
-{
-    $dinasList = [
-        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
-        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
-        'DINAS KESEHATAN',
-        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
-        'DINAS LINGKUNGAN HIDUP',
-        'DINAS PARIWISATA',
-        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
-        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
-        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
-        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
-        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
-        'DINAS PERDAGANGAN',
-        'DINAS PERHUBUNGAN',
-        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
-        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
-        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
-        'DINAS PERTANIAN DAN PANGAN',
-        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
-    ];
-
-    $rows = Pegawai::query()
-        ->join(
-            'instansi',
-            'instansi.id',
-            '=',
-            'pegawai.instansi_id'
-        )
-        ->leftJoin(
-            'golongan_ruang',
-            'golongan_ruang.id',
-            '=',
-            'pegawai.golongan_ruang_id'
-        )
-        ->select(
-            'instansi.nama as instansi_nama',
-            'golongan_ruang.kode as golongan_kode',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.status_kepegawaian', 'PNS')
-        ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
-        ->whereIn('instansi.nama', $dinasList)
-        ->groupBy(
-            'instansi.nama',
-            'golongan_ruang.kode'
-        )
-        ->get();
-
-    $hasilDinas = [];
-
-    foreach ($dinasList as $dinas) {
-        $hasilDinas[$dinas] = [
-            'golongan_I' => 0,
-            'golongan_II' => 0,
-            'golongan_III' => 0,
-            'golongan_IV' => 0,
-            'tidak_dikenali' => 0,
+        return [
+            'jumlah_staf_dinas' => $jumlahStafDinas,
+            'jumlah_dinas' => count($dinasList),
+            'dinas' => $hasilDinas,
         ];
     }
 
-    foreach ($rows as $row) {
+    /**
+     * 5.03.011.002
+     * Jumlah Staf Kantor Dinas Daerah Berdasarkan Golongan
+     *
+     * STAF = JABATAN PELAKSANA
+     * Golongan I-IV hanya menghitung PNS.
+     */
+    public function statistikStafDinasGolongan(?string $periode = null): array
+    {
+        $dinasList = [
+            'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+            'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+            'DINAS KESEHATAN',
+            'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+            'DINAS LINGKUNGAN HIDUP',
+            'DINAS PARIWISATA',
+            'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+            'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+            'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+            'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+            'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+            'DINAS PERDAGANGAN',
+            'DINAS PERHUBUNGAN',
+            'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+            'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+            'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+            'DINAS PERTANIAN DAN PANGAN',
+            'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
+        ];
 
-        $dinas = trim((string) $row->instansi_nama);
+        $rows = Pegawai::query()
+            ->join(
+                'instansi',
+                'instansi.id',
+                '=',
+                'pegawai.instansi_id'
+            )
+            ->leftJoin(
+                'golongan_ruang',
+                'golongan_ruang.id',
+                '=',
+                'pegawai.golongan_ruang_id'
+            )
+            ->select(
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
+            ->whereIn('instansi.nama', $dinasList)
+            ->groupBy(
+                'instansi.nama',
+                'golongan_ruang.kode'
+            )
+            ->get();
 
-        if (!isset($hasilDinas[$dinas])) {
-            continue;
+        $hasilDinas = [];
+
+        foreach ($dinasList as $dinas) {
+            $hasilDinas[$dinas] = [
+                'golongan_I' => 0,
+                'golongan_II' => 0,
+                'golongan_III' => 0,
+                'golongan_IV' => 0,
+                'tidak_dikenali' => 0,
+            ];
         }
 
-        $kode = strtoupper(trim((string) $row->golongan_kode));
+        foreach ($rows as $row) {
 
-        if ($kode === '') {
-            $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
-            continue;
-        }
+            $dinas = trim((string) $row->instansi_nama);
 
-        /*
+            if (!isset($hasilDinas[$dinas])) {
+                continue;
+            }
+
+            $kode = strtoupper(trim((string) $row->golongan_kode));
+
+            if ($kode === '') {
+                $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
+                continue;
+            }
+
+            /*
          * Contoh:
          * I/a  -> I
          * II/a -> II
@@ -1243,409 +1247,399 @@ public function statistikStafDinasGolongan(?string $periode = null): array
          * IV/a -> IV
          */
 
-        $romawi = preg_split('/[\/\s]/', $kode)[0];
+            $romawi = preg_split('/[\/\s]/', $kode)[0];
 
-        if ($romawi === 'I') {
+            if ($romawi === 'I') {
 
-            $hasilDinas[$dinas]['golongan_I'] += (int) $row->jumlah;
+                $hasilDinas[$dinas]['golongan_I'] += (int) $row->jumlah;
+            } elseif ($romawi === 'II') {
 
-        } elseif ($romawi === 'II') {
+                $hasilDinas[$dinas]['golongan_II'] += (int) $row->jumlah;
+            } elseif ($romawi === 'III') {
 
-            $hasilDinas[$dinas]['golongan_II'] += (int) $row->jumlah;
+                $hasilDinas[$dinas]['golongan_III'] += (int) $row->jumlah;
+            } elseif ($romawi === 'IV') {
 
-        } elseif ($romawi === 'III') {
+                $hasilDinas[$dinas]['golongan_IV'] += (int) $row->jumlah;
+            } else {
 
-            $hasilDinas[$dinas]['golongan_III'] += (int) $row->jumlah;
-
-        } elseif ($romawi === 'IV') {
-
-            $hasilDinas[$dinas]['golongan_IV'] += (int) $row->jumlah;
-
-        } else {
-
-            $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
+                $hasilDinas[$dinas]['tidak_dikenali'] += (int) $row->jumlah;
+            }
         }
-    }
 
-    $jumlahStafDinas = 0;
+        $jumlahStafDinas = 0;
 
-    foreach ($hasilDinas as &$data) {
+        foreach ($hasilDinas as &$data) {
 
-        $data['total'] =
-            $data['golongan_I'] +
-            $data['golongan_II'] +
-            $data['golongan_III'] +
-            $data['golongan_IV'] +
-            $data['tidak_dikenali'];
+            $data['total'] =
+                $data['golongan_I'] +
+                $data['golongan_II'] +
+                $data['golongan_III'] +
+                $data['golongan_IV'] +
+                $data['tidak_dikenali'];
 
-        $jumlahStafDinas += $data['total'];
-    }
+            $jumlahStafDinas += $data['total'];
+        }
 
-    unset($data);
+        unset($data);
 
-    return [
-        'jumlah_staf_dinas' => $jumlahStafDinas,
-        'jumlah_dinas' => count($dinasList),
+        return [
+            'jumlah_staf_dinas' => $jumlahStafDinas,
+            'jumlah_dinas' => count($dinasList),
 
-        'golongan' => [
-            'I' => array_sum(array_column($hasilDinas, 'golongan_I')),
-            'II' => array_sum(array_column($hasilDinas, 'golongan_II')),
-            'III' => array_sum(array_column($hasilDinas, 'golongan_III')),
-            'IV' => array_sum(array_column($hasilDinas, 'golongan_IV')),
-        ],
+            'golongan' => [
+                'I' => array_sum(array_column($hasilDinas, 'golongan_I')),
+                'II' => array_sum(array_column($hasilDinas, 'golongan_II')),
+                'III' => array_sum(array_column($hasilDinas, 'golongan_III')),
+                'IV' => array_sum(array_column($hasilDinas, 'golongan_IV')),
+            ],
 
-        'dinas' => $hasilDinas,
-    ];
-}
-
-/**
- * 5.03.011.003
- * Jumlah Pejabat Struktural Kantor Dinas Daerah
- */
-public function statistikPejabatStrukturalDinas(?string $periode = null): array
-{
-    $dinasList = [
-        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
-        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
-        'DINAS KESEHATAN',
-        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
-        'DINAS LINGKUNGAN HIDUP',
-        'DINAS PARIWISATA',
-        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
-        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
-        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
-        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
-        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
-        'DINAS PERDAGANGAN',
-        'DINAS PERHUBUNGAN',
-        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
-        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
-        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
-        'DINAS PERTANIAN DAN PANGAN',
-        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
-    ];
-
-    $rows = Pegawai::query()
-        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-        ->join(
-            'eselon',
-            'eselon.id',
-            '=',
-            'pegawai.eselon_id'
-        )
-        ->select(
-            'instansi.nama as instansi_nama',
-            'eselon.kode as eselon_kode',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->whereIn('instansi.nama', $dinasList)
-        ->whereIn('eselon.kode', [
-            'I',
-            'II',
-            'III',
-            'IV',
-            'I A',
-            'I B',
-            'II A',
-            'II B',
-            'III A',
-            'III B',
-            'IV A',
-            'IV B',
-        ])
-        ->groupBy(
-            'instansi.nama',
-            'eselon.kode'
-        )
-        ->get();
-
-    $hasilDinas = [];
-
-    foreach ($dinasList as $dinas) {
-        $hasilDinas[$dinas] = [
-            'eselon_I' => 0,
-            'eselon_II' => 0,
-            'eselon_III' => 0,
-            'eselon_IV' => 0,
+            'dinas' => $hasilDinas,
         ];
     }
 
-    foreach ($rows as $row) {
+    /**
+     * 5.03.011.003
+     * Jumlah Pejabat Struktural Kantor Dinas Daerah
+     */
+    public function statistikPejabatStrukturalDinas(?string $periode = null): array
+    {
+        $dinasList = [
+            'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+            'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+            'DINAS KESEHATAN',
+            'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+            'DINAS LINGKUNGAN HIDUP',
+            'DINAS PARIWISATA',
+            'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+            'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+            'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+            'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+            'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+            'DINAS PERDAGANGAN',
+            'DINAS PERHUBUNGAN',
+            'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+            'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+            'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+            'DINAS PERTANIAN DAN PANGAN',
+            'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
+        ];
 
-        $dinas = trim((string) $row->instansi_nama);
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->join(
+                'eselon',
+                'eselon.id',
+                '=',
+                'pegawai.eselon_id'
+            )
+            ->select(
+                'instansi.nama as instansi_nama',
+                'eselon.kode as eselon_kode',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->whereIn('instansi.nama', $dinasList)
+            ->whereIn('eselon.kode', [
+                'I',
+                'II',
+                'III',
+                'IV',
+                'I A',
+                'I B',
+                'II A',
+                'II B',
+                'III A',
+                'III B',
+                'IV A',
+                'IV B',
+            ])
+            ->groupBy(
+                'instansi.nama',
+                'eselon.kode'
+            )
+            ->get();
 
-        if (!isset($hasilDinas[$dinas])) {
-            continue;
+        $hasilDinas = [];
+
+        foreach ($dinasList as $dinas) {
+            $hasilDinas[$dinas] = [
+                'eselon_I' => 0,
+                'eselon_II' => 0,
+                'eselon_III' => 0,
+                'eselon_IV' => 0,
+            ];
         }
 
-        $kode = strtoupper(
-            trim((string) $row->eselon_kode)
-        );
+        foreach ($rows as $row) {
 
-        if (
-            $kode === 'I' ||
-            str_starts_with($kode, 'I ')
-        ) {
-            $hasilDinas[$dinas]['eselon_I'] += (int) $row->jumlah;
+            $dinas = trim((string) $row->instansi_nama);
+
+            if (!isset($hasilDinas[$dinas])) {
+                continue;
+            }
+
+            $kode = strtoupper(
+                trim((string) $row->eselon_kode)
+            );
+
+            if (
+                $kode === 'I' ||
+                str_starts_with($kode, 'I ')
+            ) {
+                $hasilDinas[$dinas]['eselon_I'] += (int) $row->jumlah;
+            } elseif (
+                $kode === 'II' ||
+                str_starts_with($kode, 'II ')
+            ) {
+                $hasilDinas[$dinas]['eselon_II'] += (int) $row->jumlah;
+            } elseif (
+                $kode === 'III' ||
+                str_starts_with($kode, 'III ')
+            ) {
+                $hasilDinas[$dinas]['eselon_III'] += (int) $row->jumlah;
+            } elseif (
+                $kode === 'IV' ||
+                str_starts_with($kode, 'IV ')
+            ) {
+                $hasilDinas[$dinas]['eselon_IV'] += (int) $row->jumlah;
+            }
         }
 
-        elseif (
-            $kode === 'II' ||
-            str_starts_with($kode, 'II ')
-        ) {
-            $hasilDinas[$dinas]['eselon_II'] += (int) $row->jumlah;
+        $jumlahPejabatStruktural = 0;
+
+        foreach ($hasilDinas as &$data) {
+
+            $data['total'] =
+                $data['eselon_I'] +
+                $data['eselon_II'] +
+                $data['eselon_III'] +
+                $data['eselon_IV'];
+
+            $jumlahPejabatStruktural += $data['total'];
         }
 
-        elseif (
-            $kode === 'III' ||
-            str_starts_with($kode, 'III ')
-        ) {
-            $hasilDinas[$dinas]['eselon_III'] += (int) $row->jumlah;
-        }
+        unset($data);
 
-        elseif (
-            $kode === 'IV' ||
-            str_starts_with($kode, 'IV ')
-        ) {
-            $hasilDinas[$dinas]['eselon_IV'] += (int) $row->jumlah;
-        }
-    }
+        return [
+            'jumlah_pejabat_struktural' => $jumlahPejabatStruktural,
 
-    $jumlahPejabatStruktural = 0;
+            'jumlah_dinas' => count($dinasList),
 
-    foreach ($hasilDinas as &$data) {
+            'eselon' => [
+                'I' => array_sum(
+                    array_column($hasilDinas, 'eselon_I')
+                ),
+                'II' => array_sum(
+                    array_column($hasilDinas, 'eselon_II')
+                ),
+                'III' => array_sum(
+                    array_column($hasilDinas, 'eselon_III')
+                ),
+                'IV' => array_sum(
+                    array_column($hasilDinas, 'eselon_IV')
+                ),
+            ],
 
-        $data['total'] =
-            $data['eselon_I'] +
-            $data['eselon_II'] +
-            $data['eselon_III'] +
-            $data['eselon_IV'];
-
-        $jumlahPejabatStruktural += $data['total'];
-    }
-
-    unset($data);
-
-    return [
-        'jumlah_pejabat_struktural' => $jumlahPejabatStruktural,
-
-        'jumlah_dinas' => count($dinasList),
-
-        'eselon' => [
-            'I' => array_sum(
-                array_column($hasilDinas, 'eselon_I')
-            ),
-            'II' => array_sum(
-                array_column($hasilDinas, 'eselon_II')
-            ),
-            'III' => array_sum(
-                array_column($hasilDinas, 'eselon_III')
-            ),
-            'IV' => array_sum(
-                array_column($hasilDinas, 'eselon_IV')
-            ),
-        ],
-
-        'dinas' => $hasilDinas,
-    ];
-}
-
-/**
- * Statistik Pejabat Fungsional Kantor Dinas Daerah.
- *
- * Scope: 5.03.011.004
- *
- * Hanya pegawai aktif pada 18 Dinas yang dihitung.
- */
-public function statistikPejabatFungsionalDinas(?string $periode = null): array
-{
-    $dinasList = [
-        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
-        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
-        'DINAS KESEHATAN',
-        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
-        'DINAS LINGKUNGAN HIDUP',
-        'DINAS PARIWISATA',
-        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
-        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
-        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
-        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
-        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
-        'DINAS PERDAGANGAN',
-        'DINAS PERHUBUNGAN',
-        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
-        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
-        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
-        'DINAS PERTANIAN DAN PANGAN',
-        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
-    ];
-
-    $rows = Pegawai::query()
-        ->join(
-            'instansi',
-            'instansi.id',
-            '=',
-            'pegawai.instansi_id'
-        )
-        ->select(
-            'instansi.nama as instansi_nama',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->whereIn('instansi.nama', $dinasList)
-        ->whereRaw('UPPER(TRIM(pegawai.jenis_kedudukan)) = ?', ['FUNGSIONAL'])
-        ->groupBy('instansi.nama')
-        ->get();
-
-    $hasilDinas = [];
-
-    foreach ($dinasList as $dinas) {
-        $hasilDinas[$dinas] = [
-            'jumlah_fungsional' => 0,
+            'dinas' => $hasilDinas,
         ];
     }
 
-    foreach ($rows as $row) {
-        $dinas = trim((string) $row->instansi_nama);
+    /**
+     * Statistik Pejabat Fungsional Kantor Dinas Daerah.
+     *
+     * Scope: 5.03.011.004
+     *
+     * Hanya pegawai aktif pada 18 Dinas yang dihitung.
+     */
+    public function statistikPejabatFungsionalDinas(?string $periode = null): array
+    {
+        $dinasList = [
+            'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+            'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+            'DINAS KESEHATAN',
+            'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+            'DINAS LINGKUNGAN HIDUP',
+            'DINAS PARIWISATA',
+            'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+            'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+            'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+            'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+            'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+            'DINAS PERDAGANGAN',
+            'DINAS PERHUBUNGAN',
+            'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+            'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+            'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+            'DINAS PERTANIAN DAN PANGAN',
+            'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
+        ];
 
-        if (!isset($hasilDinas[$dinas])) {
-            continue;
+        $rows = Pegawai::query()
+            ->join(
+                'instansi',
+                'instansi.id',
+                '=',
+                'pegawai.instansi_id'
+            )
+            ->select(
+                'instansi.nama as instansi_nama',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->whereIn('instansi.nama', $dinasList)
+            ->whereRaw('UPPER(TRIM(pegawai.jenis_kedudukan)) = ?', ['FUNGSIONAL'])
+            ->groupBy('instansi.nama')
+            ->get();
+
+        $hasilDinas = [];
+
+        foreach ($dinasList as $dinas) {
+            $hasilDinas[$dinas] = [
+                'jumlah_fungsional' => 0,
+            ];
         }
 
-        $hasilDinas[$dinas]['jumlah_fungsional'] =
-            (int) $row->jumlah;
-    }
+        foreach ($rows as $row) {
+            $dinas = trim((string) $row->instansi_nama);
 
-    $jumlahPejabatFungsional = 0;
+            if (!isset($hasilDinas[$dinas])) {
+                continue;
+            }
 
-    foreach ($hasilDinas as $dinas => &$data) {
-        $data['total'] = $data['jumlah_fungsional'];
+            $hasilDinas[$dinas]['jumlah_fungsional'] =
+                (int) $row->jumlah;
+        }
 
-        $jumlahPejabatFungsional += $data['total'];
-    }
+        $jumlahPejabatFungsional = 0;
 
-    unset($data);
+        foreach ($hasilDinas as $dinas => &$data) {
+            $data['total'] = $data['jumlah_fungsional'];
 
-    return [
-        'jumlah_pejabat_fungsional' => $jumlahPejabatFungsional,
-        'jumlah_dinas' => count($dinasList),
-        'dinas' => $hasilDinas,
-    ];
-}
+            $jumlahPejabatFungsional += $data['total'];
+        }
 
-/**
- * 5.03.011.005
- * Jumlah Pensiunan Kantor Dinas Daerah
- *
- * Pensiunan = pegawai dengan tanggal_pensiun
- * berada pada tahun 2026.
- *
- * Scope hanya 18 Dinas.
- */
-public function statistikPensiunanDinas(?int $tahun = null): array
-{
-    $tahun ??= (int) date('Y');
-    $dinasList = [
-        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
-        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
-        'DINAS KESEHATAN',
-        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
-        'DINAS LINGKUNGAN HIDUP',
-        'DINAS PARIWISATA',
-        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
-        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
-        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
-        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
-        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
-        'DINAS PERDAGANGAN',
-        'DINAS PERHUBUNGAN',
-        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
-        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
-        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
-        'DINAS PERTANIAN DAN PANGAN',
-        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
-    ];
+        unset($data);
 
-    $awalTahun = sprintf('%04d-01-01', $tahun);
-    $awalTahunBerikutnya = sprintf('%04d-01-01', $tahun + 1);
-
-    $rows = Pegawai::query()
-        ->join(
-            'instansi',
-            'instansi.id',
-            '=',
-            'pegawai.instansi_id'
-        )
-        ->select(
-            'instansi.nama as instansi_nama',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->whereIn('instansi.nama', $dinasList)
-        ->where('pegawai.status_kepegawaian', 'PNS')
-        ->whereNotNull('pegawai.tanggal_pensiun')
-        ->where(
-            'pegawai.tanggal_pensiun',
-            '>=',
-            $awalTahun
-        )
-        ->where(
-            'pegawai.tanggal_pensiun',
-            '<',
-            $awalTahunBerikutnya
-        )
-        ->groupBy('instansi.nama')
-        ->get();
-
-    $hasilDinas = [];
-
-    foreach ($dinasList as $dinas) {
-        $hasilDinas[$dinas] = [
-            'jumlah' => 0,
+        return [
+            'jumlah_pejabat_fungsional' => $jumlahPejabatFungsional,
+            'jumlah_dinas' => count($dinasList),
+            'dinas' => $hasilDinas,
         ];
     }
 
-    foreach ($rows as $row) {
-        $dinas = trim((string) $row->instansi_nama);
+    /**
+     * 5.03.011.005
+     * Jumlah Pensiunan Kantor Dinas Daerah
+     *
+     * Pensiunan = pegawai dengan tanggal_pensiun
+     * berada pada tahun 2026.
+     *
+     * Scope hanya 18 Dinas.
+     */
+    public function statistikPensiunanDinas(?int $tahun = null): array
+    {
+        $tahun ??= (int) date('Y');
+        $dinasList = [
+            'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+            'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+            'DINAS KESEHATAN',
+            'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+            'DINAS LINGKUNGAN HIDUP',
+            'DINAS PARIWISATA',
+            'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+            'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+            'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+            'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+            'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+            'DINAS PERDAGANGAN',
+            'DINAS PERHUBUNGAN',
+            'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+            'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+            'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+            'DINAS PERTANIAN DAN PANGAN',
+            'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
+        ];
 
-        if (!isset($hasilDinas[$dinas])) {
-            continue;
+        $awalTahun = sprintf('%04d-01-01', $tahun);
+        $awalTahunBerikutnya = sprintf('%04d-01-01', $tahun + 1);
+
+        $rows = Pegawai::query()
+            ->join(
+                'instansi',
+                'instansi.id',
+                '=',
+                'pegawai.instansi_id'
+            )
+            ->select(
+                'instansi.nama as instansi_nama',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->whereIn('instansi.nama', $dinasList)
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->whereNotNull('pegawai.tanggal_pensiun')
+            ->where(
+                'pegawai.tanggal_pensiun',
+                '>=',
+                $awalTahun
+            )
+            ->where(
+                'pegawai.tanggal_pensiun',
+                '<',
+                $awalTahunBerikutnya
+            )
+            ->groupBy('instansi.nama')
+            ->get();
+
+        $hasilDinas = [];
+
+        foreach ($dinasList as $dinas) {
+            $hasilDinas[$dinas] = [
+                'jumlah' => 0,
+            ];
         }
 
-        $hasilDinas[$dinas]['jumlah'] =
-            (int) $row->jumlah;
+        foreach ($rows as $row) {
+            $dinas = trim((string) $row->instansi_nama);
+
+            if (!isset($hasilDinas[$dinas])) {
+                continue;
+            }
+
+            $hasilDinas[$dinas]['jumlah'] =
+                (int) $row->jumlah;
+        }
+
+        $jumlahPensiunan = 0;
+
+        foreach ($hasilDinas as &$data) {
+            $jumlahPensiunan += $data['jumlah'];
+        }
+
+        unset($data);
+
+        return [
+            'tahun' => $tahun,
+            'jumlah_pensiunan' => $jumlahPensiunan,
+            'jumlah_dinas' => count($dinasList),
+            'dinas' => $hasilDinas,
+        ];
     }
-
-    $jumlahPensiunan = 0;
-
-    foreach ($hasilDinas as &$data) {
-        $jumlahPensiunan += $data['jumlah'];
-    }
-
-    unset($data);
-
-    return [
-        'tahun' => $tahun,
-        'jumlah_pensiunan' => $jumlahPensiunan,
-        'jumlah_dinas' => count($dinasList),
-        'dinas' => $hasilDinas,
-    ];
-}
-/**
- * Statistik ASN Perangkat Daerah berdasarkan Jenis Kelamin.
- *
- * Scope: 5.03.012
- *
- * Menghitung:
- * - Jumlah seluruh ASN Pemerintah Kota Yogyakarta
- * - Jumlah ASN laki-laki Pemerintah Kota Yogyakarta
- * - Jumlah ASN laki-laki pada setiap perangkat daerah
- *
- * ASN dihitung berdasarkan pegawai aktif.
- */
-public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
-{
-    /*
+    /**
+     * Statistik ASN Perangkat Daerah berdasarkan Jenis Kelamin.
+     *
+     * Scope: 5.03.012
+     *
+     * Menghitung:
+     * - Jumlah seluruh ASN Pemerintah Kota Yogyakarta
+     * - Jumlah ASN laki-laki Pemerintah Kota Yogyakarta
+     * - Jumlah ASN laki-laki pada setiap perangkat daerah
+     *
+     * ASN dihitung berdasarkan pegawai aktif.
+     */
+    public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
+    {
+        /*
     |--------------------------------------------------------------------------
     | Helper hitung berdasarkan jabatan / kedudukan
     |--------------------------------------------------------------------------
@@ -1657,35 +1651,35 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | nilai lain di luar L/LAKI-LAKI/P/PEREMPUAN, melanggar aturan
     | "Total = Laki-Laki + Perempuan".
     */
-    $hitung = function ($queryCallback) {
-        $query = Pegawai::query()
-            ->where('pegawai.status_aktif', 'aktif');
+        $hitung = function ($queryCallback) {
+            $query = Pegawai::query()
+                ->where('pegawai.status_aktif', 'aktif');
 
-        $queryCallback($query);
+            $queryCallback($query);
 
-        $lakiLaki = (clone $query)
-            ->where(function ($q) {
-                $q->where('pegawai.jenis_kelamin', 'L')
-                    ->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
-            })
-            ->count();
+            $lakiLaki = (clone $query)
+                ->where(function ($q) {
+                    $q->where('pegawai.jenis_kelamin', 'L')
+                        ->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
+                })
+                ->count();
 
-        $perempuan = (clone $query)
-            ->where(function ($q) {
-                $q->where('pegawai.jenis_kelamin', 'P')
-                    ->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
-            })
-            ->count();
+            $perempuan = (clone $query)
+                ->where(function ($q) {
+                    $q->where('pegawai.jenis_kelamin', 'P')
+                        ->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
+                })
+                ->count();
 
-        return [
-            'total' => $lakiLaki + $perempuan,
-            'laki_laki' => $lakiLaki,
-            'perempuan' => $perempuan,
-        ];
-    };
+            return [
+                'total' => $lakiLaki + $perempuan,
+                'laki_laki' => $lakiLaki,
+                'perempuan' => $perempuan,
+            ];
+        };
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.001
     | Kepala Daerah
@@ -1696,17 +1690,17 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | baris pegawai biasa). TETAP PERLU KONFIRMASI dari kamu.
     |
     */
-    $kepalaDaerah = $hitung(function ($query) {
-        $query->where(function ($q) {
-            $q->whereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%BUPATI%'])
-                ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%WALI KOTA%'])
-                ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%WALIKOTA%'])
-                ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%GUBERNUR%']);
+        $kepalaDaerah = $hitung(function ($query) {
+            $query->where(function ($q) {
+                $q->whereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%BUPATI%'])
+                    ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%WALI KOTA%'])
+                    ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%WALIKOTA%'])
+                    ->orWhereRaw('UPPER(TRIM(pegawai.jabatan)) LIKE ?', ['%GUBERNUR%']);
+            });
         });
-    });
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.002
     | Mantri Pamong Praja
@@ -1715,15 +1709,15 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | Tidak diubah — sudah terverifikasi benar (13 total, 12 laki-laki,
     | 1 perempuan, cocok dengan data).
     */
-    $mantriPamongPraja = $hitung(function ($query) {
-        $query->whereRaw(
-            'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-            ['%MANTRI PAMONG PRAJA%']
-        );
-    });
+        $mantriPamongPraja = $hitung(function ($query) {
+            $query->whereRaw(
+                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                ['%MANTRI PAMONG PRAJA%']
+            );
+        });
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.003
     | Lurah
@@ -1737,15 +1731,15 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | cuma MENGANDUNG kata "LURAH" di tengah kalimat (mis. "KEPALA SEKSI
     | ... KELURAHAN ...", yang tidak diawali kata "LURAH").
     */
-    $lurah = $hitung(function ($query) {
-        $query->whereRaw(
-            'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-            ['LURAH %']
-        );
-    });
+        $lurah = $hitung(function ($query) {
+            $query->whereRaw(
+                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                ['LURAH %']
+            );
+        });
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.004
     | Kepala OPD
@@ -1765,49 +1759,49 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | kalau kamu konfirmasi itu termasuk "Kepala OPD", tambahkan baris
     | orWhereRaw ketiga di bawah ini (sudah saya siapkan, tinggal uncomment):
     */
-    $kepalaOpd = $hitung(function ($query) {
-        $query->where(function ($q) {
-            $q->whereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%KEPALA DINAS%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%KEPALA BADAN%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%KEPALA SATUAN POLISI PAMONG PRAJA%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%KEPALA SATPOL PP%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%SEKRETARIS DAERAH%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%SEKRETARIS DPRD%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-                ['%DIREKTUR RUMAH SAKIT UMUM DAERAH%']
-            )
-            ->orWhereRaw(
-                'UPPER(TRIM(pegawai.jabatan)) = ?',
-                ['INSPEKTUR']
-            );
-            // ->orWhereRaw(
-            //     'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
-            //     ['%KEPALA PELAKSANA BADAN PENANGGULANGAN BENCANA DAERAH%']
-            // );
+        $kepalaOpd = $hitung(function ($query) {
+            $query->where(function ($q) {
+                $q->whereRaw(
+                    'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                    ['%KEPALA DINAS%']
+                )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%KEPALA BADAN%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%KEPALA SATUAN POLISI PAMONG PRAJA%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%KEPALA SATPOL PP%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%SEKRETARIS DAERAH%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%SEKRETARIS DPRD%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                        ['%DIREKTUR RUMAH SAKIT UMUM DAERAH%']
+                    )
+                    ->orWhereRaw(
+                        'UPPER(TRIM(pegawai.jabatan)) = ?',
+                        ['INSPEKTUR']
+                    );
+                // ->orWhereRaw(
+                //     'UPPER(TRIM(pegawai.jabatan)) LIKE ?',
+                //     ['%KEPALA PELAKSANA BADAN PENANGGULANGAN BENCANA DAERAH%']
+                // );
+            });
         });
-    });
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.005
     | Pejabat ASN Struktural
@@ -1818,45 +1812,45 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | Query filter eselon-nya sendiri TIDAK diubah — sudah terverifikasi
     | benar (663).
     */
-    $pejabatStrukturalQuery = Pegawai::query()
-        ->leftJoin(
-            'eselon',
-            'eselon.id',
-            '=',
-            'pegawai.eselon_id'
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->whereIn('eselon.kode', [
-            'II A',
-            'II B',
-            'III A',
-            'III B',
-            'IV A',
-            'IV B',
-        ]);
+        $pejabatStrukturalQuery = Pegawai::query()
+            ->leftJoin(
+                'eselon',
+                'eselon.id',
+                '=',
+                'pegawai.eselon_id'
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->whereIn('eselon.kode', [
+                'II A',
+                'II B',
+                'III A',
+                'III B',
+                'IV A',
+                'IV B',
+            ]);
 
-    $pejabatStrukturalLakiLaki = (clone $pejabatStrukturalQuery)
-        ->where(function ($q) {
-            $q->where('pegawai.jenis_kelamin', 'L')
-                ->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
-        })
-        ->count();
+        $pejabatStrukturalLakiLaki = (clone $pejabatStrukturalQuery)
+            ->where(function ($q) {
+                $q->where('pegawai.jenis_kelamin', 'L')
+                    ->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
+            })
+            ->count();
 
-    $pejabatStrukturalPerempuan = (clone $pejabatStrukturalQuery)
-        ->where(function ($q) {
-            $q->where('pegawai.jenis_kelamin', 'P')
-                ->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
-        })
-        ->count();
+        $pejabatStrukturalPerempuan = (clone $pejabatStrukturalQuery)
+            ->where(function ($q) {
+                $q->where('pegawai.jenis_kelamin', 'P')
+                    ->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
+            })
+            ->count();
 
-    $pejabatStruktural = [
-        'total' => $pejabatStrukturalLakiLaki + $pejabatStrukturalPerempuan,
-        'laki_laki' => $pejabatStrukturalLakiLaki,
-        'perempuan' => $pejabatStrukturalPerempuan,
-    ];
+        $pejabatStruktural = [
+            'total' => $pejabatStrukturalLakiLaki + $pejabatStrukturalPerempuan,
+            'laki_laki' => $pejabatStrukturalLakiLaki,
+            'perempuan' => $pejabatStrukturalPerempuan,
+        ];
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.006
     | Pejabat ASN Pelaksana
@@ -1864,15 +1858,15 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     |
     | Tidak diubah — sudah terverifikasi benar (1795).
     */
-    $pelaksana = $hitung(function ($query) {
-        $query->whereRaw(
-            'UPPER(TRIM(pegawai.jenis_kedudukan)) = ?',
-            ['PELAKSANA']
-        );
-    });
+        $pelaksana = $hitung(function ($query) {
+            $query->whereRaw(
+                'UPPER(TRIM(pegawai.jenis_kedudukan)) = ?',
+                ['PELAKSANA']
+            );
+        });
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | 5.03.013.007
     | Anggota Tim Badan Pertimbangan dan Kepangkatan
@@ -1887,447 +1881,883 @@ public function statistikPenjabatPerangkatDaerahJenisKelamin(): array
     | sumber datanya (tabel baru? relasi ke SK penunjukan?) sebelum ini
     | bisa diimplementasikan sungguhan.
     */
-    $anggotaTimBaperjakat = [
-        'total' => 0,
-        'laki_laki' => 0,
-        'perempuan' => 0,
-    ];
+        $anggotaTimBaperjakat = [
+            'total' => 0,
+            'laki_laki' => 0,
+            'perempuan' => 0,
+        ];
 
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | RESPONSE — struktur key TIDAK diubah, tetap sama seperti sebelumnya.
     |--------------------------------------------------------------------------
     */
-    return [
-        'kepala_daerah' => $kepalaDaerah,
+        return [
+            'kepala_daerah' => $kepalaDaerah,
 
-        'mantri_pamong_praja' => $mantriPamongPraja,
+            'mantri_pamong_praja' => $mantriPamongPraja,
 
-        'lurah' => $lurah,
+            'lurah' => $lurah,
 
-        'kepala_opd' => $kepalaOpd,
+            'kepala_opd' => $kepalaOpd,
 
-        'pejabat_asn_struktural' => $pejabatStruktural,
+            'pejabat_asn_struktural' => $pejabatStruktural,
 
-        'pejabat_asn_pelaksana' => $pelaksana,
+            'pejabat_asn_pelaksana' => $pelaksana,
 
-        'anggota_tim_baperjakat' => $anggotaTimBaperjakat,
-    ];
-}
-
-/**
- * 5.03.014
- * Jumlah ASN Kemantren berdasarkan Tingkat Pendidikan.
- *
- * Scope: 5.03.014.001 s.d. 5.03.014.001.10.14
- *
- * ASN = seluruh pegawai aktif (PNS + PPPK, semua jenis_kedudukan) yang
- * ber-UNIT salah satu dari 14 Kemantren Kota Yogyakarta. TIDAK dibatasi
- * ke jabatan PELAKSANA saja — beda dengan statistikStafDinasPendidikan()
- * yang scope-nya memang "Staf" (= JABATAN PELAKSANA). Kalau nanti scope
- * 5.03.014 ternyata dimaksudkan cuma staf, tinggal tambah satu where.
- *
- * Mapping jenjang pendidikan mengikuti mapping yang sudah dipakai di
- * statistikAsnPendidikan()/statistikStafDinasPendidikan() — sudah
- * divalidasi ke data mentah (S-1/Sarjana, Diploma III/Sarjana, S-2, SLTA,
- * SLTA Kejuruan, dst).
- *
- * Struktur hierarki kode taksonomi (pendidikan di atas, Kemantren di
- * bawahnya):
- * 5.03.014.001.01    -> pendidikan['sd']['total']
- * 5.03.014.001.01.01 -> pendidikan['sd']['kemantren']['TEGALREJO']
- * dst.
- *
- * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
- * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
- * lain di service ini.
- */
-public function statistikAsnKemantrenPendidikan(?string $periode = null): array
-{
-    $kemantrenList = [
-        'TEGALREJO', 'JETIS', 'GONDOKUSUMAN', 'DANUREJAN', 'GEDONGTENGEN',
-        'NGAMPILAN', 'WIROBRAJAN', 'MANTRIJERON', 'KRATON', 'GONDOMANAN',
-        'PAKUALAMAN', 'MERGANGSAN', 'UMBULHARJO', 'KOTAGEDE',
-    ];
-
-    $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
-
-    $keyMap = [
-        'SD'    => 'sd',
-        'SLTP'  => 'smp',
-        'SLTA'  => 'sma',
-        'D I'   => 'diploma_i',
-        'D II'  => 'diploma_ii',
-        'D III' => 'diploma_iii',
-        'D IV'  => 'diploma_iv',
-        'S1'    => 'strata_1',
-        'S2'    => 'strata_2',
-        'S3'    => 'strata_3',
-    ];
-
-    $rows = Pegawai::query()
-        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-        ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
-        ->select(
-            'instansi.nama as instansi_nama',
-            'pendidikan.jenjang as pendidikan_nama',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
-        ->groupBy('instansi.nama', 'pendidikan.jenjang')
-        ->get();
-
-    // Siapkan struktur kosong dulu, supaya kemantren/pendidikan yang
-    // datanya 0 tetap muncul di response (konsisten dengan pola
-    // statistikPppkGolongan()/statistikStafDinasPendidikan()).
-    $agregat = [];
-    foreach ($pendidikanList as $jenjang) {
-        $agregat[$jenjang] = array_fill_keys($kemantrenList, 0);
+            'anggota_tim_baperjakat' => $anggotaTimBaperjakat,
+        ];
     }
 
-    $tidakDikenali = 0;
+    /**
+     * 5.03.014
+     * Jumlah ASN Kemantren berdasarkan Tingkat Pendidikan.
+     *
+     * Scope: 5.03.014.001 s.d. 5.03.014.001.10.14
+     *
+     * ASN = seluruh pegawai aktif (PNS + PPPK, semua jenis_kedudukan) yang
+     * ber-UNIT salah satu dari 14 Kemantren Kota Yogyakarta. TIDAK dibatasi
+     * ke jabatan PELAKSANA saja — beda dengan statistikStafDinasPendidikan()
+     * yang scope-nya memang "Staf" (= JABATAN PELAKSANA). Kalau nanti scope
+     * 5.03.014 ternyata dimaksudkan cuma staf, tinggal tambah satu where.
+     *
+     * Mapping jenjang pendidikan mengikuti mapping yang sudah dipakai di
+     * statistikAsnPendidikan()/statistikStafDinasPendidikan() — sudah
+     * divalidasi ke data mentah (S-1/Sarjana, Diploma III/Sarjana, S-2, SLTA,
+     * SLTA Kejuruan, dst).
+     *
+     * Struktur hierarki kode taksonomi (pendidikan di atas, Kemantren di
+     * bawahnya):
+     * 5.03.014.001.01    -> pendidikan['sd']['total']
+     * 5.03.014.001.01.01 -> pendidikan['sd']['kemantren']['TEGALREJO']
+     * dst.
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikAsnKemantrenPendidikan(?string $periode = null): array
+    {
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
+        ];
 
-    foreach ($rows as $row) {
-        $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
-        // "KEMANTREN TEGALREJO" -> "TEGALREJO"
-        $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+        $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
 
-        if (!in_array($namaKemantren, $kemantrenList, true)) {
-            continue;
+        $keyMap = [
+            'SD'    => 'sd',
+            'SLTP'  => 'smp',
+            'SLTA'  => 'sma',
+            'D I'   => 'diploma_i',
+            'D II'  => 'diploma_ii',
+            'D III' => 'diploma_iii',
+            'D IV'  => 'diploma_iv',
+            'S1'    => 'strata_1',
+            'S2'    => 'strata_2',
+            'S3'    => 'strata_3',
+        ];
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                'pendidikan.jenjang as pendidikan_nama',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+            ->groupBy('instansi.nama', 'pendidikan.jenjang')
+            ->get();
+
+        // Siapkan struktur kosong dulu, supaya kemantren/pendidikan yang
+        // datanya 0 tetap muncul di response (konsisten dengan pola
+        // statistikPppkGolongan()/statistikStafDinasPendidikan()).
+        $agregat = [];
+        foreach ($pendidikanList as $jenjang) {
+            $agregat[$jenjang] = array_fill_keys($kemantrenList, 0);
         }
 
-        $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
+        $tidakDikenali = 0;
 
-        $jenjang = $raw ? match ($raw) {
-            'SD', 'SEKOLAH DASAR'                            => 'SD',
-            'SMP', 'SLTP'                                    => 'SLTP',
-            'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
-            'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
-            'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
-            'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
-            'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
-            'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
-            'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
-            'S3', 'S-3', 'S-3/DOKTOR'                        => 'S3',
-            default => null,
-        } : null;
+        foreach ($rows as $row) {
+            $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+            // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+            $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
 
-        $jumlah = (int) $row->jumlah;
-
-        if ($jenjang === null) {
-            $tidakDikenali += $jumlah;
-
-            if ($raw !== null) {
-                Log::warning('StatistikAsnKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
-                    'instansi' => $row->instansi_nama,
-                    'pendidikan_raw' => $row->pendidikan_nama,
-                    'jumlah' => $jumlah,
-                ]);
+            if (!in_array($namaKemantren, $kemantrenList, true)) {
+                continue;
             }
 
-            continue;
-        }
+            $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
 
-        $agregat[$jenjang][$namaKemantren] += $jumlah;
-    }
+            $jenjang = $raw ? match ($raw) {
+                'SD', 'SEKOLAH DASAR'                            => 'SD',
+                'SMP', 'SLTP'                                    => 'SLTP',
+                'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
+                'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
+                'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
+                'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
+                'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
+                'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
+                'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
+                'S3', 'S-3', 'S-3/DOKTOR'                        => 'S3',
+                default => null,
+            } : null;
 
-    $hasil = ['jumlah_asn_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
+            $jumlah = (int) $row->jumlah;
 
-    foreach ($pendidikanList as $jenjang) {
-        $perKemantren = $agregat[$jenjang];
-        $totalJenjang = array_sum($perKemantren);
+            if ($jenjang === null) {
+                $tidakDikenali += $jumlah;
 
-        $hasil['pendidikan'][$keyMap[$jenjang]] = [
-            'total' => $totalJenjang,
-            'kemantren' => $perKemantren,
-        ];
+                if ($raw !== null) {
+                    Log::warning('StatistikAsnKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
+                        'instansi' => $row->instansi_nama,
+                        'pendidikan_raw' => $row->pendidikan_nama,
+                        'jumlah' => $jumlah,
+                    ]);
+                }
 
-        $hasil['jumlah_asn_kemantren'] += $totalJenjang;
-    }
-
-    $hasil['jumlah_asn_kemantren'] += $tidakDikenali;
-
-    return $hasil;
-}
-/**
- * 5.03.015
- * Jumlah PNS Kemantren berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
- *
- * Beda dengan statistikAsnKemantrenPendidikan() (5.03.014):
- * - Scope hanya PNS (status_kepegawaian = 'PNS'), PPPK tidak dihitung.
- * - Setiap jenjang pendidikan dipecah lagi per jenis kelamin, dan setiap
- *   gender dipecah lagi per kemantren (nested 3 level: pendidikan -> gender
- *   -> kemantren), bukan cuma pendidikan -> kemantren seperti 5.03.014.
- *
- * Mapping jenjang pendidikan & daftar kemantren mengikuti
- * statistikAsnKemantrenPendidikan() supaya konsisten.
- *
- * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
- * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
- * lain di service ini.
- */
-public function statistikPnsKemantrenPendidikan(?string $periode = null): array
-{
-    $kemantrenList = [
-        'TEGALREJO', 'JETIS', 'GONDOKUSUMAN', 'DANUREJAN', 'GEDONGTENGEN',
-        'NGAMPILAN', 'WIROBRAJAN', 'MANTRIJERON', 'KRATON', 'GONDOMANAN',
-        'PAKUALAMAN', 'MERGANGSAN', 'UMBULHARJO', 'KOTAGEDE',
-    ];
-
-    $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
-
-    $keyMap = [
-        'SD'    => 'sd',
-        'SLTP'  => 'smp',
-        'SLTA'  => 'sma',
-        'D I'   => 'diploma_i',
-        'D II'  => 'diploma_ii',
-        'D III' => 'diploma_iii',
-        'D IV'  => 'diploma_iv',
-        'S1'    => 'strata_1',
-        'S2'    => 'strata_2',
-        'S3'    => 'strata_3',
-    ];
-
-    $rows = Pegawai::query()
-        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-        ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
-        ->select(
-            'instansi.nama as instansi_nama',
-            'pendidikan.jenjang as pendidikan_nama',
-            'pegawai.jenis_kelamin',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.status_kepegawaian', 'PNS')
-        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
-        ->groupBy('instansi.nama', 'pendidikan.jenjang', 'pegawai.jenis_kelamin')
-        ->get();
-
-    // Siapkan struktur kosong: pendidikan -> gender -> kemantren,
-    // supaya kombinasi yang datanya 0 tetap muncul di response.
-    $agregat = [];
-    foreach ($pendidikanList as $jenjang) {
-        $agregat[$jenjang] = [
-            'laki_laki' => array_fill_keys($kemantrenList, 0),
-            'perempuan' => array_fill_keys($kemantrenList, 0),
-        ];
-    }
-
-    $tidakDikenali = 0;
-
-    foreach ($rows as $row) {
-        $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
-        // "KEMANTREN TEGALREJO" -> "TEGALREJO"
-        $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
-
-        if (!in_array($namaKemantren, $kemantrenList, true)) {
-            continue;
-        }
-
-        $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
-
-        $jenjang = $raw ? match ($raw) {
-            'SD', 'SEKOLAH DASAR'                            => 'SD',
-            'SMP', 'SLTP'                                    => 'SLTP',
-            'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
-            'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
-            'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
-            'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
-            'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
-            'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
-            'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
-            'S3', 'S-3', 'S-3/DOKTOR'                         => 'S3',
-            default => null,
-        } : null;
-
-        $jumlah = (int) $row->jumlah;
-
-        if ($jenjang === null) {
-            $tidakDikenali += $jumlah;
-
-            if ($raw !== null) {
-                Log::warning('StatistikPnsKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
-                    'instansi' => $row->instansi_nama,
-                    'pendidikan_raw' => $row->pendidikan_nama,
-                    'jumlah' => $jumlah,
-                ]);
+                continue;
             }
 
-            continue;
+            $agregat[$jenjang][$namaKemantren] += $jumlah;
         }
 
-        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+        $hasil = ['jumlah_asn_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
 
-        $agregat[$jenjang][$gender][$namaKemantren] += $jumlah;
-    }
+        foreach ($pendidikanList as $jenjang) {
+            $perKemantren = $agregat[$jenjang];
+            $totalJenjang = array_sum($perKemantren);
 
-    $hasil = ['jumlah_pns_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
+            $hasil['pendidikan'][$keyMap[$jenjang]] = [
+                'total' => $totalJenjang,
+                'kemantren' => $perKemantren,
+            ];
 
-    foreach ($pendidikanList as $jenjang) {
-        $perKemantrenL = $agregat[$jenjang]['laki_laki'];
-        $perKemantrenP = $agregat[$jenjang]['perempuan'];
-
-        $totalL = array_sum($perKemantrenL);
-        $totalP = array_sum($perKemantrenP);
-        $totalJenjang = $totalL + $totalP;
-
-        $hasil['pendidikan'][$keyMap[$jenjang]] = [
-            'total' => $totalJenjang,
-            'laki_laki' => [
-                'total' => $totalL,
-                'kemantren' => $perKemantrenL,
-            ],
-            'perempuan' => [
-                'total' => $totalP,
-                'kemantren' => $perKemantrenP,
-            ],
-        ];
-
-        $hasil['jumlah_pns_kemantren'] += $totalJenjang;
-    }
-
-    $hasil['jumlah_pns_kemantren'] += $tidakDikenali;
-
-    return $hasil;
-}
-/**
- * 5.03.016
- * Jumlah PPPK Kemantren berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
- *
- * Struktur & logic PERSIS sama dengan statistikPnsKemantrenPendidikan()
- * (5.03.015) — bedanya hanya filter status_kepegawaian = 'PPPK'.
- * Nested 3 level: pendidikan -> gender -> kemantren.
- *
- * Mapping jenjang pendidikan & daftar kemantren mengikuti
- * statistikAsnKemantrenPendidikan() supaya konsisten.
- *
- * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
- * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
- * lain di service ini.
- */
-public function statistikPppkKemantrenPendidikan(?string $periode = null): array
-{
-    $kemantrenList = [
-        'TEGALREJO', 'JETIS', 'GONDOKUSUMAN', 'DANUREJAN', 'GEDONGTENGEN',
-        'NGAMPILAN', 'WIROBRAJAN', 'MANTRIJERON', 'KRATON', 'GONDOMANAN',
-        'PAKUALAMAN', 'MERGANGSAN', 'UMBULHARJO', 'KOTAGEDE',
-    ];
-
-    $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
-
-    $keyMap = [
-        'SD'    => 'sd',
-        'SLTP'  => 'smp',
-        'SLTA'  => 'sma',
-        'D I'   => 'diploma_i',
-        'D II'  => 'diploma_ii',
-        'D III' => 'diploma_iii',
-        'D IV'  => 'diploma_iv',
-        'S1'    => 'strata_1',
-        'S2'    => 'strata_2',
-        'S3'    => 'strata_3',
-    ];
-
-    $rows = Pegawai::query()
-        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-        ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
-        ->select(
-            'instansi.nama as instansi_nama',
-            'pendidikan.jenjang as pendidikan_nama',
-            'pegawai.jenis_kelamin',
-            DB::raw('COUNT(*) as jumlah')
-        )
-        ->where('pegawai.status_aktif', 'aktif')
-        ->where('pegawai.status_kepegawaian', 'PPPK')
-        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
-        ->groupBy('instansi.nama', 'pendidikan.jenjang', 'pegawai.jenis_kelamin')
-        ->get();
-
-    $agregat = [];
-    foreach ($pendidikanList as $jenjang) {
-        $agregat[$jenjang] = [
-            'laki_laki' => array_fill_keys($kemantrenList, 0),
-            'perempuan' => array_fill_keys($kemantrenList, 0),
-        ];
-    }
-
-    $tidakDikenali = 0;
-
-    foreach ($rows as $row) {
-        $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
-        $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
-
-        if (!in_array($namaKemantren, $kemantrenList, true)) {
-            continue;
+            $hasil['jumlah_asn_kemantren'] += $totalJenjang;
         }
 
-        $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
+        $hasil['jumlah_asn_kemantren'] += $tidakDikenali;
 
-        $jenjang = $raw ? match ($raw) {
-            'SD', 'SEKOLAH DASAR'                            => 'SD',
-            'SMP', 'SLTP'                                    => 'SLTP',
-            'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
-            'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
-            'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
-            'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
-            'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
-            'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
-            'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
-            'S3', 'S-3', 'S-3/DOKTOR'                         => 'S3',
-            default => null,
-        } : null;
+        return $hasil;
+    }
+    /**
+     * 5.03.015
+     * Jumlah PNS Kemantren berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
+     *
+     * Beda dengan statistikAsnKemantrenPendidikan() (5.03.014):
+     * - Scope hanya PNS (status_kepegawaian = 'PNS'), PPPK tidak dihitung.
+     * - Setiap jenjang pendidikan dipecah lagi per jenis kelamin, dan setiap
+     *   gender dipecah lagi per kemantren (nested 3 level: pendidikan -> gender
+     *   -> kemantren), bukan cuma pendidikan -> kemantren seperti 5.03.014.
+     *
+     * Mapping jenjang pendidikan & daftar kemantren mengikuti
+     * statistikAsnKemantrenPendidikan() supaya konsisten.
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikPnsKemantrenPendidikan(?string $periode = null): array
+    {
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
+        ];
 
-        $jumlah = (int) $row->jumlah;
+        $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
 
-        if ($jenjang === null) {
-            $tidakDikenali += $jumlah;
+        $keyMap = [
+            'SD'    => 'sd',
+            'SLTP'  => 'smp',
+            'SLTA'  => 'sma',
+            'D I'   => 'diploma_i',
+            'D II'  => 'diploma_ii',
+            'D III' => 'diploma_iii',
+            'D IV'  => 'diploma_iv',
+            'S1'    => 'strata_1',
+            'S2'    => 'strata_2',
+            'S3'    => 'strata_3',
+        ];
 
-            if ($raw !== null) {
-                Log::warning('StatistikPppkKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
-                    'instansi' => $row->instansi_nama,
-                    'pendidikan_raw' => $row->pendidikan_nama,
-                    'jumlah' => $jumlah,
-                ]);
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                'pendidikan.jenjang as pendidikan_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+            ->groupBy('instansi.nama', 'pendidikan.jenjang', 'pegawai.jenis_kelamin')
+            ->get();
+
+        // Siapkan struktur kosong: pendidikan -> gender -> kemantren,
+        // supaya kombinasi yang datanya 0 tetap muncul di response.
+        $agregat = [];
+        foreach ($pendidikanList as $jenjang) {
+            $agregat[$jenjang] = [
+                'laki_laki' => array_fill_keys($kemantrenList, 0),
+                'perempuan' => array_fill_keys($kemantrenList, 0),
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+            // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+            $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+            if (!in_array($namaKemantren, $kemantrenList, true)) {
+                continue;
             }
 
-            continue;
+            $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
+
+            $jenjang = $raw ? match ($raw) {
+                'SD', 'SEKOLAH DASAR'                            => 'SD',
+                'SMP', 'SLTP'                                    => 'SLTP',
+                'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
+                'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
+                'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
+                'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
+                'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
+                'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
+                'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
+                'S3', 'S-3', 'S-3/DOKTOR'                         => 'S3',
+                default => null,
+            } : null;
+
+            $jumlah = (int) $row->jumlah;
+
+            if ($jenjang === null) {
+                $tidakDikenali += $jumlah;
+
+                if ($raw !== null) {
+                    Log::warning('StatistikPnsKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
+                        'instansi' => $row->instansi_nama,
+                        'pendidikan_raw' => $row->pendidikan_nama,
+                        'jumlah' => $jumlah,
+                    ]);
+                }
+
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+
+            $agregat[$jenjang][$gender][$namaKemantren] += $jumlah;
         }
 
-        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+        $hasil = ['jumlah_pns_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
 
-        $agregat[$jenjang][$gender][$namaKemantren] += $jumlah;
+        foreach ($pendidikanList as $jenjang) {
+            $perKemantrenL = $agregat[$jenjang]['laki_laki'];
+            $perKemantrenP = $agregat[$jenjang]['perempuan'];
+
+            $totalL = array_sum($perKemantrenL);
+            $totalP = array_sum($perKemantrenP);
+            $totalJenjang = $totalL + $totalP;
+
+            $hasil['pendidikan'][$keyMap[$jenjang]] = [
+                'total' => $totalJenjang,
+                'laki_laki' => [
+                    'total' => $totalL,
+                    'kemantren' => $perKemantrenL,
+                ],
+                'perempuan' => [
+                    'total' => $totalP,
+                    'kemantren' => $perKemantrenP,
+                ],
+            ];
+
+            $hasil['jumlah_pns_kemantren'] += $totalJenjang;
+        }
+
+        $hasil['jumlah_pns_kemantren'] += $tidakDikenali;
+
+        return $hasil;
     }
-
-    $hasil = ['jumlah_pppk_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
-
-    foreach ($pendidikanList as $jenjang) {
-        $perKemantrenL = $agregat[$jenjang]['laki_laki'];
-        $perKemantrenP = $agregat[$jenjang]['perempuan'];
-
-        $totalL = array_sum($perKemantrenL);
-        $totalP = array_sum($perKemantrenP);
-        $totalJenjang = $totalL + $totalP;
-
-        $hasil['pendidikan'][$keyMap[$jenjang]] = [
-            'total' => $totalJenjang,
-            'laki_laki' => [
-                'total' => $totalL,
-                'kemantren' => $perKemantrenL,
-            ],
-            'perempuan' => [
-                'total' => $totalP,
-                'kemantren' => $perKemantrenP,
-            ],
+    /**
+     * 5.03.016
+     * Jumlah PPPK Kemantren berdasarkan Tingkat Pendidikan dan Jenis Kelamin.
+     *
+     * Struktur & logic PERSIS sama dengan statistikPnsKemantrenPendidikan()
+     * (5.03.015) — bedanya hanya filter status_kepegawaian = 'PPPK'.
+     * Nested 3 level: pendidikan -> gender -> kemantren.
+     *
+     * Mapping jenjang pendidikan & daftar kemantren mengikuti
+     * statistikAsnKemantrenPendidikan() supaya konsisten.
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikPppkKemantrenPendidikan(?string $periode = null): array
+    {
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
         ];
 
-        $hasil['jumlah_pppk_kemantren'] += $totalJenjang;
+        $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
+
+        $keyMap = [
+            'SD'    => 'sd',
+            'SLTP'  => 'smp',
+            'SLTA'  => 'sma',
+            'D I'   => 'diploma_i',
+            'D II'  => 'diploma_ii',
+            'D III' => 'diploma_iii',
+            'D IV'  => 'diploma_iv',
+            'S1'    => 'strata_1',
+            'S2'    => 'strata_2',
+            'S3'    => 'strata_3',
+        ];
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                'pendidikan.jenjang as pendidikan_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PPPK')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+            ->groupBy('instansi.nama', 'pendidikan.jenjang', 'pegawai.jenis_kelamin')
+            ->get();
+
+        $agregat = [];
+        foreach ($pendidikanList as $jenjang) {
+            $agregat[$jenjang] = [
+                'laki_laki' => array_fill_keys($kemantrenList, 0),
+                'perempuan' => array_fill_keys($kemantrenList, 0),
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+            $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+            if (!in_array($namaKemantren, $kemantrenList, true)) {
+                continue;
+            }
+
+            $raw = $row->pendidikan_nama ? strtoupper(trim($row->pendidikan_nama)) : null;
+
+            $jenjang = $raw ? match ($raw) {
+                'SD', 'SEKOLAH DASAR'                            => 'SD',
+                'SMP', 'SLTP'                                    => 'SLTP',
+                'SMA', 'SMK', 'SMA/SMK', 'SLTA', 'SLTA KEJURUAN' => 'SLTA',
+                'D1', 'D-1', 'D I', 'DIPLOMA I'                  => 'D I',
+                'D2', 'D-2', 'D II', 'DIPLOMA II'                => 'D II',
+                'D3', 'D-3', 'D III', 'DIPLOMA III/SARJANA'      => 'D III',
+                'D4', 'D-4', 'D IV', 'D4/S1', 'DIPLOMA IV'       => 'D IV',
+                'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'            => 'S1',
+                'S2', 'S-2', 'S-2/MAGISTER'                      => 'S2',
+                'S3', 'S-3', 'S-3/DOKTOR'                         => 'S3',
+                default => null,
+            } : null;
+
+            $jumlah = (int) $row->jumlah;
+
+            if ($jenjang === null) {
+                $tidakDikenali += $jumlah;
+
+                if ($raw !== null) {
+                    Log::warning('StatistikPppkKemantrenPendidikan: jenjang pendidikan tidak dikenali', [
+                        'instansi' => $row->instansi_nama,
+                        'pendidikan_raw' => $row->pendidikan_nama,
+                        'jumlah' => $jumlah,
+                    ]);
+                }
+
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+
+            $agregat[$jenjang][$gender][$namaKemantren] += $jumlah;
+        }
+
+        $hasil = ['jumlah_pppk_kemantren' => 0, 'pendidikan' => [], 'tidak_dikenali' => $tidakDikenali];
+
+        foreach ($pendidikanList as $jenjang) {
+            $perKemantrenL = $agregat[$jenjang]['laki_laki'];
+            $perKemantrenP = $agregat[$jenjang]['perempuan'];
+
+            $totalL = array_sum($perKemantrenL);
+            $totalP = array_sum($perKemantrenP);
+            $totalJenjang = $totalL + $totalP;
+
+            $hasil['pendidikan'][$keyMap[$jenjang]] = [
+                'total' => $totalJenjang,
+                'laki_laki' => [
+                    'total' => $totalL,
+                    'kemantren' => $perKemantrenL,
+                ],
+                'perempuan' => [
+                    'total' => $totalP,
+                    'kemantren' => $perKemantrenP,
+                ],
+            ];
+
+            $hasil['jumlah_pppk_kemantren'] += $totalJenjang;
+        }
+
+        $hasil['jumlah_pppk_kemantren'] += $tidakDikenali;
+
+        return $hasil;
+    }
+    /**
+     * 5.03.017
+     * Jumlah PNS Kemantren berdasarkan Golongan dan Jenis Kelamin.
+     *
+     * Struktur nested: kemantren -> gender -> golongan (I-IV).
+     * Berbeda dari statistikPnsKemantrenPendidikan() (5.03.015) yang nested-nya
+     * pendidikan -> gender -> kemantren; di sini kemantren jadi level teratas.
+     *
+     * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS'), golongan
+     * diambil dari golongan_ruang.kelompok = 'PNS' — konsisten dengan
+     * statistikPnsGolongan(). Golongan romawi diambil dari angka sebelum '/'
+     * pada golongan_ruang.kode (mis. 'III/a' -> 'III'), sama seperti pola di
+     * statistikPensiunanPNS()/statistikStafDinasGolongan().
+     *
+     * Daftar kemantren mengikuti statistikAsnKemantrenPendidikan() supaya
+     * konsisten.
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikPnsKemantrenGolongan(?string $periode = null): array
+    {
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
+        ];
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+            ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
+            ->get();
+
+        // Siapkan struktur kosong: kemantren -> gender -> golongan I-IV,
+        // supaya kombinasi yang datanya 0 tetap muncul di response.
+        $agregat = [];
+        foreach ($kemantrenList as $kemantren) {
+            $agregat[$kemantren] = [
+                'laki_laki' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
+                'perempuan' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+            // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+            $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+            if (!in_array($namaKemantren, $kemantrenList, true)) {
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+            $jumlah = (int) $row->jumlah;
+
+            $kode = trim((string) $row->golongan_kode);
+
+            if (!str_contains($kode, '/')) {
+                $tidakDikenali += $jumlah;
+                continue;
+            }
+
+            $romawi = explode('/', $kode)[0];
+
+            if (!isset($agregat[$namaKemantren][$gender][$romawi])) {
+                $tidakDikenali += $jumlah;
+                continue;
+            }
+
+            $agregat[$namaKemantren][$gender][$romawi] += $jumlah;
+        }
+
+        $hasil = ['jumlah_pns_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+        foreach ($kemantrenList as $kemantren) {
+            $golL = $agregat[$kemantren]['laki_laki'];
+            $golP = $agregat[$kemantren]['perempuan'];
+
+            $totalL = array_sum($golL);
+            $totalP = array_sum($golP);
+            $totalKemantren = $totalL + $totalP;
+
+            $hasil['kemantren'][$kemantren] = [
+                'total' => $totalKemantren,
+                'laki_laki' => [
+                    'total' => $totalL,
+                    'golongan_I' => $golL['I'],
+                    'golongan_II' => $golL['II'],
+                    'golongan_III' => $golL['III'],
+                    'golongan_IV' => $golL['IV'],
+                ],
+                'perempuan' => [
+                    'total' => $totalP,
+                    'golongan_I' => $golP['I'],
+                    'golongan_II' => $golP['II'],
+                    'golongan_III' => $golP['III'],
+                    'golongan_IV' => $golP['IV'],
+                ],
+            ];
+
+            $hasil['jumlah_pns_kemantren'] += $totalKemantren;
+        }
+
+        $hasil['jumlah_pns_kemantren'] += $tidakDikenali;
+
+        return $hasil;
     }
 
-    $hasil['jumlah_pppk_kemantren'] += $tidakDikenali;
+    /**
+     * 5.03.018
+     * Jumlah PPPK Kemantren berdasarkan Golongan dan Jenis Kelamin.
+     *
+     * Struktur nested: kemantren -> gender -> rentang golongan.
+     * Golongan PPPK memakai kode romawi POLOS tanpa huruf (I, II, ... XVII),
+     * BEDA dengan golongan PNS yang formatnya 'III/a' — lihat
+     * statistikPppkGolongan() yang sudah membuktikan pola ini.
+     *
+     * Golongan dikelompokkan menjadi 4 rentang sesuai kebutuhan laporan:
+     * I-IV, V-VIII, IX-XII, XIII-XVII (bukan per-golongan tunggal seperti PNS).
+     *
+     * Hanya PPPK aktif yang dihitung, golongan diambil dari
+     * golongan_ruang.kelompok = 'PPPK' — konsisten dengan
+     * statistikPppkGolongan().
+     *
+     * Daftar kemantren mengikuti statistikAsnKemantrenPendidikan() supaya
+     * konsisten.
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikPppkKemantrenGolongan(?string $periode = null): array
+    {
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
+        ];
 
-    return $hasil;
-}
+        // Mapping kode romawi PPPK (I-XVII) ke rentang bucket laporan.
+        $rentangMap = [
+            'I' => 'I-IV',
+            'II' => 'I-IV',
+            'III' => 'I-IV',
+            'IV' => 'I-IV',
+            'V' => 'V-VIII',
+            'VI' => 'V-VIII',
+            'VII' => 'V-VIII',
+            'VIII' => 'V-VIII',
+            'IX' => 'IX-XII',
+            'X' => 'IX-XII',
+            'XI' => 'IX-XII',
+            'XII' => 'IX-XII',
+            'XIII' => 'XIII-XVII',
+            'XIV' => 'XIII-XVII',
+            'XV' => 'XIII-XVII',
+            'XVI' => 'XIII-XVII',
+            'XVII' => 'XIII-XVII',
+        ];
+
+        $rentangList = ['I-IV', 'V-VIII', 'IX-XII', 'XIII-XVII'];
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('golongan_ruang.kelompok', 'PPPK')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+            ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
+            ->get();
+
+        // Siapkan struktur kosong: kemantren -> gender -> rentang golongan,
+        // supaya kombinasi yang datanya 0 tetap muncul di response.
+        $agregat = [];
+        foreach ($kemantrenList as $kemantren) {
+            $agregat[$kemantren] = [
+                'laki_laki' => array_fill_keys($rentangList, 0),
+                'perempuan' => array_fill_keys($rentangList, 0),
+            ];
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+            // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+            $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+            if (!in_array($namaKemantren, $kemantrenList, true)) {
+                continue;
+            }
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+            $jumlah = (int) $row->jumlah;
+
+            $kode = strtoupper(trim((string) $row->golongan_kode));
+            $rentang = $rentangMap[$kode] ?? null;
+
+            if ($rentang === null) {
+                $tidakDikenali += $jumlah;
+                continue;
+            }
+
+            $agregat[$namaKemantren][$gender][$rentang] += $jumlah;
+        }
+
+        $hasil = ['jumlah_pppk_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+        foreach ($kemantrenList as $kemantren) {
+            $golL = $agregat[$kemantren]['laki_laki'];
+            $golP = $agregat[$kemantren]['perempuan'];
+
+            $totalL = array_sum($golL);
+            $totalP = array_sum($golP);
+            $totalKemantren = $totalL + $totalP;
+
+            $hasil['kemantren'][$kemantren] = [
+                'total' => $totalKemantren,
+                'laki_laki' => [
+                    'total' => $totalL,
+                    'golongan_I_IV' => $golL['I-IV'],
+                    'golongan_V_VIII' => $golL['V-VIII'],
+                    'golongan_IX_XII' => $golL['IX-XII'],
+                    'golongan_XIII_XVII' => $golL['XIII-XVII'],
+                ],
+                'perempuan' => [
+                    'total' => $totalP,
+                    'golongan_I_IV' => $golP['I-IV'],
+                    'golongan_V_VIII' => $golP['V-VIII'],
+                    'golongan_IX_XII' => $golP['IX-XII'],
+                    'golongan_XIII_XVII' => $golP['XIII-XVII'],
+                ],
+            ];
+
+            $hasil['jumlah_pppk_kemantren'] += $totalKemantren;
+        }
+
+        $hasil['jumlah_pppk_kemantren'] += $tidakDikenali;
+
+        return $hasil;
+    }
+    /**
+     * 5.03.019
+     * Jumlah PNS Kelurahan, dikelompokkan berdasarkan Kemantren induknya.
+     *
+     * Beda dengan method kemantren lain (015-018): di sini level teratas tetap
+     * Kemantren, tapi breakdown-nya per KELURAHAN (bukan gender/golongan/
+     * pendidikan) — sesuai struktur wilayah administratif: 1 Kemantren terdiri
+     * dari beberapa Kelurahan.
+     *
+     * Asumsi: instansi.nama untuk kelurahan memakai pola 'KELURAHAN <NAMA>',
+     * konsisten dengan pola 'KEMANTREN <NAMA>' yang sudah dipakai di
+     * statistikAsnKemantrenPendidikan(). PERLU DIKONFIRMASI ke data asli —
+     * kalau ternyata polanya beda (mis. tanpa prefix 'KELURAHAN'), sesuaikan
+     * whereRaw dan strip prefix di bawah.
+     *
+     * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS').
+     *
+     * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+     * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+     * lain di service ini.
+     */
+    public function statistikPnsKelurahan(?string $periode = null): array
+    {
+        // Mapping Kemantren -> daftar Kelurahan di bawahnya, sesuai struktur
+        // wilayah administratif Kota Yogyakarta.
+        $kemantrenKelurahanMap = [
+            'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
+            'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+            'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
+            'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
+            'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
+            'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+            'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
+            'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
+            'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+            'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
+            'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
+            'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+            'UMBULHARJO' => [
+                'SEMAKI',
+                'MUJAMUJU',
+                'TAHUNAN',
+                'WARUNGBOTO',
+                'PANDEYAN',
+                'SOROSUTAN',
+                'GIWANGAN',
+            ],
+            'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+        ];
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->select(
+                'instansi.nama as instansi_nama',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KELURAHAN %'")
+            ->groupBy('instansi.nama')
+            ->get();
+
+        // Siapkan struktur kosong dulu supaya kelurahan yang datanya 0 tetap
+        // muncul di response, konsisten dengan pola method kemantren lain.
+        $hasilKemantren = [];
+        foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
+            $hasilKemantren[$kemantren] = array_fill_keys($kelurahanList, 0);
+        }
+
+        // Index kelurahan -> kemantren induknya, untuk lookup cepat saat
+        // memproses hasil query (nama kelurahan diasumsikan unik antar
+        // kemantren, sesuai struktur wilayah Kota Yogyakarta).
+        $kelurahanToKemantren = [];
+        foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
+            foreach ($kelurahanList as $kelurahan) {
+                $kelurahanToKemantren[$kelurahan] = $kemantren;
+            }
+        }
+
+        $tidakDikenali = 0;
+
+        foreach ($rows as $row) {
+            $namaKelurahan = strtoupper(trim((string) $row->instansi_nama));
+            // "KELURAHAN KRICAK" -> "KRICAK"
+            $namaKelurahan = trim(str_replace('KELURAHAN', '', $namaKelurahan));
+
+            $jumlah = (int) $row->jumlah;
+
+            $kemantren = $kelurahanToKemantren[$namaKelurahan] ?? null;
+
+            if ($kemantren === null) {
+                $tidakDikenali += $jumlah;
+
+                Log::warning('StatistikPnsKelurahan: kelurahan tidak dikenali', [
+                    'instansi_raw' => $row->instansi_nama,
+                    'jumlah' => $jumlah,
+                ]);
+
+                continue;
+            }
+
+            $hasilKemantren[$kemantren][$namaKelurahan] = $jumlah;
+        }
+
+        $hasil = ['jumlah_pns_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+        foreach ($hasilKemantren as $kemantren => $kelurahanData) {
+            $totalKemantren = array_sum($kelurahanData);
+
+            $hasil['kemantren'][$kemantren] = [
+                'total' => $totalKemantren,
+                'kelurahan' => $kelurahanData,
+            ];
+
+            $hasil['jumlah_pns_kelurahan'] += $totalKemantren;
+        }
+
+        $hasil['jumlah_pns_kelurahan'] += $tidakDikenali;
+
+        return $hasil;
+    }
 }
