@@ -62,12 +62,11 @@ function Home() {
             <main className="flex-1 p-10 overflow-x-auto">
                 <div className="mb-9">
                     <h1 className="text-3xl font-bold text-[#172033]">
-                        Statistik Pegawai
+                        Dashboard
                     </h1>
                     <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
                     <p className="text-[#687386] text-[15px]">
-                        Pemerintah Kota Yogyakarta · Rekapitulasi Data
-                        Kepegawaian
+                         Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
                     </p>
                 </div>
 
@@ -99,12 +98,19 @@ function Home() {
                 )}
 
                 {loading && !data && (
-                    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                        <LockedStatCard title="Total Pegawai" loading />
-                        <LockedStatCard title="Jabatan Struktural" loading />
-                        <LockedStatCard title="JFU" loading />
-                        <LockedStatCard title="Generasi" loading />
-                    </div>
+                    <>
+                        <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+                            <LockedStatCard title="Total Pegawai" loading />
+                            <LockedStatCard title="Jabatan Struktural" loading />
+                            <LockedStatCard title="JFU" loading />
+                            <LockedStatCard title="Generasi" loading />
+                        </div>
+
+                        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
+                            <ChartCardLoading title="Golongan" />
+                            <ChartCardLoading title="Pendidikan" />
+                        </div>
+                    </>
                 )}
 
                 {data && (
@@ -224,6 +230,28 @@ function GenerasiCard({ label, total, pria, wanita }) {
             <div className="flex gap-2">
                 <GenderChip icon="♂" value={pria} />
                 <GenderChip icon="♀" value={wanita} />
+            </div>
+        </div>
+    );
+}
+
+// Placeholder loading untuk grafik — 3 titik animasi + keterangan
+// "Memuat data...", tampil selagi data dashboard masih diambil dari
+// server (menggantikan area kosong sebelum grafik sungguhan dirender).
+function ChartCardLoading({ title, height = 280, label = "Memuat data..." }) {
+    return (
+        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5">
+            <h3 className="text-[#172033] font-semibold mb-4">{title}</h3>
+            <div
+                style={{ width: "100%", height }}
+                className="flex flex-col items-center justify-center gap-3"
+            >
+                <div className="flex gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#006A4E] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#006A4E] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#006A4E] animate-bounce" />
+                </div>
+                <span className="text-sm text-[#8A93A0]">{label}</span>
             </div>
         </div>
     );
