@@ -147,6 +147,111 @@ public function statistikPejabatFungsional(?string $periode = null): array
     }
 
 /**
+     * Helper: hitung jumlah pegawai per rumpun Jabatan Fungsional Tertentu
+     * (Dosen, Guru, Auditor, P2UPD, Medis, Teknis), dipecah per jenis kelamin.
+     *
+     * BUG SEBELUMNYA: method ini DIPANGGIL oleh statistikPejabatFungsional()
+     * tapi TIDAK PERNAH DIDEFINISIKAN di service ini ("Call to undefined
+     * method"), itu sebabnya endpoint /statistik/pejabat-fungsional selalu
+     * error 500. Implementasi di bawah ini pertama kali dibuat sekarang,
+     * memakai pendekatan yang sama seperti klasifikasi jabatan lain di file
+     * ini (LIKE UPPER(TRIM(pegawai.jabatan))), dibatasi hanya pegawai aktif
+     * dengan jenis_kedudukan = 'FUNGSIONAL'.
+     *
+     * PENTING — kata kunci per rumpun di bawah ini masih PERLU DIKONFIRMASI
+     * terhadap penamaan jabatan yang sebenarnya ada di database kamu:
+     * - dosen   : jabatan mengandung "DOSEN"
+     * - guru    : jabatan mengandung "GURU"
+     * - auditor : jabatan mengandung "AUDITOR"
+     * - p2upd   : jabatan mengandung "P2UPD" atau "PENGAWAS PENYELENGGARAAN
+     *             URUSAN PEMERINTAHAN DAERAH"
+     * - medis   : jabatan mengandung salah satu dari DOKTER, PERAWAT, BIDAN,
+     *             APOTEKER, NUTRISIONIS, SANITARIAN (rumpun tenaga kesehatan)
+     * - teknis  : bucket "sisa" — semua pegawai FUNGSIONAL yang tidak masuk
+     *             5 kategori di atas
+     *
+     * Kalau daftar kata kunci ini tidak cocok dengan jabatan riil di database
+     * kamu, kabari saya supaya saya sesuaikan.
+     */
+    protected function rumpunJabatanFungsional(): array
+    {
+        $hitung = function (callable $queryCallback) {
+            $query = Pegawai::query()
+                ->where('status_aktif', 'aktif')
+                ->whereRaw('UPPER(TRIM(jenis_kedudukan)) = ?', ['FUNGSIONAL']);
+
+            $queryCallback($query);
+
+            $lakiLaki = (clone $query)->where('jenis_kelamin', 'L')->count();
+            $perempuan = (clone $query)->where('jenis_kelamin', 'P')->count();
+
+            return [
+                'laki_laki' => $lakiLaki,
+                'perempuan' => $perempuan,
+            ];
+        };
+
+        $dosen = $hitung(function ($q) {
+            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%DOSEN%']);
+        });
+
+        $guru = $hitung(function ($q) {
+            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%GURU%']);
+        });
+
+        $auditor = $hitung(function ($q) {
+            $q->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%AUDITOR%']);
+        });
+
+        $p2upd = $hitung(function ($q) {
+            $q->where(function ($qq) {
+                $qq->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%P2UPD%'])
+                    ->orWhereRaw(
+                        'UPPER(TRIM(jabatan)) LIKE ?',
+                        ['%PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN DAERAH%']
+                    );
+            });
+        });
+
+        $medis = $hitung(function ($q) {
+            $q->where(function ($qq) {
+                $qq->whereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%DOKTER%'])
+                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%PERAWAT%'])
+                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%BIDAN%'])
+                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%APOTEKER%'])
+                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%NUTRISIONIS%'])
+                    ->orWhereRaw('UPPER(TRIM(jabatan)) LIKE ?', ['%SANITARIAN%']);
+            });
+        });
+
+        $teknis = $hitung(function ($q) {
+            $q->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%DOSEN%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%GURU%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%AUDITOR%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%P2UPD%'])
+                ->whereRaw(
+                    'UPPER(TRIM(jabatan)) NOT LIKE ?',
+                    ['%PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN DAERAH%']
+                )
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%DOKTER%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%PERAWAT%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%BIDAN%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%APOTEKER%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%NUTRISIONIS%'])
+                ->whereRaw('UPPER(TRIM(jabatan)) NOT LIKE ?', ['%SANITARIAN%']);
+        });
+
+        return [
+            'dosen' => $dosen,
+            'guru' => $guru,
+            'auditor' => $auditor,
+            'p2upd' => $p2upd,
+            'medis' => $medis,
+            'teknis' => $teknis,
+        ];
+    }
+
+    /**
      * Statistik Pensiunan PNS per golongan (I/II/III/IV) dan jenis kelamin,
      * untuk TAHUN tertentu.
      *
@@ -2226,4 +2331,3 @@ public function statistikPppkKemantrenPendidikan(?string $periode = null): array
     return $hasil;
 }
 }
-

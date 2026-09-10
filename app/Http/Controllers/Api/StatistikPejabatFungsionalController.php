@@ -9,15 +9,13 @@ use Illuminate\Http\Request;
 
 class StatistikPejabatFungsionalController extends Controller
 {
-    public function __construct(protected StatistikService $statistikService)
-    {
-    }
+    public function __construct(protected StatistikService $statistikService) {}
 
     public function index(Request $request): JsonResponse
     {
         $periode = $request->query('periode');
 
-        $data = $this->StatistikService->statistikPejabatFungsional($periode);
+        $data = $this->statistikService->statistikPejabatFungsional($periode);
 
         return response()->json([
             'data' => $data,
