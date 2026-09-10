@@ -22,7 +22,10 @@ use App\Http\Controllers\Api\StatistikPenjabatPerangkatDaerahController;
 use App\Http\Controllers\Api\StatistikAsnKemantrenPendidikanController;   
 use App\Http\Controllers\Api\StatistikPnsKemantrenPendidikanController;
 use App\Http\Controllers\Api\StatistikPppkKemantrenPendidikanController;
+use App\Http\Controllers\Api\StatistikPnsKemantrenGolonganController;
+use App\Http\Controllers\Api\StatistikPppkKemantrenGolonganController;
 use App\Http\Controllers\Api\StatistikPensiunanPNSController;
+use App\Http\Controllers\Api\StatistikPnsKelurahanController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -79,8 +82,23 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
      
     Route::get('/statistik/pppk-kemantren-pendidikan', [
         StatistikPppkKemantrenPendidikanController::class,
-        'insdex'
+        'index'
     ]); 
+
+    Route::get('/statistik/pns-kemantren-golongan', [
+        StatistikPnsKemantrenGolonganController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pppk-kemantren-golongan', [
+        StatistikPppkKemantrenGolonganController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pns-kelurahan', [
+        StatistikPnsKelurahanController::class,
+        'index'
+    ]);
 
     // =========================================================
     // STATISTIK ASN BERDASARKAN JENIS DAN PENDIDIKAN

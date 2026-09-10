@@ -146,6 +146,94 @@ public function statistikPejabatFungsional(?string $periode = null): array
         ];
     }
 
+    /**
+     * Hitung jumlah PNS per jabatan fungsional berdasarkan rumpun jabatan (dosen, guru, medis, teknis) dan jenis kelamin.
+     *
+     * @return array
+     */
+   protected function rumpunJabatanFungsional(): array
+{
+    $medisKeywords = [
+        'DOKTER', 'PERAWAT', 'BIDAN', 'APOTEKER', 'PEREKAM MEDIS',
+        'PRANATA LABORATORIUM KESEHATAN', 'NUTRISIONIS', 'EPIDEMIOLOG',
+        'ADMINISTRATOR KESEHATAN', 'PENYULUH KESEHATAN', 'RADIOGRAFER',
+        'TEKNISI TRANSFUSI DARAH', 'SANITARIAN', 'TERAPIS GIGI',
+        'MEDIK VETERINER', 'PARAMEDIK VETERINER', 'PROMOSI KESEHATAN',
+        'SANITASI LINGKUNGAN', 'FISIOTERAPIS', 'FISIKAWAN MEDIS',
+        'PSIKOLOG KLINIS', 'TEKNISI ELEKTROMEDIS', 'TERAPIS WICARA',
+        'PENATA ANESTESI', 'OKUPASI TERAPIS', 'PEMBIMBING KESEHATAN KERJA',
+    ];
+
+    // FIX: kata kunci P2UPD ditulis lengkap plus singkatannya, supaya
+    // menangkap varian penulisan "Pengawas Penyelenggaraan Urusan
+    // Pemerintahan di Daerah (Pengawas Pemerintah)" maupun kalau suatu
+    // saat ditulis singkat "P2UPD" saja.
+    $p2updKeywords = [
+        'PENGAWAS PENYELENGGARAAN URUSAN PEMERINTAHAN',
+        'P2UPD',
+    ];
+
+    $rows = Pegawai::query()
+        ->select('jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
+        ->where('status_aktif', 'aktif')
+        ->where('jenis_kedudukan', 'FUNGSIONAL')
+        ->groupBy('jabatan', 'jenis_kelamin')
+        ->get();
+
+    // FIX: tambahkan key 'auditor' dan 'p2upd' yang sebelumnya hilang
+    // dari inisialisasi — inilah penyebab "Undefined array key" dan
+    // nilainya jadi null/0 di statistikPejabatFungsional().
+    $rumpun = [
+        'dosen' => ['laki_laki' => 0, 'perempuan' => 0],
+        'guru' => ['laki_laki' => 0, 'perempuan' => 0],
+        'auditor' => ['laki_laki' => 0, 'perempuan' => 0],
+        'p2upd' => ['laki_laki' => 0, 'perempuan' => 0],
+        'medis' => ['laki_laki' => 0, 'perempuan' => 0],
+        'teknis' => ['laki_laki' => 0, 'perempuan' => 0],
+    ];
+
+    foreach ($rows as $row) {
+        $jabatan = strtoupper(trim((string) $row->jabatan));
+        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+        $jumlah = (int) $row->jumlah;
+
+        // FIX: cek P2UPD dan AUDITOR dulu SEBELUM medisKeywords/else,
+        // supaya tidak ke-fallback ke 'teknis' seperti sebelumnya.
+        if (str_starts_with($jabatan, 'GURU')) {
+            $rumpun['guru'][$gender] += $jumlah;
+        } elseif (str_contains($jabatan, 'DOSEN')) {
+            $rumpun['dosen'][$gender] += $jumlah;
+        } elseif ($this->containsAny($jabatan, $p2updKeywords)) {
+            $rumpun['p2upd'][$gender] += $jumlah;
+        } elseif (str_starts_with($jabatan, 'AUDITOR')) {
+            $rumpun['auditor'][$gender] += $jumlah;
+        } elseif ($this->containsAny($jabatan, $medisKeywords)) {
+            $rumpun['medis'][$gender] += $jumlah;
+        } else {
+            $rumpun['teknis'][$gender] += $jumlah;
+        }
+    }
+
+    return $rumpun;
+}
+/**
+ * Cek apakah string mengandung salah satu dari string dalam array
+ *
+ * @param string $haystack String yang akan dicari
+ * @param array $needles Array of strings to search for
+ * @return bool
+ */
+private function containsAny(string $haystack, array $needles): bool
+{
+    foreach ($needles as $needle) {
+        if (str_contains($haystack, $needle)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
      * Statistik Pensiunan PNS per golongan (I/II/III/IV) dan jenis kelamin,
      * untuk TAHUN tertentu.
@@ -2222,6 +2310,370 @@ public function statistikPppkKemantrenPendidikan(?string $periode = null): array
     }
 
     $hasil['jumlah_pppk_kemantren'] += $tidakDikenali;
+
+    return $hasil;
+}
+/**
+ * 5.03.017
+ * Jumlah PNS Kemantren berdasarkan Golongan dan Jenis Kelamin.
+ *
+ * Struktur nested: kemantren -> gender -> golongan (I-IV).
+ * Berbeda dari statistikPnsKemantrenPendidikan() (5.03.015) yang nested-nya
+ * pendidikan -> gender -> kemantren; di sini kemantren jadi level teratas.
+ *
+ * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS'), golongan
+ * diambil dari golongan_ruang.kelompok = 'PNS' — konsisten dengan
+ * statistikPnsGolongan(). Golongan romawi diambil dari angka sebelum '/'
+ * pada golongan_ruang.kode (mis. 'III/a' -> 'III'), sama seperti pola di
+ * statistikPensiunanPNS()/statistikStafDinasGolongan().
+ *
+ * Daftar kemantren mengikuti statistikAsnKemantrenPendidikan() supaya
+ * konsisten.
+ *
+ * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+ * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+ * lain di service ini.
+ */
+public function statistikPnsKemantrenGolongan(?string $periode = null): array
+{
+    $kemantrenList = [
+        'TEGALREJO', 'JETIS', 'GONDOKUSUMAN', 'DANUREJAN', 'GEDONGTENGEN',
+        'NGAMPILAN', 'WIROBRAJAN', 'MANTRIJERON', 'KRATON', 'GONDOMANAN',
+        'PAKUALAMAN', 'MERGANGSAN', 'UMBULHARJO', 'KOTAGEDE',
+    ];
+
+    $rows = Pegawai::query()
+        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+        ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+        ->select(
+            'instansi.nama as instansi_nama',
+            'golongan_ruang.kode as golongan_kode',
+            'pegawai.jenis_kelamin',
+            DB::raw('COUNT(*) as jumlah')
+        )
+        ->where('pegawai.status_aktif', 'aktif')
+        ->where('pegawai.status_kepegawaian', 'PNS')
+        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+        ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
+        ->get();
+
+    // Siapkan struktur kosong: kemantren -> gender -> golongan I-IV,
+    // supaya kombinasi yang datanya 0 tetap muncul di response.
+    $agregat = [];
+    foreach ($kemantrenList as $kemantren) {
+        $agregat[$kemantren] = [
+            'laki_laki' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
+            'perempuan' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
+        ];
+    }
+
+    $tidakDikenali = 0;
+
+    foreach ($rows as $row) {
+        $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+        // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+        $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+        if (!in_array($namaKemantren, $kemantrenList, true)) {
+            continue;
+        }
+
+        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+        $jumlah = (int) $row->jumlah;
+
+        $kode = trim((string) $row->golongan_kode);
+
+        if (!str_contains($kode, '/')) {
+            $tidakDikenali += $jumlah;
+            continue;
+        }
+
+        $romawi = explode('/', $kode)[0];
+
+        if (!isset($agregat[$namaKemantren][$gender][$romawi])) {
+            $tidakDikenali += $jumlah;
+            continue;
+        }
+
+        $agregat[$namaKemantren][$gender][$romawi] += $jumlah;
+    }
+
+    $hasil = ['jumlah_pns_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+    foreach ($kemantrenList as $kemantren) {
+        $golL = $agregat[$kemantren]['laki_laki'];
+        $golP = $agregat[$kemantren]['perempuan'];
+
+        $totalL = array_sum($golL);
+        $totalP = array_sum($golP);
+        $totalKemantren = $totalL + $totalP;
+
+        $hasil['kemantren'][$kemantren] = [
+            'total' => $totalKemantren,
+            'laki_laki' => [
+                'total' => $totalL,
+                'golongan_I' => $golL['I'],
+                'golongan_II' => $golL['II'],
+                'golongan_III' => $golL['III'],
+                'golongan_IV' => $golL['IV'],
+            ],
+            'perempuan' => [
+                'total' => $totalP,
+                'golongan_I' => $golP['I'],
+                'golongan_II' => $golP['II'],
+                'golongan_III' => $golP['III'],
+                'golongan_IV' => $golP['IV'],
+            ],
+        ];
+
+        $hasil['jumlah_pns_kemantren'] += $totalKemantren;
+    }
+
+    $hasil['jumlah_pns_kemantren'] += $tidakDikenali;
+
+    return $hasil;
+}
+
+/**
+ * 5.03.018
+ * Jumlah PPPK Kemantren berdasarkan Golongan dan Jenis Kelamin.
+ *
+ * Struktur nested: kemantren -> gender -> rentang golongan.
+ * Golongan PPPK memakai kode romawi POLOS tanpa huruf (I, II, ... XVII),
+ * BEDA dengan golongan PNS yang formatnya 'III/a' — lihat
+ * statistikPppkGolongan() yang sudah membuktikan pola ini.
+ *
+ * Golongan dikelompokkan menjadi 4 rentang sesuai kebutuhan laporan:
+ * I-IV, V-VIII, IX-XII, XIII-XVII (bukan per-golongan tunggal seperti PNS).
+ *
+ * Hanya PPPK aktif yang dihitung, golongan diambil dari
+ * golongan_ruang.kelompok = 'PPPK' — konsisten dengan
+ * statistikPppkGolongan().
+ *
+ * Daftar kemantren mengikuti statistikAsnKemantrenPendidikan() supaya
+ * konsisten.
+ *
+ * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+ * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+ * lain di service ini.
+ */
+public function statistikPppkKemantrenGolongan(?string $periode = null): array
+{
+    $kemantrenList = [
+        'TEGALREJO', 'JETIS', 'GONDOKUSUMAN', 'DANUREJAN', 'GEDONGTENGEN',
+        'NGAMPILAN', 'WIROBRAJAN', 'MANTRIJERON', 'KRATON', 'GONDOMANAN',
+        'PAKUALAMAN', 'MERGANGSAN', 'UMBULHARJO', 'KOTAGEDE',
+    ];
+
+    // Mapping kode romawi PPPK (I-XVII) ke rentang bucket laporan.
+    $rentangMap = [
+        'I' => 'I-IV', 'II' => 'I-IV', 'III' => 'I-IV', 'IV' => 'I-IV',
+        'V' => 'V-VIII', 'VI' => 'V-VIII', 'VII' => 'V-VIII', 'VIII' => 'V-VIII',
+        'IX' => 'IX-XII', 'X' => 'IX-XII', 'XI' => 'IX-XII', 'XII' => 'IX-XII',
+        'XIII' => 'XIII-XVII', 'XIV' => 'XIII-XVII', 'XV' => 'XIII-XVII',
+        'XVI' => 'XIII-XVII', 'XVII' => 'XIII-XVII',
+    ];
+
+    $rentangList = ['I-IV', 'V-VIII', 'IX-XII', 'XIII-XVII'];
+
+    $rows = Pegawai::query()
+        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+        ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+        ->select(
+            'instansi.nama as instansi_nama',
+            'golongan_ruang.kode as golongan_kode',
+            'pegawai.jenis_kelamin',
+            DB::raw('COUNT(*) as jumlah')
+        )
+        ->where('pegawai.status_aktif', 'aktif')
+        ->where('golongan_ruang.kelompok', 'PPPK')
+        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KEMANTREN %'")
+        ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
+        ->get();
+
+    // Siapkan struktur kosong: kemantren -> gender -> rentang golongan,
+    // supaya kombinasi yang datanya 0 tetap muncul di response.
+    $agregat = [];
+    foreach ($kemantrenList as $kemantren) {
+        $agregat[$kemantren] = [
+            'laki_laki' => array_fill_keys($rentangList, 0),
+            'perempuan' => array_fill_keys($rentangList, 0),
+        ];
+    }
+
+    $tidakDikenali = 0;
+
+    foreach ($rows as $row) {
+        $namaKemantren = strtoupper(trim((string) $row->instansi_nama));
+        // "KEMANTREN TEGALREJO" -> "TEGALREJO"
+        $namaKemantren = trim(str_replace('KEMANTREN', '', $namaKemantren));
+
+        if (!in_array($namaKemantren, $kemantrenList, true)) {
+            continue;
+        }
+
+        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+        $jumlah = (int) $row->jumlah;
+
+        $kode = strtoupper(trim((string) $row->golongan_kode));
+        $rentang = $rentangMap[$kode] ?? null;
+
+        if ($rentang === null) {
+            $tidakDikenali += $jumlah;
+            continue;
+        }
+
+        $agregat[$namaKemantren][$gender][$rentang] += $jumlah;
+    }
+
+    $hasil = ['jumlah_pppk_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+    foreach ($kemantrenList as $kemantren) {
+        $golL = $agregat[$kemantren]['laki_laki'];
+        $golP = $agregat[$kemantren]['perempuan'];
+
+        $totalL = array_sum($golL);
+        $totalP = array_sum($golP);
+        $totalKemantren = $totalL + $totalP;
+
+        $hasil['kemantren'][$kemantren] = [
+            'total' => $totalKemantren,
+            'laki_laki' => [
+                'total' => $totalL,
+                'golongan_I_IV' => $golL['I-IV'],
+                'golongan_V_VIII' => $golL['V-VIII'],
+                'golongan_IX_XII' => $golL['IX-XII'],
+                'golongan_XIII_XVII' => $golL['XIII-XVII'],
+            ],
+            'perempuan' => [
+                'total' => $totalP,
+                'golongan_I_IV' => $golP['I-IV'],
+                'golongan_V_VIII' => $golP['V-VIII'],
+                'golongan_IX_XII' => $golP['IX-XII'],
+                'golongan_XIII_XVII' => $golP['XIII-XVII'],
+            ],
+        ];
+
+        $hasil['jumlah_pppk_kemantren'] += $totalKemantren;
+    }
+
+    $hasil['jumlah_pppk_kemantren'] += $tidakDikenali;
+
+    return $hasil;
+}
+/**
+ * 5.03.019
+ * Jumlah PNS Kelurahan, dikelompokkan berdasarkan Kemantren induknya.
+ *
+ * Beda dengan method kemantren lain (015-018): di sini level teratas tetap
+ * Kemantren, tapi breakdown-nya per KELURAHAN (bukan gender/golongan/
+ * pendidikan) — sesuai struktur wilayah administratif: 1 Kemantren terdiri
+ * dari beberapa Kelurahan.
+ *
+ * Asumsi: instansi.nama untuk kelurahan memakai pola 'KELURAHAN <NAMA>',
+ * konsisten dengan pola 'KEMANTREN <NAMA>' yang sudah dipakai di
+ * statistikAsnKemantrenPendidikan(). PERLU DIKONFIRMASI ke data asli —
+ * kalau ternyata polanya beda (mis. tanpa prefix 'KELURAHAN'), sesuaikan
+ * whereRaw dan strip prefix di bawah.
+ *
+ * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS').
+ *
+ * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
+ * periode/tahun), dipertahankan untuk konsistensi dengan method rekap*
+ * lain di service ini.
+ */
+public function statistikPnsKelurahan(?string $periode = null): array
+{
+    // Mapping Kemantren -> daftar Kelurahan di bawahnya, sesuai struktur
+    // wilayah administratif Kota Yogyakarta.
+    $kemantrenKelurahanMap = [
+        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
+        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
+        'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
+        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+        'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
+        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
+        'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+        'UMBULHARJO' => [
+            'SEMAKI', 'MUJAMUJU', 'TAHUNAN', 'WARUNGBOTO',
+            'PANDEYAN', 'SOROSUTAN', 'GIWANGAN',
+        ],
+        'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+    ];
+
+    $rows = Pegawai::query()
+        ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+        ->select(
+            'instansi.nama as instansi_nama',
+            DB::raw('COUNT(*) as jumlah')
+        )
+        ->where('pegawai.status_aktif', 'aktif')
+        ->where('pegawai.status_kepegawaian', 'PNS')
+        ->whereRaw("UPPER(TRIM(instansi.nama)) LIKE 'KELURAHAN %'")
+        ->groupBy('instansi.nama')
+        ->get();
+
+    // Siapkan struktur kosong dulu supaya kelurahan yang datanya 0 tetap
+    // muncul di response, konsisten dengan pola method kemantren lain.
+    $hasilKemantren = [];
+    foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
+        $hasilKemantren[$kemantren] = array_fill_keys($kelurahanList, 0);
+    }
+
+    // Index kelurahan -> kemantren induknya, untuk lookup cepat saat
+    // memproses hasil query (nama kelurahan diasumsikan unik antar
+    // kemantren, sesuai struktur wilayah Kota Yogyakarta).
+    $kelurahanToKemantren = [];
+    foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
+        foreach ($kelurahanList as $kelurahan) {
+            $kelurahanToKemantren[$kelurahan] = $kemantren;
+        }
+    }
+
+    $tidakDikenali = 0;
+
+    foreach ($rows as $row) {
+        $namaKelurahan = strtoupper(trim((string) $row->instansi_nama));
+        // "KELURAHAN KRICAK" -> "KRICAK"
+        $namaKelurahan = trim(str_replace('KELURAHAN', '', $namaKelurahan));
+
+        $jumlah = (int) $row->jumlah;
+
+        $kemantren = $kelurahanToKemantren[$namaKelurahan] ?? null;
+
+        if ($kemantren === null) {
+            $tidakDikenali += $jumlah;
+
+            Log::warning('StatistikPnsKelurahan: kelurahan tidak dikenali', [
+                'instansi_raw' => $row->instansi_nama,
+                'jumlah' => $jumlah,
+            ]);
+
+            continue;
+        }
+
+        $hasilKemantren[$kemantren][$namaKelurahan] = $jumlah;
+    }
+
+    $hasil = ['jumlah_pns_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+    foreach ($hasilKemantren as $kemantren => $kelurahanData) {
+        $totalKemantren = array_sum($kelurahanData);
+
+        $hasil['kemantren'][$kemantren] = [
+            'total' => $totalKemantren,
+            'kelurahan' => $kelurahanData,
+        ];
+
+        $hasil['jumlah_pns_kelurahan'] += $totalKemantren;
+    }
+
+    $hasil['jumlah_pns_kelurahan'] += $tidakDikenali;
 
     return $hasil;
 }
