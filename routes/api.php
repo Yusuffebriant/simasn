@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\StatistikPnsKemantrenGolonganController;
 use App\Http\Controllers\Api\StatistikPppkKemantrenGolonganController;
 use App\Http\Controllers\Api\StatistikPensiunanPNSController;
 use App\Http\Controllers\Api\StatistikPnsKelurahanController;
+use App\Http\Controllers\Api\StatistikPppkKelurahanController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -97,6 +98,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     Route::get('/statistik/pns-kelurahan', [
         StatistikPnsKelurahanController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pppk-kelurahan', [
+        StatistikPppkKelurahanController::class,
         'index'
     ]);
 
