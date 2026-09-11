@@ -393,13 +393,13 @@ public function rekapJabatan(?string $periode = null): array
             $generasi[$g] = ['pria' => 0, 'wanita' => 0];
         }
 
-        $mkPangkatKeys = ['S.D. 10 Tahun', '11 - 20 Tahun', '21 - 30 Tahun', '30 Tahun Keatas'];
+        $mkPangkatKeys = ['s.d. 10 Tahun', '11 - 20 Tahun', '21 - 30 Tahun', '30 Tahun Keatas'];
         $mkPangkat = [];
         foreach ($mkPangkatKeys as $mk) {
             $mkPangkat[$mk] = ['pria' => 0, 'wanita' => 0];
         }
 
-        $usiaKeys = ['S.D. 25 Tahun', '26 - 35 Tahun', '36 - 45 Tahun', '46 - 55 Tahun', '56 Tahun atau Lebih'];
+        $usiaKeys = ['s.d. 25 Tahun', '26 - 35 Tahun', '36 - 45 Tahun', '46 - 55 Tahun', '56 Tahun atau Lebih'];
         $usia = [];
         foreach ($usiaKeys as $u) {
             $usia[$u] = ['pria' => 0, 'wanita' => 0];
@@ -414,7 +414,10 @@ public function rekapJabatan(?string $periode = null): array
             'SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV',
             'S1', 'S2', 'S3', 'BELUM DIISI',
         ];
-        $pendidikanGroup = array_fill_keys($pendidikanList, 0);
+        $pendidikanGroup = [];
+        foreach ($pendidikanList as $pl) {
+            $pendidikanGroup[$pl] = ['pria' => 0, 'wanita' => 0];
+        }
 
         foreach ($rows as $row) {
             $isPria = $row->jenis_kelamin === 'L';
@@ -458,7 +461,7 @@ public function rekapJabatan(?string $periode = null): array
                 $usiaTahun = $row->tanggal_lahir->diffInYears(now());
 
                 $kategoriUsia = match (true) {
-                    $usiaTahun <= 25 => 'S.D. 25 Tahun',
+                    $usiaTahun <= 25 => 's.d. 25 Tahun',
                     $usiaTahun <= 35 => '26 - 35 Tahun',
                     $usiaTahun <= 45 => '36 - 45 Tahun',
                     $usiaTahun <= 55 => '46 - 55 Tahun',
@@ -472,7 +475,7 @@ public function rekapJabatan(?string $periode = null): array
                 $masaKerja = $row->tmt_pangkat->diffInYears(now());
 
                 $kategoriMk = match (true) {
-                    $masaKerja <= 10 => 'S.D. 10 Tahun',
+                    $masaKerja <= 10 => 's.d. 10 Tahun',
                     $masaKerja <= 20 => '11 - 20 Tahun',
                     $masaKerja <= 30 => '21 - 30 Tahun',
                     default => '30 Tahun Keatas',
@@ -509,7 +512,7 @@ public function rekapJabatan(?string $periode = null): array
                 default => 'BELUM DIISI',
             } : 'BELUM DIISI';
 
-            $pendidikanGroup[$pnd] = ($pendidikanGroup[$pnd] ?? 0) + 1;
+            $pendidikanGroup[$pnd][$isPria ? 'pria' : 'wanita']++;
         }
 
         // Rekap per Unit Kerja (instansi)
@@ -642,9 +645,13 @@ public function rekapJabatan(?string $periode = null): array
                 array_values($golonganGroup)
             ),
             'pendidikan' => array_map(
-                fn ($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
-                array_keys($pendidikanGroup),
-                array_values($pendidikanGroup)
+                fn ($label) => [
+                    'label' => $label,
+                    'pria' => $pendidikanGroup[$label]['pria'],
+                    'wanita' => $pendidikanGroup[$label]['wanita'],
+                    'jumlah' => $pendidikanGroup[$label]['pria'] + $pendidikanGroup[$label]['wanita'],
+                ],
+                $pendidikanList
             ),
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
