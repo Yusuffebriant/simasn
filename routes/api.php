@@ -18,8 +18,8 @@ use App\Http\Controllers\Api\StatistikPejabatStrukturalDinasController;
 use App\Http\Controllers\Api\StatistikPejabatFungsionalDinasController;
 use App\Http\Controllers\Api\StatistikPensiunanDinasController;
 use App\Http\Controllers\Api\StatistikAsnPerangkatDaerahJenisKelaminController;
-use App\Http\Controllers\Api\StatistikPenjabatPerangkatDaerahController; 
-use App\Http\Controllers\Api\StatistikAsnKemantrenPendidikanController;   
+use App\Http\Controllers\Api\StatistikPenjabatPerangkatDaerahController;
+use App\Http\Controllers\Api\StatistikAsnKemantrenPendidikanController;
 use App\Http\Controllers\Api\StatistikPnsKemantrenPendidikanController;
 use App\Http\Controllers\Api\StatistikPppkKemantrenPendidikanController;
 use App\Http\Controllers\Api\StatistikPnsKemantrenGolonganController;
@@ -58,12 +58,12 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/statistik/pejabat-fungsional-dinas', [
         StatistikPejabatFungsionalDinasController::class,
         'index'
-    ]); 
+    ]);
 
     Route::get('/statistik/pensiunan-dinas', [
         StatistikPensiunanDinasController::class,
         'index'
-    ]); 
+    ]);
 
     Route::get('/statistik/penjabat-perangkat-daerah', [
         StatistikPenjabatPerangkatDaerahController::class,
@@ -74,16 +74,16 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         StatistikAsnKemantrenPendidikanController::class,
         'index'
     ]);
-    
+
     Route::get('/statistik/pns-kemantren-pendidikan', [
         StatistikPnsKemantrenPendidikanController::class,
         'index'
-    ]); 
-     
+    ]);
+
     Route::get('/statistik/pppk-kemantren-pendidikan', [
         StatistikPppkKemantrenPendidikanController::class,
         'index'
-    ]); 
+    ]);
 
     Route::get('/statistik/pns-kemantren-golongan', [
         StatistikPnsKemantrenGolonganController::class,
@@ -122,7 +122,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/statistik/pns-pendidikan', [
         StatistikPnsPendidikanController::class,
         'index'
-    ]); 
+    ]);
 
     Route::get('/statistik/staf-dinas/pendidikan', [
         StatistikStafDinasPendidikanController::class,

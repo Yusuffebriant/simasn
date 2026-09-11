@@ -3,6 +3,8 @@ import Sidebar from "../../components/Sidebar";
 import StrukturalPanel from "./StrukturalPanel";
 import FungsionalPanel from "./FungsionalPanel";
 import PensiunanPanel from "./PensiunanPanel";
+import GolonganPanel from "./GolonganPanel";
+import PppkGolonganPanel from "./PppkGolonganPanel";
 
 // Menu navigasi lokal di halaman Statistik.
 // "ready: false" = belum ada endpoint backend-nya, jadi menunya
@@ -14,7 +16,8 @@ const STATISTIK_MENU = [
     { key: "struktural", label: "Pejabat Struktural", component: StrukturalPanel, ready: true },
     { key: "fungsional", label: "Pejabat Fungsional", component: FungsionalPanel, ready: true },
     { key: "pensiun", label: "Pensiunan PNS", component: PensiunanPanel, ready: true },
-    { key: "golongan", label: "PNS Berdasarkan Golongan", component: null, ready: false },
+    { key: "golongan", label: "PNS Berdasarkan Golongan", component: GolonganPanel, ready: true },
+    { key: "pppk-golongan", label: "PPPK Berdasarkan Golongan", component: PppkGolonganPanel, ready: true },
 ];
 
 function Statistik() {

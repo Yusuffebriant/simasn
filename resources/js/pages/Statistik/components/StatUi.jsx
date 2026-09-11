@@ -29,7 +29,7 @@ export function GenderChip({ icon, value, variant = "light" }) {
 
 export function TotalCard({ title, total }) {
     return (
-        <div className="bg-[#172033] text-white rounded-xl p-5">
+        <div className="bg-[#172033] text-white rounded-xl p-5 h-full">
             <div className="text-[13px] text-white/70 mb-2">{title}</div>
             <div className="text-4xl font-bold">{total.toLocaleString("id-ID")}</div>
         </div>
