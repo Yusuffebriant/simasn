@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\StatistikPppkGolonganController;
 use App\Http\Controllers\Api\StatistikAsnPendidikanController;
 use App\Http\Controllers\Api\StatistikPnsPendidikanController;
 use App\Http\Controllers\Api\StatistikStafDinasPendidikanController;
+use App\Http\Controllers\Api\StatistikStafDinasGolonganController;
+use App\Http\Controllers\Api\StatistikPppkPendidikanController;
 use App\Http\Controllers\Api\StatistikPejabatStrukturalDinasController;
 use App\Http\Controllers\Api\StatistikPejabatFungsionalDinasController;
 use App\Http\Controllers\Api\StatistikPensiunanDinasController;
@@ -132,6 +134,16 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     Route::get('/statistik/staf-dinas/pendidikan', [
         StatistikStafDinasPendidikanController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/pppk-pendidikan', [
+        StatistikPppkPendidikanController::class,
+        'index'
+    ]);
+
+    Route::get('/statistik/staf-dinas/golongan', [
+        StatistikStafDinasGolonganController::class,
         'index'
     ]);
 

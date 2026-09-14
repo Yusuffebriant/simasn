@@ -37,16 +37,18 @@ export function TotalCard({ title, total }) {
 }
 
 // Kartu angka tunggal untuk rincian statistik (mis. jumlah per
-// eselon/gender). Beda dari TotalCard/MiniStatCard yang punya gaya warna
-// khusus — StatCard netral (putih) supaya cocok dipakai berulang dalam
-// daftar rincian yang panjang. variant="dark" memakai warna latar &
-// teks yang sama seperti TotalCard (mis. untuk menyamakan gaya kartu
+// dinas/Kemantren) yang TIDAK punya rincian gender (beda dari
+// MiniStatCard). Warna latar biru muda (#E7F1FB) disamakan dengan
+// MiniStatCard variant="light" supaya kartu rincian di seluruh halaman
+// Statistik konsisten satu skema warna — StatCard cuma beda karena
+// tanpa baris gender laki-laki/perempuan. variant="dark" memakai warna
+// latar & teks yang sama seperti TotalCard (mis. untuk kartu ringkasan
 // "Jumlah Pejabat Struktural" pada bagian lain).
 export function StatCard({ title, value, variant = "light" }) {
     const isDark = variant === "dark";
     return (
-        <div className={isDark ? "bg-[#172033] text-white rounded-xl p-5" : "bg-white border border-[#E1E5EA] rounded-xl p-5"}>
-            <div className={isDark ? "text-[13px] text-white/70 mb-2" : "text-[13px] text-[#687386] mb-2"}>{title}</div>
+        <div className={isDark ? "bg-[#172033] text-white rounded-xl p-5" : "bg-[#E7F1FB] border border-[#D3E5F5] rounded-xl p-5"}>
+            <div className={isDark ? "text-[13px] text-white/70 mb-2" : "text-[13px] text-[#3A5A78] mb-2"}>{title}</div>
             <div className={isDark ? "text-2xl font-bold text-white" : "text-2xl font-bold text-[#172033]"}>
                 {Number(value || 0).toLocaleString("id-ID")}
             </div>

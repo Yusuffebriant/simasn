@@ -5,6 +5,13 @@ import FungsionalPanel from "./FungsionalPanel";
 import PensiunanPanel from "./PensiunanPanel";
 import GolonganPanel from "./GolonganPanel";
 import PppkGolonganPanel from "./PppkGolonganPanel";
+import AsnPendidikanPanel from "./AsnPendidikanPanel";
+import PnsPendidikanPanel from "./PnsPendidikanPanel";
+import PppkPendidikanPanel from "./PppkPendidikanPanel";
+import SkpdDinasPanel from "./SkpdDinasPanel";
+import AsnPerangkatDaerahJenisKelaminPanel from "./AsnPerangkatDaerahJenisKelaminPanel";
+import PenjabatPerangkatDaerahPanel from "./PenjabatPerangkatDaerahPanel";
+import AsnKemantrenPendidikanPanel from "./AsnKemantrenPendidikanPanel";
 
 // Menu navigasi lokal di halaman Statistik.
 // "ready: false" = belum ada endpoint backend-nya, jadi menunya
@@ -18,6 +25,13 @@ const STATISTIK_MENU = [
     { key: "pensiun", label: "Pensiunan PNS", component: PensiunanPanel, ready: true },
     { key: "golongan", label: "PNS Berdasarkan Golongan", component: GolonganPanel, ready: true },
     { key: "pppk-golongan", label: "PPPK Berdasarkan Golongan", component: PppkGolonganPanel, ready: true },
+    { key: "asn-pendidikan", label: "ASN Berdasarkan Pendidikan & Gender", component: AsnPendidikanPanel, ready: true },
+    { key: "pns-pendidikan", label: "PNS Berdasarkan Pendidikan & Gender", component: PnsPendidikanPanel, ready: true },
+    { key: "pppk-pendidikan", label: "PPPK Berdasarkan Pendidikan & Gender", component: PppkPendidikanPanel, ready: true },
+    { key: "skpd-dinas", label: "Pegawai Berdasarkan Pendidikan & SKPD", component: SkpdDinasPanel, ready: true },
+    { key: "asn-perangkat-daerah-gender", label: "ASN Perangkat Daerah Berdasarkan Jenis Kelamin", component: AsnPerangkatDaerahJenisKelaminPanel, ready: true },
+    { key: "penjabat-perangkat-daerah-gender", label: "Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin", component: PenjabatPerangkatDaerahPanel, ready: true },
+    { key: "asn-kemantren-pendidikan", label: "ASN Kemantren Berdasarkan Tingkat Pendidikan", component: AsnKemantrenPendidikanPanel, ready: true },
 ];
 
 function Statistik() {

@@ -89,17 +89,8 @@ function PensiunanPanel() {
 
             {data && (
                 <>
-                    <div
-                        className="grid gap-4 mb-5"
-                        style={{ gridTemplateColumns: "repeat(2, minmax(220px, 1fr))" }}
-                    >
-                        <div style={{ gridColumn: "span 2" }}>
-                            <TotalCard title="Jumlah Pensiunan PNS" total={data.jumlah_pensiunan_pns} />
-                        </div>
-                        <MiniStatCard title="Golongan I" total={data.golongan_I?.total} laki_laki={data.golongan_I?.laki_laki} perempuan={data.golongan_I?.perempuan} />
-                        <MiniStatCard title="Golongan II" total={data.golongan_II?.total} laki_laki={data.golongan_II?.laki_laki} perempuan={data.golongan_II?.perempuan} />
-                        <MiniStatCard title="Golongan III" total={data.golongan_III?.total} laki_laki={data.golongan_III?.laki_laki} perempuan={data.golongan_III?.perempuan} />
-                        <MiniStatCard title="Golongan IV" total={data.golongan_IV?.total} laki_laki={data.golongan_IV?.laki_laki} perempuan={data.golongan_IV?.perempuan} />
+                    <div className="mb-5">
+                        <TotalCard title="Jumlah Pensiunan PNS" total={data.jumlah_pensiunan_pns} />
                     </div>
 
                     <ChartCard title="Perbandingan Pensiunan PNS berdasarkan Golongan dan Gender">
@@ -113,6 +104,16 @@ function PensiunanPanel() {
                             <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ChartCard>
+
+                    <div
+                        className="grid gap-4 mt-6"
+                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
+                    >
+                        <MiniStatCard title="Golongan I" total={data.golongan_I?.total} laki_laki={data.golongan_I?.laki_laki} perempuan={data.golongan_I?.perempuan} />
+                        <MiniStatCard title="Golongan II" total={data.golongan_II?.total} laki_laki={data.golongan_II?.laki_laki} perempuan={data.golongan_II?.perempuan} />
+                        <MiniStatCard title="Golongan III" total={data.golongan_III?.total} laki_laki={data.golongan_III?.laki_laki} perempuan={data.golongan_III?.perempuan} />
+                        <MiniStatCard title="Golongan IV" total={data.golongan_IV?.total} laki_laki={data.golongan_IV?.laki_laki} perempuan={data.golongan_IV?.perempuan} />
+                    </div>
                 </>
             )}
         </div>

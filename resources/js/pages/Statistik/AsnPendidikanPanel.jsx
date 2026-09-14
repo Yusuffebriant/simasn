@@ -17,15 +17,18 @@ import {
     SkeletonCard,
     TotalCard,
 } from "./components/StatUi";
+import { PENDIDIKAN_LIST } from "./pendidikanList";
 
-// Daftar golongan PPPK yang benar-benar dipakai — beda dari golongan
-// PNS (I-IV). Golongan genap (II, IV, VI, VIII) & XII+ sengaja tidak
-// dimasukkan karena memang tidak pernah ada datanya (lihat docblock
-// statistikPppkGolongan() di StatistikService). Master data golongan_ruang
-// di database tidak diubah, ini murni daftar untuk tampilan.
-const GOLONGAN_LIST = ["I", "III", "V", "VII", "IX", "X", "XI"];
-
-function PppkGolonganPanel() {
+// ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (PNS + PPPK
+// digabung, scope satu kota — lihat statistikAsnPendidikan() di
+// StatistikService). PENTING: beda dari PNS/PPPK, hasil per-jenjang
+// pendidikan di endpoint ini dibungkus di dalam key "pendidikan"
+// (data.pendidikan.sd, data.pendidikan.smp, dst) — bukan langsung di
+// root seperti data.sd. Polanya tetap sama seperti GolonganPanel/
+// PppkGolonganPanel: TotalCard "Jumlah ASN di Kota Yogyakarta" +
+// MiniStatCard per jenjang pendidikan (total + rincian gender), diikuti
+// grafik batang perbandingan.
+function AsnPendidikanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -38,10 +41,12 @@ function PppkGolonganPanel() {
             setError(null);
 
             try {
-                const res = await apiFetch("/statistik/pppk-golongan");
+                const res = await apiFetch("/statistik/asn-pendidikan");
 
                 if (!res.ok) {
-                    throw new Error("Gagal memuat data PPPK berdasarkan golongan.");
+                    throw new Error(
+                        "Gagal memuat data ASN berdasarkan tingkat pendidikan."
+                    );
                 }
 
                 const json = await res.json();
@@ -49,7 +54,8 @@ function PppkGolonganPanel() {
             } catch (err) {
                 if (!cancelled) {
                     setError(
-                        err?.message || "Gagal memuat data PPPK berdasarkan golongan."
+                        err?.message ||
+                            "Gagal memuat data ASN berdasarkan tingkat pendidikan."
                     );
                 }
             } finally {
@@ -64,17 +70,17 @@ function PppkGolonganPanel() {
     }, []);
 
     const chartData = data
-        ? GOLONGAN_LIST.map((g) => ({
-              label: g,
-              laki_laki: data.golongan[g].laki_laki,
-              perempuan: data.golongan[g].perempuan,
+        ? PENDIDIKAN_LIST.map((p) => ({
+              label: p.chartLabel,
+              laki_laki: data.pendidikan[p.key].laki_laki,
+              perempuan: data.pendidikan[p.key].perempuan,
           }))
         : [];
 
     return (
         <div>
             <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PPPK Berdasarkan Golongan
+                ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
             </h2>
 
             {error && <ErrorBox message={error} />}
@@ -92,16 +98,19 @@ function PppkGolonganPanel() {
             )}
 
             {loading && !data && (
-                <ChartCardLoading title="Perbandingan Golongan berdasarkan Gender" />
+                <ChartCardLoading title="Perbandingan Tingkat Pendidikan ASN berdasarkan Gender" />
             )}
 
             {data && (
                 <>
                     <div className="mb-5">
-                        <TotalCard title="Jumlah PPPK" total={data.jumlah_pppk} />
+                        <TotalCard
+                            title="Jumlah ASN di Kota Yogyakarta"
+                            total={data.jumlah_asn}
+                        />
                     </div>
 
-                    <ChartCard title="Perbandingan Golongan berdasarkan Gender">
+                    <ChartCard title="Perbandingan Tingkat Pendidikan ASN berdasarkan Gender">
                         <BarChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
                             <XAxis
@@ -121,15 +130,15 @@ function PppkGolonganPanel() {
 
                     <div
                         className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(4, minmax(200px, 1fr))" }}
+                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
                     >
-                        {GOLONGAN_LIST.map((g) => (
+                        {PENDIDIKAN_LIST.map((p) => (
                             <MiniStatCard
-                                key={g}
-                                title={`Jumlah PPPK Golongan ${g}`}
-                                total={data.golongan[g].total}
-                                laki_laki={data.golongan[g].laki_laki}
-                                perempuan={data.golongan[g].perempuan}
+                                key={p.key}
+                                title={`Jumlah ASN Tingkat Pendidikan ${p.label}`}
+                                total={data.pendidikan[p.key].total}
+                                laki_laki={data.pendidikan[p.key].laki_laki}
+                                perempuan={data.pendidikan[p.key].perempuan}
                             />
                         ))}
                     </div>
@@ -139,4 +148,4 @@ function PppkGolonganPanel() {
     );
 }
 
-export default PppkGolonganPanel;
+export default AsnPendidikanPanel;

@@ -459,20 +459,23 @@ class StatistikService
     }
 
     /**
-     * Statistik PPPK berdasarkan Golongan (I-XI) dan jenis kelamin.
+     * Statistik PPPK berdasarkan Golongan dan jenis kelamin.
      *
-     * Hanya golongan_ruang.kelompok = 'PPPK' yang dihitung. Semua 11
-     * golongan (I-XI) selalu ditampilkan dalam response walau nilainya 0,
-     * supaya struktur output tetap lengkap sesuai template laporan resmi
-     * (di data aktual per Agustus 2026, cuma golongan I, III, V, VII, IX,
-     * X, XI yang terisi — sisanya memang 0, bukan bug).
+     * Hanya golongan_ruang.kelompok = 'PPPK' yang dihitung. Golongan PPPK
+     * yang benar-benar dipakai cuma I, III, V, VII, IX, X, XI (lihat
+     * GolonganRuangSeeder) — golongan genap (II, IV, VI, VIII) & XII+
+     * memang tidak pernah ada datanya sesuai aturan jenjang PPPK, jadi
+     * SENGAJA tidak dimasukkan ke $golonganList supaya tidak muncul
+     * sebagai baris kosong (nilai 0) di response/tampilan. Ini murni soal
+     * tampilan — tabel master golongan_ruang di database tidak diubah/
+     * dihapus sama sekali.
      *
      * $periode belum dipakai untuk filter (tabel pegawai belum punya kolom
      * periode/tahun), dipertahankan untuk konsistensi.
      */
     public function statistikPppkGolongan(?string $periode = null): array
     {
-        $golonganList = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+        $golonganList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
         $rows = Pegawai::query()
             ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
@@ -1015,7 +1018,13 @@ class StatistikService
                 DB::raw('COUNT(*) as jumlah')
             )
             ->where('pegawai.status_aktif', 'aktif')
-            ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
+            // FIX: pakai UPPER(TRIM()) supaya konsisten dengan filter
+            // PELAKSANA yang sudah terverifikasi benar di 5.03.013.006
+            // (lihat $pelaksana di statistikPenjabatPerangkatDaerahJenisKelamin()).
+            // Perbandingan string biasa (=) bisa gagal cocok kalau ada
+            // variasi spasi/huruf besar-kecil pada jenis_kedudukan,
+            // menyebabkan hasil jadi 0/kosong padahal datanya ada.
+            ->whereRaw('UPPER(TRIM(pegawai.jenis_kedudukan)) = ?', ['PELAKSANA'])
             ->whereIn('instansi.nama', $dinasList)
             ->groupBy(
                 'instansi.nama',
@@ -1147,9 +1156,24 @@ class StatistikService
 
         unset($data);
 
+        // FIX: sebelumnya tidak ada agregat per jenjang pendidikan di level
+        // teratas — cuma ada breakdown per-dinas di 'dinas'. Frontend
+        // (SkpdDinasPanel.jsx) butuh akses langsung pendidikan.sd,
+        // pendidikan.smp, dst di level teratas (persis seperti key
+        // 'golongan' di statistikStafDinasGolongan()), makanya kartu
+        // "Jumlah Staf Kantor Dinas Daerah Berdasarkan Tingkat Pendidikan"
+        // selalu tampil kosong/undefined.
         return [
             'jumlah_staf_dinas' => $jumlahStafDinas,
             'jumlah_dinas' => count($dinasList),
+            'sd' => array_sum(array_column($hasilDinas, 'sd')),
+            'smp' => array_sum(array_column($hasilDinas, 'smp')),
+            'sma' => array_sum(array_column($hasilDinas, 'sma')),
+            'diploma' => array_sum(array_column($hasilDinas, 'diploma')),
+            'strata_1' => array_sum(array_column($hasilDinas, 'strata_1')),
+            'strata_2' => array_sum(array_column($hasilDinas, 'strata_2')),
+            'strata_3' => array_sum(array_column($hasilDinas, 'strata_3')),
+            'tidak_dikenali' => array_sum(array_column($hasilDinas, 'tidak_dikenali')),
             'dinas' => $hasilDinas,
         ];
     }
@@ -1204,7 +1228,10 @@ class StatistikService
             )
             ->where('pegawai.status_aktif', 'aktif')
             ->where('pegawai.status_kepegawaian', 'PNS')
-            ->where('pegawai.jenis_kedudukan', 'PELAKSANA')
+            // FIX: sama seperti statistikStafDinasPendidikan() — pakai
+            // UPPER(TRIM()) supaya konsisten dengan filter PELAKSANA yang
+            // sudah terverifikasi benar di 5.03.013.006.
+            ->whereRaw('UPPER(TRIM(pegawai.jenis_kedudukan)) = ?', ['PELAKSANA'])
             ->whereIn('instansi.nama', $dinasList)
             ->groupBy(
                 'instansi.nama',
@@ -1907,6 +1934,281 @@ class StatistikService
             'pejabat_asn_pelaksana' => $pelaksana,
 
             'anggota_tim_baperjakat' => $anggotaTimBaperjakat,
+        ];
+    }
+
+    /**
+     * Jumlah ASN Perangkat Daerah berdasarkan Jenis Kelamin.
+     *
+     * Beda dengan statistikPenjabatPerangkatDaerahJenisKelamin() (5.03.013)
+     * yang scope-nya cuma pejabat/jabatan tertentu (Kepala Daerah, Lurah,
+     * Kepala OPD, dst) — method ini menghitung SELURUH ASN aktif (semua
+     * jenis_kedudukan, PNS + PPPK), dikelompokkan per Perangkat Daerah
+     * (instansi.nama), lalu dipecah per jenis kelamin. Polanya sama seperti
+     * $hitung() di statistikPenjabatPerangkatDaerahJenisKelamin(): total
+     * selalu = laki_laki + perempuan (bukan count() terpisah), supaya tidak
+     * ada ASN "hilang" akibat jenis_kelamin NULL/di luar L/P.
+     *
+     * CATATAN: nama instansi (BAGIAN/BADAN/dst) di bawah ini memakai nama
+     * resmi Perangkat Daerah Kota Yogyakarta. Untuk 18 Dinas dan pola
+     * Kemantren, nama persis sudah diverifikasi lewat penggunaannya di
+     * statistikStafDinasPendidikan()/statistikAsnKemantrenPendidikan().
+     * Untuk Sekretariat Daerah, Bagian, Badan, Satpol PP, Inspektorat,
+     * Setwan, dan RSUD, nama instansi BELUM pernah dipakai di method lain
+     * di service ini — kalau hasilnya 0 padahal seharusnya ada data, cek
+     * dulu ejaan persis di tabel instansi (mis. lewat kolom instansi.nama)
+     * dan sesuaikan daftar di bawah.
+     */
+    public function statistikAsnPerangkatDaerahJenisKelamin(): array
+    {
+        // Hitung L/P dari sebuah query Pegawai yang sudah difilter instansi.
+        $hitungDariQuery = function ($query) {
+            $lakiLaki = (clone $query)
+                ->where(function ($q) {
+                    $q->where('pegawai.jenis_kelamin', 'L')
+                        ->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
+                })
+                ->count();
+
+            $perempuan = (clone $query)
+                ->where(function ($q) {
+                    $q->where('pegawai.jenis_kelamin', 'P')
+                        ->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
+                })
+                ->count();
+
+            return [
+                'total' => $lakiLaki + $perempuan,
+                'laki_laki' => $lakiLaki,
+                'perempuan' => $perempuan,
+            ];
+        };
+
+        // Cocokkan instansi.nama PERSIS (dipakai untuk nama yang sudah
+        // terverifikasi di method lain: 18 Dinas & pola Kemantren).
+        $hitungInstansi = function ($namaInstansi) use ($hitungDariQuery) {
+            $namaList = is_array($namaInstansi) ? $namaInstansi : [$namaInstansi];
+
+            $query = Pegawai::query()
+                ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+                ->where('pegawai.status_aktif', 'aktif')
+                ->whereIn('instansi.nama', $namaList);
+
+            return $hitungDariQuery($query);
+        };
+
+        // Cocokkan instansi.nama dengan LIKE (dipakai untuk nama yang
+        // ejaan resminya belum bisa dipastikan — mis. ada/tidaknya akhiran
+        // "KOTA YOGYAKARTA", "Pengelola" vs "Pengelolaan", dst). Tiap
+        // pattern digabung dengan OR, jadi cukup salah satu yang cocok.
+        $hitungInstansiLike = function (array $patterns) use ($hitungDariQuery) {
+            $query = Pegawai::query()
+                ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+                ->where('pegawai.status_aktif', 'aktif')
+                ->where(function ($q) use ($patterns) {
+                    foreach ($patterns as $pattern) {
+                        $q->orWhere('instansi.nama', 'LIKE', $pattern);
+                    }
+                });
+
+            return $hitungDariQuery($query);
+        };
+
+        // Sekretariat Daerah membawahi 9 Bagian.
+        $bagianList = [
+            'administrasi_dan_keuangan' => ['label' => 'Bagian Administrasi dan Keuangan', 'nama' => 'BAGIAN ADMINISTRASI DAN KEUANGAN'],
+            'administrasi_pembangunan' => ['label' => 'Bagian Administrasi Pembangunan', 'nama' => 'BAGIAN ADMINISTRASI PEMBANGUNAN'],
+            'hukum' => ['label' => 'Bagian Hukum', 'nama' => 'BAGIAN HUKUM'],
+            'kesejahteraan_rakyat' => ['label' => 'Bagian Kesejahteraan Rakyat', 'nama' => 'BAGIAN KESEJAHTERAAN RAKYAT'],
+            'organisasi' => ['label' => 'Bagian Organisasi', 'nama' => 'BAGIAN ORGANISASI'],
+            'pengadaan_barang_dan_jasa' => ['label' => 'Bagian Pengadaan Barang dan Jasa', 'nama' => 'BAGIAN PENGADAAN BARANG DAN JASA'],
+            'perekonomian_dan_kerjasama' => ['label' => 'Bagian Perekonomian dan Kerjasama', 'nama' => 'BAGIAN PEREKONOMIAN DAN KERJASAMA'],
+            'tata_pemerintahan' => ['label' => 'Bagian Tata Pemerintahan', 'nama' => 'BAGIAN TATA PEMERINTAHAN'],
+            'umum_dan_protokol' => ['label' => 'Bagian Umum dan Protokol', 'nama' => 'BAGIAN UMUM DAN PROTOKOL'],
+        ];
+
+        // 18 Dinas — nama persis sama seperti $dinasList di
+        // statistikStafDinasPendidikan()/statistikStafDinasGolongan().
+        $dinasList = [
+            'kebudayaan' => ['label' => 'Dinas Kebudayaan', 'nama' => 'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)'],
+            'kependudukan_dan_pencatatan_sipil' => ['label' => 'Dinas Kependudukan dan Pencatatan Sipil', 'nama' => 'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL'],
+            'kesehatan' => ['label' => 'Dinas Kesehatan', 'nama' => 'DINAS KESEHATAN'],
+            'kominfo_persandian' => ['label' => 'Dinas Komunikasi Informatika dan Persandian', 'nama' => 'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN'],
+            'lingkungan_hidup' => ['label' => 'Dinas Lingkungan Hidup', 'nama' => 'DINAS LINGKUNGAN HIDUP'],
+            'pariwisata' => ['label' => 'Dinas Pariwisata', 'nama' => 'DINAS PARIWISATA'],
+            'pupr' => ['label' => 'Dinas Pekerjaan Umum Perumahan dan Kawasan Permukiman', 'nama' => 'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN'],
+            'pemadam_kebakaran' => ['label' => 'Dinas Pemadam Kebakaran dan Penyelamatan', 'nama' => 'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN'],
+            'p3akb' => ['label' => 'Dinas Pemberdayaan Perempuan Perlindungan Anak dan Pengendalian Penduduk dan Keluarga Berencana', 'nama' => 'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA'],
+            'dpmptsp' => ['label' => 'Dinas Penanaman Modal dan Pelayanan Terpadu Satu Pintu', 'nama' => 'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU'],
+            'pendidikan_pemuda_olahraga' => ['label' => 'Dinas Pendidikan Pemuda dan Olahraga', 'nama' => 'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA'],
+            'perdagangan' => ['label' => 'Dinas Perdagangan', 'nama' => 'DINAS PERDAGANGAN'],
+            'perhubungan' => ['label' => 'Dinas Perhubungan', 'nama' => 'DINAS PERHUBUNGAN'],
+            'perindustrian_koperasi_ukm' => ['label' => 'Dinas Perindustrian Koperasi Usaha Kecil dan Menengah', 'nama' => 'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH'],
+            'perpustakaan_dan_kearsipan' => ['label' => 'Dinas Perpustakaan dan Kearsipan', 'nama' => 'DINAS PERPUSTAKAAN DAN KEARSIPAN'],
+            'pertanahan_dan_tata_ruang' => ['label' => 'Dinas Pertanahan dan Tata Ruang', 'nama' => 'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)'],
+            'pertanian_dan_pangan' => ['label' => 'Dinas Pertanian dan Pangan', 'nama' => 'DINAS PERTANIAN DAN PANGAN'],
+            'sosial_nakertrans' => ['label' => 'Dinas Sosial Tenaga Kerja dan Transmigrasi', 'nama' => 'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI'],
+        ];
+
+        // bpkad, setwan, dan rsud sengaja dicocokkan pakai LIKE (bukan
+        // whereIn persis) karena ejaan resmi instansi.nama untuk ketiganya
+        // belum diverifikasi ke data mentah dan sempat kehitung 0:
+        // - BPKAD: nama resminya "Pengelolaan" (bukan "Pengelola") di
+        //   banyak Pemda, jadi di-LIKE-kan biar dua-duanya kecantol.
+        // - RSUD: di jabatan pimpinan lain di service ini dipakai istilah
+        //   penuh "RUMAH SAKIT UMUM DAERAH" (lihat pola jabatan Direktur
+        //   RSUD di statistikPenjabatPerangkatDaerahJenisKelamin()), bukan
+        //   singkatan "RSUD" — kemungkinan besar itu juga nama instansinya.
+        // - Setwan: kemungkinan nama instansinya pakai akhiran
+        //   "KOTA YOGYAKARTA" yang sebelumnya tidak ikut ditulis.
+        $badanList = [
+            'bkpsdm' => ['label' => 'Badan Kepegawaian dan Pengembangan Sumber Daya Manusia', 'nama' => 'BADAN KEPEGAWAIAN DAN PENGEMBANGAN SUMBER DAYA MANUSIA'],
+            'kesbangpol' => ['label' => 'Badan Kesatuan Bangsa dan Politik', 'nama' => 'BADAN KESATUAN BANGSA DAN POLITIK'],
+            'bpbd' => ['label' => 'Badan Penanggulangan Bencana Daerah', 'nama' => 'BADAN PENANGGULANGAN BENCANA DAERAH'],
+            'bappeda' => ['label' => 'Badan Perencanaan Pembangunan Daerah', 'nama' => 'BADAN PERENCANAAN PEMBANGUNAN DAERAH'],
+        ];
+
+        $badanLikeList = [
+            'bpkad' => ['label' => 'Badan Pengelola Keuangan dan Aset Daerah', 'pola' => ['%PENGELOLA%KEUANGAN%ASET%DAERAH%']],
+        ];
+
+        $lembagaLainList = [
+            'satpol_pp' => ['label' => 'Satuan Polisi Pamong Praja', 'nama' => 'SATUAN POLISI PAMONG PRAJA'],
+            'inspektorat' => ['label' => 'Inspektorat', 'nama' => 'INSPEKTORAT'],
+        ];
+
+        $lembagaLainLikeList = [
+            'setwan' => ['label' => 'Sekretariat Dewan Perwakilan Rakyat Daerah', 'pola' => ['%SEKRETARIAT%DEWAN PERWAKILAN RAKYAT%', '%SEKRETARIAT%DPRD%']],
+            'rsud' => ['label' => 'RSUD Kota Yogyakarta', 'pola' => ['%RUMAH SAKIT UMUM DAERAH%', '%RSUD%']],
+        ];
+
+        // 14 Kemantren — pola nama instansi 'KEMANTREN <NAMA>' sudah
+        // diverifikasi di statistikAsnKemantrenPendidikan().
+        $kemantrenList = [
+            'TEGALREJO',
+            'JETIS',
+            'GONDOKUSUMAN',
+            'DANUREJAN',
+            'GEDONGTENGEN',
+            'NGAMPILAN',
+            'WIROBRAJAN',
+            'MANTRIJERON',
+            'KRATON',
+            'GONDOMANAN',
+            'PAKUALAMAN',
+            'MERGANGSAN',
+            'UMBULHARJO',
+            'KOTAGEDE',
+        ];
+
+        $perangkatDaerah = [];
+
+        $perangkatDaerah['sekretariat_daerah'] = array_merge(
+            ['label' => 'Sekretariat Daerah'],
+            $hitungInstansi('SEKRETARIAT DAERAH')
+        );
+
+        foreach ($bagianList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansi($item['nama']));
+        }
+
+        foreach ($dinasList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansi($item['nama']));
+        }
+
+        foreach ($badanList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansi($item['nama']));
+        }
+
+        foreach ($badanLikeList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansiLike($item['pola']));
+        }
+
+        foreach ($lembagaLainList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansi($item['nama']));
+        }
+
+        foreach ($lembagaLainLikeList as $key => $item) {
+            $perangkatDaerah[$key] = array_merge(['label' => $item['label']], $hitungInstansiLike($item['pola']));
+        }
+
+        // Kemantren digabung jadi satu entri beranak (detail per kemantren),
+        // konsisten dengan cara Kemantren ditampilkan di statistik lain.
+        $kemantrenDetail = [];
+        $kemantrenTotal = 0;
+        $kemantrenLakiLaki = 0;
+        $kemantrenPerempuan = 0;
+
+        foreach ($kemantrenList as $namaKemantren) {
+            $hasil = $hitungInstansi('KEMANTREN ' . $namaKemantren);
+            $kemantrenDetail[$namaKemantren] = $hasil;
+            $kemantrenTotal += $hasil['total'];
+            $kemantrenLakiLaki += $hasil['laki_laki'];
+            $kemantrenPerempuan += $hasil['perempuan'];
+        }
+
+        $perangkatDaerah['kemantren'] = [
+            'label' => 'Kemantren',
+            'total' => $kemantrenTotal,
+            'laki_laki' => $kemantrenLakiLaki,
+            'perempuan' => $kemantrenPerempuan,
+            'detail' => $kemantrenDetail,
+        ];
+
+        // PENTING: total ASN Pemkot Yogyakarta TIDAK dihitung dari jumlah
+        // seluruh baris Perangkat Daerah di atas — itu sebabnya sebelumnya
+        // beda dengan statistikAsnPendidikan() ("ASN Berdasarkan Tingkat
+        // Pendidikan dan Jenis Kelamin", yang jadi acuan valid). Daftar
+        // instansi.nama per-OPD di atas masih bisa meleset ejaannya (baru
+        // 18 Dinas & pola Kemantren yang benar-benar terverifikasi), jadi
+        // menjumlahkan grup itu berisiko undercount.
+        //
+        // Di sini total dihitung LANGSUNG dari seluruh ASN aktif (query
+        // sama seperti statistikAsnPendidikan(), tanpa join instansi sama
+        // sekali) — supaya jumlah_asn/laki_laki/perempuan DIJAMIN selalu
+        // sama dengan panel ASN Berdasarkan Tingkat Pendidikan dan Jenis
+        // Kelamin, berapa pun hasil pencocokan instansi di atas.
+        $totalQuery = Pegawai::query()->where('pegawai.status_aktif', 'aktif');
+        $jumlahLakiLaki = (clone $totalQuery)
+            ->where(function ($q) {
+                $q->where('pegawai.jenis_kelamin', 'L')->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
+            })
+            ->count();
+        $jumlahPerempuan = (clone $totalQuery)
+            ->where(function ($q) {
+                $q->where('pegawai.jenis_kelamin', 'P')->orWhere('pegawai.jenis_kelamin', 'PEREMPUAN');
+            })
+            ->count();
+        $jumlahAsn = $jumlahLakiLaki + $jumlahPerempuan;
+
+        // Selisih antara total di atas dan jumlah seluruh baris Perangkat
+        // Daerah = ASN yang instansi-nya belum kecantol salah satu pola di
+        // atas (ejaan instansi.nama beda, atau memang ada unit yang belum
+        // dimasukkan ke daftar). Ditampilkan apa adanya sebagai "Lainnya /
+        // Belum Terpetakan" — jangan dihapus supaya total kartu paling
+        // atas tetap bisa direkonsiliasi dengan rincian per-OPD di bawahnya.
+        $sumLakiLaki = 0;
+        $sumPerempuan = 0;
+        foreach ($perangkatDaerah as $item) {
+            $sumLakiLaki += $item['laki_laki'];
+            $sumPerempuan += $item['perempuan'];
+        }
+
+        $selisihLakiLaki = $jumlahLakiLaki - $sumLakiLaki;
+        $selisihPerempuan = $jumlahPerempuan - $sumPerempuan;
+
+        $perangkatDaerah['lainnya'] = [
+            'label' => 'Lainnya / Belum Terpetakan',
+            'total' => $selisihLakiLaki + $selisihPerempuan,
+            'laki_laki' => $selisihLakiLaki,
+            'perempuan' => $selisihPerempuan,
+        ];
+
+        return [
+            'jumlah_asn' => $jumlahAsn,
+            'laki_laki' => $jumlahLakiLaki,
+            'perempuan' => $jumlahPerempuan,
+            'perangkat_daerah' => $perangkatDaerah,
         ];
     }
 
