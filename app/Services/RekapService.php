@@ -371,6 +371,7 @@ public function rekapJabatan(?string $periode = null): array
                 'pegawai.jenis_kelamin',
                 'pegawai.jenis_kedudukan',
                 'pegawai.tanggal_lahir',
+                'pegawai.tmt_pangkat',
                 'golongan_ruang.kode as golongan_kode',
                 'golongan_ruang.kelompok as golongan_kelompok',
                 'eselon.kode as eselon_kode',
@@ -392,6 +393,18 @@ public function rekapJabatan(?string $periode = null): array
             $generasi[$g] = ['pria' => 0, 'wanita' => 0];
         }
 
+        $mkPangkatKeys = ['s.d. 10 Tahun', '11 - 20 Tahun', '21 - 30 Tahun', '30 Tahun Keatas'];
+        $mkPangkat = [];
+        foreach ($mkPangkatKeys as $mk) {
+            $mkPangkat[$mk] = ['pria' => 0, 'wanita' => 0];
+        }
+
+        $usiaKeys = ['s.d. 25 Tahun', '26 - 35 Tahun', '36 - 45 Tahun', '46 - 55 Tahun', '56 Tahun atau Lebih'];
+        $usia = [];
+        foreach ($usiaKeys as $u) {
+            $usia[$u] = ['pria' => 0, 'wanita' => 0];
+        }
+
         $golonganGroup = [
             'I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0,
             'PPPK' => 0, 'BELUM DIISI' => 0,
@@ -401,7 +414,10 @@ public function rekapJabatan(?string $periode = null): array
             'SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV',
             'S1', 'S2', 'S3', 'BELUM DIISI',
         ];
-        $pendidikanGroup = array_fill_keys($pendidikanList, 0);
+        $pendidikanGroup = [];
+        foreach ($pendidikanList as $pl) {
+            $pendidikanGroup[$pl] = ['pria' => 0, 'wanita' => 0];
+        }
 
         foreach ($rows as $row) {
             $isPria = $row->jenis_kelamin === 'L';
@@ -441,6 +457,31 @@ public function rekapJabatan(?string $periode = null): array
                         $generasi[$g][$isPria ? 'pria' : 'wanita']++;
                     }
                 }
+
+                $usiaTahun = $row->tanggal_lahir->diffInYears(now());
+
+                $kategoriUsia = match (true) {
+                    $usiaTahun <= 25 => 's.d. 25 Tahun',
+                    $usiaTahun <= 35 => '26 - 35 Tahun',
+                    $usiaTahun <= 45 => '36 - 45 Tahun',
+                    $usiaTahun <= 55 => '46 - 55 Tahun',
+                    default => '56 Tahun atau Lebih',
+                };
+
+                $usia[$kategoriUsia][$isPria ? 'pria' : 'wanita']++;
+            }
+
+            if ($row->tmt_pangkat) {
+                $masaKerja = $row->tmt_pangkat->diffInYears(now());
+
+                $kategoriMk = match (true) {
+                    $masaKerja <= 10 => 's.d. 10 Tahun',
+                    $masaKerja <= 20 => '11 - 20 Tahun',
+                    $masaKerja <= 30 => '21 - 30 Tahun',
+                    default => '30 Tahun Keatas',
+                };
+
+                $mkPangkat[$kategoriMk][$isPria ? 'pria' : 'wanita']++;
             }
 
             if (!$row->golongan_kode) {
@@ -471,8 +512,90 @@ public function rekapJabatan(?string $periode = null): array
                 default => 'BELUM DIISI',
             } : 'BELUM DIISI';
 
-            $pendidikanGroup[$pnd] = ($pendidikanGroup[$pnd] ?? 0) + 1;
+            $pendidikanGroup[$pnd][$isPria ? 'pria' : 'wanita']++;
         }
+
+        // Rekap per Unit Kerja (instansi)
+        $unitKerjaRows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->where('pegawai.status_aktif', 'aktif')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->groupBy('instansi.id', 'instansi.nama', 'pegawai.jenis_kelamin')
+            ->get();
+
+        $unitKerjaMap = [];
+        foreach ($unitKerjaRows as $row) {
+            $id = $row->instansi_id;
+
+            if (!isset($unitKerjaMap[$id])) {
+                $unitKerjaMap[$id] = [
+                    'label' => $row->instansi_nama,
+                    'pria' => 0,
+                    'wanita' => 0,
+                ];
+            }
+
+            if ($row->jenis_kelamin === 'L') {
+                $unitKerjaMap[$id]['pria'] = (int) $row->jumlah;
+            } else {
+                $unitKerjaMap[$id]['wanita'] = (int) $row->jumlah;
+            }
+        }
+
+        $unitKerja = array_values($unitKerjaMap);
+
+        foreach ($unitKerja as &$uk) {
+            $uk['total'] = $uk['pria'] + $uk['wanita'];
+        }
+        unset($uk);
+
+        usort($unitKerja, fn ($a, $b) => strcmp($a['label'], $b['label']));
+
+        // Rekap per Agama
+        $agamaRows = Pegawai::query()
+            ->join('agama', 'agama.id', '=', 'pegawai.agama_id')
+            ->where('pegawai.status_aktif', 'aktif')
+            ->select(
+                'agama.id as agama_id',
+                'agama.nama as agama_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->groupBy('agama.id', 'agama.nama', 'pegawai.jenis_kelamin')
+            ->get();
+
+        $agamaMap = [];
+        foreach ($agamaRows as $row) {
+            $id = $row->agama_id;
+
+            if (!isset($agamaMap[$id])) {
+                $agamaMap[$id] = [
+                    'label' => $row->agama_nama,
+                    'pria' => 0,
+                    'wanita' => 0,
+                ];
+            }
+
+            if ($row->jenis_kelamin === 'L') {
+                $agamaMap[$id]['pria'] = (int) $row->jumlah;
+            } else {
+                $agamaMap[$id]['wanita'] = (int) $row->jumlah;
+            }
+        }
+
+        $agama = array_values($agamaMap);
+
+        foreach ($agama as &$ag) {
+            $ag['total'] = $ag['pria'] + $ag['wanita'];
+        }
+        unset($ag);
+
+        usort($agama, fn ($a, $b) => strcmp($a['label'], $b['label']));
 
         return [
             'total' => [
@@ -498,16 +621,40 @@ public function rekapJabatan(?string $periode = null): array
                 ],
                 $generasiKeys
             )),
+            'masa_kerja_pangkat' => array_values(array_map(
+                fn ($label) => [
+                    'label' => $label,
+                    'pria' => $mkPangkat[$label]['pria'],
+                    'wanita' => $mkPangkat[$label]['wanita'],
+                    'total' => $mkPangkat[$label]['pria'] + $mkPangkat[$label]['wanita'],
+                ],
+                $mkPangkatKeys
+            )),
+            'usia' => array_values(array_map(
+                fn ($label) => [
+                    'label' => $label,
+                    'pria' => $usia[$label]['pria'],
+                    'wanita' => $usia[$label]['wanita'],
+                    'total' => $usia[$label]['pria'] + $usia[$label]['wanita'],
+                ],
+                $usiaKeys
+            )),
             'golongan' => array_map(
                 fn ($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
                 array_keys($golonganGroup),
                 array_values($golonganGroup)
             ),
             'pendidikan' => array_map(
-                fn ($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
-                array_keys($pendidikanGroup),
-                array_values($pendidikanGroup)
+                fn ($label) => [
+                    'label' => $label,
+                    'pria' => $pendidikanGroup[$label]['pria'],
+                    'wanita' => $pendidikanGroup[$label]['wanita'],
+                    'jumlah' => $pendidikanGroup[$label]['pria'] + $pendidikanGroup[$label]['wanita'],
+                ],
+                $pendidikanList
             ),
+            'unit_kerja' => $unitKerja,
+            'agama' => $agama,
         ];
     }
 
