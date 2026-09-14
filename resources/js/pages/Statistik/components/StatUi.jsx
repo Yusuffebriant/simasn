@@ -103,16 +103,16 @@ export function PreviewTableModal({ title, subtitle, groups, highlightGroup, onC
                 className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-start justify-between gap-4 p-5 border-b border-[#E1E5EA]">
+                <div className="flex items-start justify-between gap-4 p-5 border-b border-[#E1E5EA] bg-[#006A4E]">
                     <div>
-                        <h3 className="text-lg font-bold text-[#172033]">{title}</h3>
+                        <h3 className="text-lg font-bold text-white">{title}</h3>
                         {subtitle && (
-                            <p className="text-sm text-[#687386] mt-0.5">{subtitle}</p>
+                            <p className="text-sm text-white/80 mt-0.5">{subtitle}</p>
                         )}
                     </div>
                     <button
                         onClick={onClose}
-                        className="shrink-0 p-2 -m-2 hover:bg-gray-100 rounded-lg text-[#687386] hover:text-[#172033] transition"
+                        className="shrink-0 p-2 -m-2 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition"
                         aria-label="Tutup"
                     >
                         <X size={20} />
