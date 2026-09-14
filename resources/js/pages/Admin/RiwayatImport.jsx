@@ -252,7 +252,7 @@ function RiwayatImport() {
                                     <th className="border-b p-3 text-left">Gagal</th>
                                     <th className="border-b p-3 text-left">Diupload Oleh</th>
                                     <th className="border-b p-3 text-left">Tanggal</th>
-                                    <th className="border-b p-3 text-left"></th>
+                                    <th className="border-b p-3 text-center">Keterangan</th>
                                 </tr>
                             </thead>
 
@@ -276,15 +276,17 @@ function RiwayatImport() {
                                         <td className="border-b p-3">{batch.gagal ?? "-"}</td>
                                         <td className="border-b p-3">{batch.diupload_oleh}</td>
                                         <td className="border-b p-3">{batch.dibuat_pada}</td>
-                                        <td className="border-b p-3">
-                                            {(batch.gagal ?? 0) > 0 && (
+                                        <td className="border-b p-3 text-center">
+                                            {(batch.gagal ?? 0) > 0 ? (
                                                 <button
                                                     onClick={() => setDetailBatch(batch)}
-                                                    className="flex items-center gap-1 text-sm text-[#006A4E] font-semibold hover:underline"
+                                                    className="flex items-center gap-1 text-sm text-[#006A4E] font-semibold hover:underline mx-auto"
                                                 >
                                                     <Eye size={16} />
                                                     Lihat Detail
                                                 </button>
+                                            ) : (
+                                                <span className="text-gray-400">-</span>
                                             )}
                                         </td>
                                     </tr>
