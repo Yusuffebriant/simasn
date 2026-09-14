@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/home/home';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
+import Statistik from './pages/Statistik/Statistik';
 
 import { isLoggedIn, hasRole, getUserRole } from './lib/api';
 import Setting from './pages/Setting/Setting';
@@ -46,6 +47,18 @@ function App() {
             return null;
         }
         return <LoginPage />;
+    }
+
+    // "/statistik" — statistik pejabat struktural & fungsional. Endpoint-nya
+    // (/api/statistik/pejabat-struktural & /pejabat-fungsional) cuma butuh
+    // login (auth:sanctum), tanpa batasan role tertentu — jadi semua user
+    // yang sudah login boleh buka halaman ini (bukan cuma admin).
+    if (path === '/statistik') {
+        if (!isLoggedIn()) {
+            window.location.replace(withRedirectTo('/statistik'));
+            return null;
+        }
+        return <Statistik />;
     }
 
     // "/admin" — boleh diakses role admin, super-admin, admin-instansi.
