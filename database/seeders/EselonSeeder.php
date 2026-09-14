@@ -19,7 +19,7 @@ class EselonSeeder extends Seeder
             ['kode' => 'II A', 'urutan' => 7],
         ];
         foreach ($data as $d) {
-            Eselon::create($d);
+            Eselon::updateOrCreate(['kode' => $d['kode']], $d);
         }
     }
 }

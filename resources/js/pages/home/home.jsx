@@ -63,12 +63,11 @@ function Home() {
             <main className="flex-1 p-10 overflow-x-auto">
                 <div className="mb-9">
                     <h1 className="text-3xl font-bold text-[#172033]">
-                        Statistik Pegawai
+                        Dashboard
                     </h1>
                     <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
                     <p className="text-[#687386] text-[15px]">
-                        Pemerintah Kota Yogyakarta · Rekapitulasi Data
-                        Kepegawaian
+                         Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
                     </p>
                 </div>
 
@@ -100,12 +99,19 @@ function Home() {
                 )}
 
                 {loading && !data && (
-                    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-                        <LockedStatCard title="Total Pegawai" loading />
-                        <LockedStatCard title="Jabatan Struktural" loading />
-                        <LockedStatCard title="JFU" loading />
-                        <LockedStatCard title="Generasi" loading />
-                    </div>
+                    <>
+                        <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+                            <LockedStatCard title="Total Pegawai" loading />
+                            <LockedStatCard title="Jabatan Struktural" loading />
+                            <LockedStatCard title="JFU" loading />
+                            <LockedStatCard title="Generasi" loading />
+                        </div>
+
+                        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
+                            <ChartCardLoading title="Golongan" />
+                            <ChartCardLoading title="Pendidikan" />
+                        </div>
+                    </>
                 )}
 
                 {data && (

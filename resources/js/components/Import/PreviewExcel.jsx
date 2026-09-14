@@ -21,7 +21,7 @@ function PreviewExcel({
                 <p className="text-gray-600 mb-4">
                     Pilih periode (bulan &amp; tahun) data pegawai yang ada
                     di file Excel ini. Data hasil import akan tercatat
-                    untuk periode yang dipilih di sini — bukan otomatis
+                    untuk periode yang dipilih di sini bukan otomatis
                     bulan berjalan.
                 </p>
 

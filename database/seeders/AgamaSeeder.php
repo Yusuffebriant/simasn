@@ -11,9 +11,9 @@ class AgamaSeeder extends Seeder
      * Run the database seeds.
      */
     public function run(): void
-{
-    foreach (['Islam','Kristen','Katholik','Hindu','Budha','Konghucu'] as $nama) {
-        Agama::create(['nama' => $nama]);
+    {
+        foreach (['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha', 'Konghucu'] as $nama) {
+            Agama::updateOrCreate(['nama' => $nama]);
+        }
     }
-}
 }

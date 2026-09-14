@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { getCurrentPeriode } from "../../lib/periode";
@@ -10,14 +10,35 @@ function filenameFromResponse(res, fallback) {
     return match ? match[1] : fallback;
 }
 
-const GOLONGAN_LIST = [
-    "I/a", "I/b", "I/c", "I/d",
-    "II/a", "II/b", "II/c", "II/d",
-    "III/a", "III/b", "III/c", "III/d",
+// Urutan kolom golongan Pria/Wanita HARUS sama persis dengan
+// RekapGolonganExport::$golonganDisplayOrder (excel), yaitu golongan
+// PNS diselang-seling dengan golongan PPPK. Key-key ini sama persis
+// dengan key yang dipakai RekapService::rekapGolongan() di
+// $row.pria / $row.wanita.
+const GOLONGAN_DISPLAY_ORDER = [
+    "I/a", "I", "I/b", "I/c", "III", "I/d",
+    "II/a", "V", "II/b", "II/c", "VII", "II/d",
+    "III/a", "IX", "III/b", "X", "III/c", "XI", "III/d",
     "IV/a", "IV/b", "IV/c", "IV/d", "IV/e",
 ];
 
+// Blok agregat PNS (BD-BH di excel): I, II, III, IV, Total.
+// Harus sama dengan RekapGolonganExport::$pnsAggList.
+const PNS_AGG_LIST = ["I", "II", "III", "IV"];
+
+// Blok detail PPPK (BI-BP di excel). Key untuk mengambil nilai dari
+// row.pppk (harus sama urutan dengan $pppkList di RekapService), dan
+// label tampil harus sama dengan RekapGolonganExport::$pppkDetailLabel.
 const PPPK_LIST = ["I", "III", "V", "VII", "IX", "X", "XI"];
+const PPPK_DETAIL_LABEL = {
+    I: "I/1a",
+    III: "III/ 1c",
+    V: "V/2a",
+    VII: "VII/2c",
+    IX: "IX /3a",
+    X: "X/3b",
+    XI: "XI/3c",
+};
 
 const JSON_PATH = "/rekap/golongan";
 const EXPORT_PATH = "/rekap/golongan/export";
@@ -106,9 +127,11 @@ function RekapGolonganTable() {
         }
     }
 
-    // Total per kolom (baris terakhir tabel).
-    const totalPria = Object.fromEntries(GOLONGAN_LIST.map((k) => [k, 0]));
-    const totalWanita = Object.fromEntries(GOLONGAN_LIST.map((k) => [k, 0]));
+    // Total per kolom (baris terakhir tabel), mengikuti struktur yang
+    // sama dengan baris TOTAL di RekapGolonganExport (sum per kolom C..BP).
+    const totalPria = Object.fromEntries(GOLONGAN_DISPLAY_ORDER.map((k) => [k, 0]));
+    const totalWanita = Object.fromEntries(GOLONGAN_DISPLAY_ORDER.map((k) => [k, 0]));
+    const totalPnsAgg = Object.fromEntries(PNS_AGG_LIST.map((k) => [k, 0]));
     const totalPppk = Object.fromEntries(PPPK_LIST.map((k) => [k, 0]));
     let totalJmlPria = 0;
     let totalJmlWanita = 0;
@@ -117,19 +140,20 @@ function RekapGolonganTable() {
     let totalGrand = 0;
 
     rows.forEach((row) => {
-        GOLONGAN_LIST.forEach((k) => {
+        GOLONGAN_DISPLAY_ORDER.forEach((k) => {
             totalPria[k] += row.pria?.[k] || 0;
             totalWanita[k] += row.wanita?.[k] || 0;
+        });
+        PNS_AGG_LIST.forEach((k) => {
+            totalPnsAgg[k] += row.pns_agg?.[k] || 0;
         });
         PPPK_LIST.forEach((k) => {
             totalPppk[k] += row.pppk?.[k] || 0;
         });
         totalJmlPria += row.jml_pria || 0;
         totalJmlWanita += row.jml_wanita || 0;
-        totalPnsTotal += row.jml_total || 0;
+        totalPnsTotal += row.pns_total || 0;
         totalPppkTotal += row.pppk_total || 0;
-        // jml_total sudah termasuk PPPK (lihat RekapService::rekapGolongan),
-        // jadi TIDAK perlu ditambah pppk_total lagi di sini.
         totalGrand += row.jml_total || 0;
     });
 
@@ -141,8 +165,8 @@ function RekapGolonganTable() {
                         Rekapitulasi Berdasarkan Golongan Ruang
                     </h3>
                     <p className="text-sm text-gray-500">
-                        PNS per golongan ruang (I–IV) dipecah jenis kelamin,
-                        dan PPPK per jenjang golongan, per instansi.
+                        PNS dan PPPK per golongan ruang dipecah jenis
+                        kelamin, per instansi.
                     </p>
                 </div>
 
@@ -192,33 +216,37 @@ function RekapGolonganTable() {
                             <tr className="bg-gray-50">
                                 <th rowSpan={2} className="border px-3 py-2 text-left align-bottom sticky left-0 bg-gray-50">No</th>
                                 <th rowSpan={2} className="border px-3 py-2 text-left align-bottom sticky left-8 bg-gray-50 w-48 max-w-[12rem]">Instansi</th>
-                                {GOLONGAN_LIST.map((k) => (
-                                    <th key={k} colSpan={2} className="border px-2 py-2 text-center whitespace-nowrap">
+                                <th colSpan={GOLONGAN_DISPLAY_ORDER.length} className="border px-2 py-2 text-center">PRIA</th>
+                                <th rowSpan={2} className="border px-2 py-2 text-center align-bottom">Sub Total<br /></th>
+                                <th colSpan={GOLONGAN_DISPLAY_ORDER.length} className="border px-2 py-2 text-center">WANITA</th>
+                                <th rowSpan={2} className="border px-2 py-2 text-center align-bottom">Sub Total<br /></th>
+                                <th rowSpan={2} className="border px-2 py-2 text-center align-bottom">TOTAL</th>
+                                <th colSpan={PNS_AGG_LIST.length + 1} className="border px-2 py-2 text-center">PNS</th>
+                                <th colSpan={PPPK_LIST.length + 1} className="border px-2 py-2 text-center">PPPK</th>
+                            </tr>
+                            <tr className="bg-gray-50">
+                                {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                    <th key={`pria-h-${k}-${idx}`} className="border px-1.5 py-1.5 text-center font-normal whitespace-nowrap">
                                         {k}
                                     </th>
                                 ))}
-                                <th colSpan={3} className="border px-3 py-2 text-center">Jml PNS</th>
-                                {PPPK_LIST.map((k) => (
-                                    <th key={`pppk-${k}`} className="border px-2 py-2 text-center whitespace-nowrap">
-                                        PPPK {k}
+                                {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                    <th key={`wanita-h-${k}-${idx}`} className="border px-1.5 py-1.5 text-center font-normal whitespace-nowrap">
+                                        {k}
                                     </th>
                                 ))}
-                                <th rowSpan={2} className="border px-2 py-2 text-center align-bottom">Jml PPPK</th>
-                                <th rowSpan={2} className="border px-2 py-2 text-center align-bottom">Total</th>
-                            </tr>
-                            <tr className="bg-gray-50">
-                                {GOLONGAN_LIST.map((k) => (
-                                    <Fragment key={k}>
-                                        <th className="border px-1.5 py-1.5 text-center font-normal">L</th>
-                                        <th className="border px-1.5 py-1.5 text-center font-normal">P</th>
-                                    </Fragment>
+                                {PNS_AGG_LIST.map((k) => (
+                                    <th key={`pns-agg-h-${k}`} className="border px-1.5 py-1.5 text-center font-normal">
+                                        {k}
+                                    </th>
                                 ))}
-                                <th className="border px-1.5 py-1.5 text-center font-normal">L</th>
-                                <th className="border px-1.5 py-1.5 text-center font-normal">P</th>
                                 <th className="border px-1.5 py-1.5 text-center font-normal">Total</th>
                                 {PPPK_LIST.map((k) => (
-                                    <th key={`pppk-h2-${k}`} className="border px-1.5 py-1.5" />
+                                    <th key={`pppk-h-${k}`} className="border px-1.5 py-1.5 text-center font-normal whitespace-nowrap">
+                                        {PPPK_DETAIL_LABEL[k]}
+                                    </th>
                                 ))}
+                                <th className="border px-1.5 py-1.5 text-center font-normal">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -231,50 +259,56 @@ function RekapGolonganTable() {
                                     >
                                         {row.instansi}
                                     </td>
-                                    {GOLONGAN_LIST.map((k) => (
-                                        <Fragment key={k}>
-                                            <td className="border px-1.5 py-2 text-center">
-                                                {row.pria?.[k] || 0}
-                                            </td>
-                                            <td className="border px-1.5 py-2 text-center">
-                                                {row.wanita?.[k] || 0}
-                                            </td>
-                                        </Fragment>
+                                    {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                        <td key={`pria-${row.instansi}-${k}-${idx}`} className="border px-1.5 py-2 text-center">
+                                            {row.pria?.[k] || 0}
+                                        </td>
                                     ))}
                                     <td className="border px-1.5 py-2 text-center font-medium">{row.jml_pria}</td>
+                                    {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                        <td key={`wanita-${row.instansi}-${k}-${idx}`} className="border px-1.5 py-2 text-center">
+                                            {row.wanita?.[k] || 0}
+                                        </td>
+                                    ))}
                                     <td className="border px-1.5 py-2 text-center font-medium">{row.jml_wanita}</td>
                                     <td className="border px-1.5 py-2 text-center font-bold">{row.jml_total}</td>
+                                    {PNS_AGG_LIST.map((k) => (
+                                        <td key={`pns-agg-${row.instansi}-${k}`} className="border px-1.5 py-2 text-center">
+                                            {row.pns_agg?.[k] || 0}
+                                        </td>
+                                    ))}
+                                    <td className="border px-1.5 py-2 text-center font-medium">{row.pns_total}</td>
                                     {PPPK_LIST.map((k) => (
                                         <td key={`pppk-${row.instansi}-${k}`} className="border px-1.5 py-2 text-center">
                                             {row.pppk?.[k] || 0}
                                         </td>
                                     ))}
-                                    <td className="border px-2 py-2 text-center font-medium">{row.pppk_total}</td>
-                                    <td className="border px-2 py-2 text-center font-bold">
-                                        {row.jml_total || 0}
-                                    </td>
+                                    <td className="border px-1.5 py-2 text-center font-medium">{row.pppk_total}</td>
                                 </tr>
                             ))}
                         </tbody>
                         <tfoot>
                             <tr className="bg-gray-100 font-bold">
                                 <td colSpan={2} className="border px-3 py-2 sticky left-0 bg-gray-100">Total</td>
-                                {GOLONGAN_LIST.map((k) => (
-                                    <Fragment key={k}>
-                                        <td className="border px-1.5 py-2 text-center">{totalPria[k]}</td>
-                                        <td className="border px-1.5 py-2 text-center">{totalWanita[k]}</td>
-                                    </Fragment>
+                                {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                    <td key={`total-pria-${k}-${idx}`} className="border px-1.5 py-2 text-center">{totalPria[k]}</td>
                                 ))}
                                 <td className="border px-1.5 py-2 text-center">{totalJmlPria}</td>
+                                {GOLONGAN_DISPLAY_ORDER.map((k, idx) => (
+                                    <td key={`total-wanita-${k}-${idx}`} className="border px-1.5 py-2 text-center">{totalWanita[k]}</td>
+                                ))}
                                 <td className="border px-1.5 py-2 text-center">{totalJmlWanita}</td>
+                                <td className="border px-1.5 py-2 text-center">{totalGrand}</td>
+                                {PNS_AGG_LIST.map((k) => (
+                                    <td key={`total-pns-agg-${k}`} className="border px-1.5 py-2 text-center">{totalPnsAgg[k]}</td>
+                                ))}
                                 <td className="border px-1.5 py-2 text-center">{totalPnsTotal}</td>
                                 {PPPK_LIST.map((k) => (
                                     <td key={`total-pppk-${k}`} className="border px-1.5 py-2 text-center">
                                         {totalPppk[k]}
                                     </td>
                                 ))}
-                                <td className="border px-2 py-2 text-center">{totalPppkTotal}</td>
-                                <td className="border px-2 py-2 text-center">{totalGrand}</td>
+                                <td className="border px-1.5 py-2 text-center">{totalPppkTotal}</td>
                             </tr>
                         </tfoot>
                     </table>
