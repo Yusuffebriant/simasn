@@ -14,6 +14,7 @@ import {
     ChartCardLoading,
     ErrorBox,
     MiniStatCard,
+    PreviewTableModal,
     SkeletonCard,
 } from "./components/StatUi";
 
@@ -21,6 +22,10 @@ function FungsionalPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Grup kartu yang sedang di-preview (mis. "fungsional_umum",
+    // "dosen", dst). null berarti modal tertutup. Dipakai juga untuk
+    // menyorot baris terkait di dalam tabel preview.
+    const [previewGroup, setPreviewGroup] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -79,6 +84,83 @@ function FungsionalPanel() {
           }, {})
         : {};
 
+    // Daftar grup untuk tabel preview, mengikuti persis 20 label resmi
+    // yang dipakai untuk laporan Pejabat Fungsional — dikelompokkan per
+    // kategori (1 baris total + rincian laki-laki/perempuan) supaya
+    // tampilan modal rapi & gampang dipindai, bukan tabel datar 20 baris.
+    const previewGroups = data
+        ? [
+              {
+                  key: "fungsional_umum",
+                  label: "Fungsional Umum (JFU)",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Umum Pada Instansi Pemerintah", value: data.fungsional_umum.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: data.fungsional_umum.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: data.fungsional_umum.perempuan },
+                  ],
+              },
+              {
+                  key: "fungsional_tertentu",
+                  label: "Fungsional Tertentu (JFT)",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Tertentu Pada Instansi Pemerintah", value: data.fungsional_tertentu.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: data.fungsional_tertentu.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: data.fungsional_tertentu.perempuan },
+                  ],
+              },
+              {
+                  key: "dosen",
+                  label: "Fungsional Dosen",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Dosen Pada Instansi Pemerintah", value: rumpun.dosen.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: rumpun.dosen.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: rumpun.dosen.perempuan },
+                  ],
+              },
+              {
+                  key: "guru",
+                  label: "Fungsional Guru",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Guru Pada Instansi Pemerintah", value: rumpun.guru.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: rumpun.guru.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: rumpun.guru.perempuan },
+                  ],
+              },
+              {
+                  key: "medis",
+                  label: "Fungsional Medis",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Medis Pada Instansi Pemerintah", value: rumpun.medis.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: rumpun.medis.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: rumpun.medis.perempuan },
+                  ],
+              },
+              {
+                  key: "teknis",
+                  label: "Fungsional Teknis",
+                  items: [
+                      { type: "total", label: "Jumlah Pemangku Jabatan Fungsional Teknis Pada Instansi Pemerintah", value: rumpun.teknis.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: rumpun.teknis.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: rumpun.teknis.perempuan },
+                  ],
+              },
+              {
+                  key: "auditor",
+                  label: "Fungsional Auditor",
+                  items: [
+                      { type: "total", label: "Jumlah Pejabat Fungsional Auditor", value: rumpun.auditor.total },
+                  ],
+              },
+              {
+                  key: "p2upd",
+                  label: "Fungsional P2UPD",
+                  items: [
+                      { type: "total", label: "Jumlah Pejabat Fungsional P2UPD", value: rumpun.p2upd.total },
+                  ],
+              },
+          ]
+        : [];
+
     return (
         <div>
             <h2 className="text-[#172033] font-semibold mb-3 text-lg">
@@ -114,26 +196,36 @@ function FungsionalPanel() {
                             className="grid gap-4"
                             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
                         >
-                            <MiniStatCard title="Fungsional Umum (JFU)" {...data.fungsional_umum} variant="dark" />
-                            <MiniStatCard title="Fungsional Tertentu (JFT)" {...data.fungsional_tertentu} variant="dark" />
+                            <MiniStatCard
+                                title="Fungsional Umum (JFU)"
+                                {...data.fungsional_umum}
+                                variant="dark"
+                                onClick={() => setPreviewGroup("fungsional_umum")}
+                            />
+                            <MiniStatCard
+                                title="Fungsional Tertentu (JFT)"
+                                {...data.fungsional_tertentu}
+                                variant="dark"
+                                onClick={() => setPreviewGroup("fungsional_tertentu")}
+                            />
                         </div>
 
                         <div
                             className="grid gap-4"
                             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
                         >
-                            <MiniStatCard title="Fungsional Dosen" {...rumpun.dosen} />
-                            <MiniStatCard title="Fungsional Guru" {...rumpun.guru} />
-                            <MiniStatCard title="Fungsional Medis" {...rumpun.medis} />
+                            <MiniStatCard title="Fungsional Dosen" {...rumpun.dosen} onClick={() => setPreviewGroup("dosen")} />
+                            <MiniStatCard title="Fungsional Guru" {...rumpun.guru} onClick={() => setPreviewGroup("guru")} />
+                            <MiniStatCard title="Fungsional Medis" {...rumpun.medis} onClick={() => setPreviewGroup("medis")} />
                         </div>
 
                         <div
                             className="grid gap-4"
                             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
                         >
-                            <MiniStatCard title="Fungsional Teknis" {...rumpun.teknis} />
-                            <MiniStatCard title="Fungsional Auditor" {...rumpun.auditor} />
-                            <MiniStatCard title="Fungsional P2UPD" {...rumpun.p2upd} />
+                            <MiniStatCard title="Fungsional Teknis" {...rumpun.teknis} onClick={() => setPreviewGroup("teknis")} />
+                            <MiniStatCard title="Fungsional Auditor" {...rumpun.auditor} onClick={() => setPreviewGroup("auditor")} />
+                            <MiniStatCard title="Fungsional P2UPD" {...rumpun.p2upd} onClick={() => setPreviewGroup("p2upd")} />
                         </div>
                     </div>
 
@@ -149,6 +241,16 @@ function FungsionalPanel() {
                         </BarChart>
                     </ChartCard>
                 </>
+            )}
+
+            {previewGroup && (
+                <PreviewTableModal
+                    title="Tabel Preview Pejabat Fungsional"
+                    subtitle="Rekap jumlah pemangku jabatan fungsional per kategori dan jenis kelamin."
+                    groups={previewGroups}
+                    highlightGroup={previewGroup}
+                    onClose={() => setPreviewGroup(null)}
+                />
             )}
         </div>
     );
