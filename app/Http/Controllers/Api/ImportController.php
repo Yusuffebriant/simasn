@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreImportRequest;
+use App\Http\Resources\ImportBatchResource; 
 
 class ImportController extends Controller
 {
@@ -94,8 +95,8 @@ class ImportController extends Controller
      */
     public function index()
     {
-        return response()->json(
-            ImportBatch::latest()->paginate(15)
+        return ImportBatchResource::collection(
+        ImportBatch::with('uploader')->latest()->paginate(15)
         );
     }
 }
