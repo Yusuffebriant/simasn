@@ -28,12 +28,26 @@ export function GenderChip({ icon, value, variant = "light" }) {
     );
 }
 
-export function TotalCard({ title, total }) {
+// onClick opsional: kalau diisi, kartu jadi bisa diklik (mis. untuk buka
+// tabel preview rincian gabungan semua kategori) — kartu berubah jadi
+// <button> beneran, dapat hover/focus ring, dan tetap bisa dinavigasi
+// keyboard. Sama seperti pola di MiniStatCard.
+export function TotalCard({ title, total, onClick }) {
+    const clickableClass = onClick
+        ? " w-full text-left cursor-pointer transition hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#0F6E6E] focus:ring-offset-2"
+        : "";
+
+    const Tag = onClick ? "button" : "div";
+
     return (
-        <div className="bg-[#172033] text-white rounded-xl p-5 h-full">
+        <Tag
+            type={onClick ? "button" : undefined}
+            onClick={onClick}
+            className={"bg-[#172033] text-white rounded-xl p-5 h-full" + clickableClass}
+        >
             <div className="text-[13px] text-white/70 mb-2">{title}</div>
             <div className="text-4xl font-bold">{total.toLocaleString("id-ID")}</div>
-        </div>
+        </Tag>
     );
 }
 

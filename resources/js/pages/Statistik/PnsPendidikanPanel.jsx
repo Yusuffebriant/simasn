@@ -14,6 +14,7 @@ import {
     ChartCardLoading,
     ErrorBox,
     MiniStatCard,
+    PreviewTableModal,
     SkeletonCard,
     TotalCard,
 } from "./components/StatUi";
@@ -23,11 +24,17 @@ import { PENDIDIKAN_LIST } from "./pendidikanList";
 // — lihat statistikPnsPendidikan() di StatistikService). Polanya sama
 // seperti GolonganPanel/PppkGolonganPanel: TotalCard "Jumlah PNS" +
 // MiniStatCard per jenjang pendidikan (total + rincian gender), diikuti
-// grafik batang perbandingan.
+// grafik batang perbandingan, dan tabel preview saat kartu diklik.
 function PnsPendidikanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Jenjang pendidikan yang sedang di-preview (mis. "sd", "smp", dst,
+    // sesuai key di PENDIDIKAN_LIST). null berarti modal tertutup.
+    // Nilai khusus "__all__" dipakai saat kartu "Jumlah PNS" (TotalCard)
+    // diklik — merujuk ke grup ringkasan "Jumlah Keseluruhan PNS" yang
+    // ditaruh paling atas di previewGroups.
+    const [previewGroup, setPreviewGroup] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -73,6 +80,66 @@ function PnsPendidikanPanel() {
           }))
         : [];
 
+    // Daftar grup untuk tabel preview. Grup pertama ("__all__") adalah
+    // ringkasan keseluruhan PNS (dari kartu "Jumlah PNS" di atas),
+    // rincian laki-laki/perempuan-nya dihitung dari jumlah semua jenjang
+    // pendidikan. Sisanya 1 grup per jenjang pendidikan (SD, SMP, SMA,
+    // Diploma I-IV, Strata 1-3) — mengikuti pola PreviewTableModal di
+    // Pejabat Fungsional / PPPK Berdasarkan Golongan: 1 baris total +
+    // label "Laki-Laki" / "Perempuan" langsung untuk baris rincian gender.
+    const previewGroups = data
+        ? [
+              {
+                  key: "__all__",
+                  label: "Jumlah Keseluruhan PNS",
+                  items: [
+                      {
+                          type: "total",
+                          label: "Jumlah Keseluruhan PNS",
+                          value: data.jumlah_pns,
+                      },
+                      {
+                          type: "laki_laki",
+                          label: "Laki-Laki",
+                          value: PENDIDIKAN_LIST.reduce(
+                              (sum, p) => sum + (data[p.key].laki_laki || 0),
+                              0
+                          ),
+                      },
+                      {
+                          type: "perempuan",
+                          label: "Perempuan",
+                          value: PENDIDIKAN_LIST.reduce(
+                              (sum, p) => sum + (data[p.key].perempuan || 0),
+                              0
+                          ),
+                      },
+                  ],
+              },
+              ...PENDIDIKAN_LIST.map((p) => ({
+                  key: p.key,
+                  label: p.label,
+                  items: [
+                      {
+                          type: "total",
+                          label: `Jumlah PNS Tingkat Pendidikan ${p.label}`,
+                          value: data[p.key].total,
+                      },
+                      {
+                          type: "laki_laki",
+                          label: "Laki-Laki",
+                          value: data[p.key].laki_laki,
+                      },
+                      {
+                          type: "perempuan",
+                          label: "Perempuan",
+                          value: data[p.key].perempuan,
+                      },
+                  ],
+              })),
+          ]
+        : [];
+
     return (
         <div>
             <h2 className="text-[#172033] font-semibold mb-3 text-lg">
@@ -103,6 +170,7 @@ function PnsPendidikanPanel() {
                         <TotalCard
                             title="Jumlah PNS"
                             total={data.jumlah_pns}
+                            onClick={() => setPreviewGroup("__all__")}
                         />
                     </div>
 
@@ -135,10 +203,21 @@ function PnsPendidikanPanel() {
                                 total={data[p.key].total}
                                 laki_laki={data[p.key].laki_laki}
                                 perempuan={data[p.key].perempuan}
+                                onClick={() => setPreviewGroup(p.key)}
                             />
                         ))}
                     </div>
                 </>
+            )}
+
+            {previewGroup && (
+                <PreviewTableModal
+                    title="Tabel Preview PNS Berdasarkan Tingkat Pendidikan"
+                    subtitle="Rekap jumlah PNS per tingkat pendidikan dan jenis kelamin."
+                    groups={previewGroups}
+                    highlightGroup={previewGroup}
+                    onClose={() => setPreviewGroup(null)}
+                />
             )}
         </div>
     );

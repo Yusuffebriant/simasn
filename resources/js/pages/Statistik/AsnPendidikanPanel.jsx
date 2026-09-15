@@ -14,10 +14,33 @@ import {
     ChartCardLoading,
     ErrorBox,
     MiniStatCard,
+    PreviewTableModal,
     SkeletonCard,
     TotalCard,
 } from "./components/StatUi";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
+
+// Label resmi per jenjang pendidikan untuk baris "total" pada tabel
+// preview (beda formatnya per jenjang — SD/SMP/SMA pakai "atau
+// sederajat"/"dan sederajat", Diploma & Strata tidak pakai
+// "sederajat" di baris total). Key HARUS sama dengan key di
+// PENDIDIKAN_LIST / data.pendidikan (lihat pendidikanList.js).
+const PENDIDIKAN_PREVIEW_LABELS = {
+    sd: "Jumlah ASN Tingkat Pendidikan Tamat SD atau sederajat",
+    smp: "Jumlah ASN Tingkat Pendidikan SMP dan sederajat",
+    sma: "Jumlah ASN Tingkat Pendidikan SMA dan sederajat",
+    diploma_i: "Jumlah ASN Tingkat Pendidikan Diploma I",
+    diploma_ii: "Jumlah ASN Tingkat Pendidikan Diploma II",
+    diploma_iii: "Jumlah ASN Tingkat Pendidikan Diploma III",
+    diploma_iv: "Jumlah ASN Tingkat Pendidikan Diploma IV",
+    strata_1: "Jumlah ASN Tingkat Pendidikan Strata 1",
+    strata_2: "Jumlah ASN Tingkat Pendidikan Strata 2",
+    strata_3: "Jumlah ASN Tingkat Pendidikan Strata 3",
+};
+
+// Baris gender di tabel preview dibuat singkat "Laki-Laki"/"Perempuan"
+// (sama seperti modal Pejabat Fungsional), bukan kalimat panjang —
+// jadi tidak perlu label khusus per jenjang untuk baris ini.
 
 // ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (PNS + PPPK
 // digabung, scope satu kota — lihat statistikAsnPendidikan() di
@@ -27,11 +50,17 @@ import { PENDIDIKAN_LIST } from "./pendidikanList";
 // root seperti data.sd. Polanya tetap sama seperti GolonganPanel/
 // PppkGolonganPanel: TotalCard "Jumlah ASN di Kota Yogyakarta" +
 // MiniStatCard per jenjang pendidikan (total + rincian gender), diikuti
-// grafik batang perbandingan.
+// grafik batang perbandingan. Setiap kartu (TotalCard & MiniStatCard)
+// bisa diklik untuk membuka tabel preview rincian angka resmi, sama
+// seperti pola di FungsionalPanel.
 function AsnPendidikanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Grup kartu yang sedang di-preview: "total" untuk TotalCard, atau
+    // key jenjang pendidikan (mis. "sd", "sma", "strata_1") untuk
+    // MiniStatCard. null berarti modal tertutup.
+    const [previewGroup, setPreviewGroup] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -77,6 +106,45 @@ function AsnPendidikanPanel() {
           }))
         : [];
 
+    // Grup "Jumlah ASN di Kota Yogyakarta" (TotalCard) — ditampilkan
+    // sendiri sebagai satu baris total tanpa rincian gender.
+    const totalGroup = data
+        ? {
+              key: "total",
+              label: "Jumlah ASN di Kota Yogyakarta",
+              items: [
+                  {
+                      type: "total",
+                      label: "Jumlah ASN di Kota Yogyakarta",
+                      value: data.jumlah_asn,
+                  },
+              ],
+          }
+        : null;
+
+    // Satu grup per jenjang pendidikan, mengikuti urutan PENDIDIKAN_LIST
+    // supaya konsisten dengan chart & MiniStatCard di atas.
+    const pendidikanGroups = data
+        ? PENDIDIKAN_LIST.map((p) => {
+              const jenjang = data.pendidikan[p.key];
+              const totalLabel =
+                  PENDIDIKAN_PREVIEW_LABELS[p.key] ||
+                  `Jumlah ASN Tingkat Pendidikan ${p.label}`;
+
+              return {
+                  key: p.key,
+                  label: `Jumlah ASN Tingkat Pendidikan ${p.label}`,
+                  items: [
+                      { type: "total", label: totalLabel, value: jenjang.total },
+                      { type: "laki_laki", label: "Laki-Laki", value: jenjang.laki_laki },
+                      { type: "perempuan", label: "Perempuan", value: jenjang.perempuan },
+                  ],
+              };
+          })
+        : [];
+
+    const previewGroups = data ? [totalGroup, ...pendidikanGroups] : [];
+
     return (
         <div>
             <h2 className="text-[#172033] font-semibold mb-3 text-lg">
@@ -107,6 +175,7 @@ function AsnPendidikanPanel() {
                         <TotalCard
                             title="Jumlah ASN di Kota Yogyakarta"
                             total={data.jumlah_asn}
+                            onClick={() => setPreviewGroup("total")}
                         />
                     </div>
 
@@ -139,10 +208,21 @@ function AsnPendidikanPanel() {
                                 total={data.pendidikan[p.key].total}
                                 laki_laki={data.pendidikan[p.key].laki_laki}
                                 perempuan={data.pendidikan[p.key].perempuan}
+                                onClick={() => setPreviewGroup(p.key)}
                             />
                         ))}
                     </div>
                 </>
+            )}
+
+            {previewGroup && (
+                <PreviewTableModal
+                    title="Tabel Preview ASN Berdasarkan Tingkat Pendidikan"
+                    subtitle="Rekap jumlah ASN per jenjang pendidikan dan jenis kelamin."
+                    groups={previewGroups}
+                    highlightGroup={previewGroup}
+                    onClose={() => setPreviewGroup(null)}
+                />
             )}
         </div>
     );
