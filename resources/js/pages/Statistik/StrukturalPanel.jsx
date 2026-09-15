@@ -1,22 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 
 function StrukturalPanel() {
     const [data, setData] = useState(null);
@@ -54,62 +39,75 @@ function StrukturalPanel() {
         };
     }, []);
 
-    const chartData = data
+    // Baris tabel: Eselon II, III, IV, tiap baris punya total, laki_laki,
+    // perempuan (langsung dari respons API).
+    const rows = data
         ? [
-              { label: "Eselon II", laki_laki: data.eselon_ii.laki_laki, perempuan: data.eselon_ii.perempuan },
-              { label: "Eselon III", laki_laki: data.eselon_iii.laki_laki, perempuan: data.eselon_iii.perempuan },
-              { label: "Eselon IV", laki_laki: data.eselon_iv.laki_laki, perempuan: data.eselon_iv.perempuan },
+              { label: "Eselon II", ...data.eselon_ii },
+              { label: "Eselon III", ...data.eselon_iii },
+              { label: "Eselon IV", ...data.eselon_iv },
           ]
         : [];
 
+    const totalLakiLaki = rows.reduce((sum, r) => sum + (r.laki_laki || 0), 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + (r.perempuan || 0), 0);
+    const totalJumlah = data ? data.jumlah_pejabat_struktural : 0;
+
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                Pejabat Struktural
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="mb-5">
+                <h3 className="text-lg font-bold text-[#172033]">
+                    Pejabat Struktural
+                </h3>
+                <p className="text-sm text-gray-500">
+                    Data pejabat struktural aktif per eselon, dipecah menurut jenis kelamin.
+                </p>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Eselon berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div
-                        className="grid gap-4 mb-5"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        <TotalCard title="Jumlah Pejabat Struktural" total={data.jumlah_pejabat_struktural} />
-                        <MiniStatCard title="Eselon II" {...data.eselon_ii} />
-                        <MiniStatCard title="Eselon III" {...data.eselon_iii} />
-                        <MiniStatCard title="Eselon IV" {...data.eselon_iv} />
-                    </div>
-
-                    <ChartCard title="Perbandingan Eselon berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-                </>
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-left">No</th>
+                                <th className="border px-3 py-2 text-left">Eselon</th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.label} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki || 0}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan || 0}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total || 0}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );
