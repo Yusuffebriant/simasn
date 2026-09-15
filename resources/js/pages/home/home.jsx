@@ -457,6 +457,21 @@ function UnitKerjaTable({ data }) {
     );
 }
 
+function ChartCardLoading({ title }) {
+    return (
+        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 shadow-sm animate-pulse">
+            <div className="flex items-baseline justify-between mb-4">
+                <h3 className="text-[#172033] font-semibold">{title}</h3>
+                <span className="text-xs text-[#B8BFC9]">Memuat…</span>
+            </div>
+            <div
+                className="w-full rounded-lg bg-[#F0F2F5]"
+                style={{ height: 280 }}
+            />
+        </div>
+    );
+}
+
 function ChartCard({ title, total, children }) {
     return (
         <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">

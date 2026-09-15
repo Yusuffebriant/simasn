@@ -99,13 +99,23 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     ]);
 
     Route::get('/statistik/pns-kelurahan', [
-        StatistikPnsKelurahanController::class,
+        StatistikPnsKelurahanController::class,     
         'index'
+    ]);
+
+    Route::get('/statistik/pns-kelurahan/export', [
+        StatistikPnsKelurahanController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pppk-kelurahan', [
         StatistikPppkKelurahanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pppk-kelurahan/export', [
+        StatistikPppkKelurahanController::class,
+        'export'
     ]);
 
     // =========================================================
@@ -191,8 +201,9 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/imports/{batch}/errors', [ImportController::class, 'errors']);
 
         // ---- PEGAWAI CRUD ----
-        Route::apiResource('pegawai', PegawaiController::class);
-
+        Route::apiResource('pegawai', PegawaiController::class)
+            ->only(['index', 'show', 'update', 'destroy']);
+        
         // ---- REFERENSI ----
         Route::get('/referensi/instansi', [ReferensiController::class, 'instansi']);
         Route::get('/referensi/golongan', [ReferensiController::class, 'golonganRuang']);

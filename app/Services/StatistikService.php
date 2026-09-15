@@ -3002,6 +3002,7 @@ class StatistikService
             ->select(
                 'unit',
                 'sub_unit',
+                'jenis_kelamin',
                 DB::raw('COUNT(*) as jumlah')
             )
             ->where('status_aktif', 'aktif')
@@ -3010,14 +3011,24 @@ class StatistikService
             ->whereRaw("UPPER(TRIM(unit)) LIKE 'KEMANTREN %'")
             ->whereNotNull('sub_unit')
             ->whereRaw("UPPER(sub_unit) LIKE '%KELURAHAN%'")
-            ->groupBy('unit', 'sub_unit')
+            ->groupBy('unit', 'sub_unit', 'jenis_kelamin')
             ->get();
 
         // Siapkan struktur kosong dulu supaya kelurahan yang datanya 0 tetap
-        // muncul di response.
+        // muncul di response. 'kelurahan' menyimpan total per kelurahan
+        // (dipakai oleh panel React yang sudah ada, format TIDAK diubah
+        // supaya tidak breaking), sedangkan 'kelurahan_gender' menyimpan
+        // rincian laki_laki/perempuan per kelurahan — dipakai khusus oleh
+        // export Excel (lihat PnsKelurahanExport.php) sesuai permintaan
+        // tambahan kolom gender pada export.
         $hasilKemantren = [];
+        $genderKemantren = [];
         foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
             $hasilKemantren[$kemantren] = array_fill_keys($kelurahanList, 0);
+            $genderKemantren[$kemantren] = array_fill_keys(
+                $kelurahanList,
+                ['laki_laki' => 0, 'perempuan' => 0]
+            );
         }
 
         $tidakDikenali = 0;
@@ -3068,6 +3079,9 @@ class StatistikService
             }
 
             $hasilKemantren[$namaKemantren][$kelurahanDitemukan] += $jumlah;
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+            $genderKemantren[$namaKemantren][$kelurahanDitemukan][$gender] += $jumlah;
         }
 
         $hasil = ['jumlah_pns_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
@@ -3078,6 +3092,7 @@ class StatistikService
             $hasil['kemantren'][$kemantren] = [
                 'total' => $totalKemantren,
                 'kelurahan' => $kelurahanData,
+                'kelurahan_gender' => $genderKemantren[$kemantren],
             ];
 
             $hasil['jumlah_pns_kelurahan'] += $totalKemantren;
@@ -3129,6 +3144,7 @@ class StatistikService
             ->select(
                 'unit',
                 'sub_unit',
+                'jenis_kelamin',
                 DB::raw('COUNT(*) as jumlah')
             )
             ->where('status_aktif', 'aktif')
@@ -3137,12 +3153,21 @@ class StatistikService
             ->whereRaw("UPPER(TRIM(unit)) LIKE 'KEMANTREN %'")
             ->whereNotNull('sub_unit')
             ->whereRaw("UPPER(sub_unit) LIKE '%KELURAHAN%'")
-            ->groupBy('unit', 'sub_unit')
+            ->groupBy('unit', 'sub_unit', 'jenis_kelamin')
             ->get();
 
+        // 'kelurahan' = total per kelurahan (dipakai panel React yang sudah
+        // ada, format tidak diubah). 'kelurahan_gender' = rincian
+        // laki_laki/perempuan per kelurahan, dipakai khusus export Excel
+        // (lihat PppkKelurahanExport.php).
         $hasilKemantren = [];
+        $genderKemantren = [];
         foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
             $hasilKemantren[$kemantren] = array_fill_keys($kelurahanList, 0);
+            $genderKemantren[$kemantren] = array_fill_keys(
+                $kelurahanList,
+                ['laki_laki' => 0, 'perempuan' => 0]
+            );
         }
 
         $tidakDikenali = 0;
@@ -3189,6 +3214,9 @@ class StatistikService
             }
 
             $hasilKemantren[$namaKemantren][$kelurahanDitemukan] += $jumlah;
+
+            $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+            $genderKemantren[$namaKemantren][$kelurahanDitemukan][$gender] += $jumlah;
         }
 
         $hasil = ['jumlah_pppk_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
@@ -3199,6 +3227,7 @@ class StatistikService
             $hasil['kemantren'][$kemantren] = [
                 'total' => $totalKemantren,
                 'kelurahan' => $kelurahanData,
+                'kelurahan_gender' => $genderKemantren[$kemantren],
             ];
 
             $hasil['jumlah_pppk_kelurahan'] += $totalKemantren;
