@@ -103,9 +103,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pns-kelurahan/export', [
+        StatistikPnsKelurahanController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pppk-kelurahan', [
         StatistikPppkKelurahanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pppk-kelurahan/export', [
+        StatistikPppkKelurahanController::class,
+        'export'
     ]);
 
     // =========================================================

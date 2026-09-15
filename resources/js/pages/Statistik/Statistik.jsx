@@ -12,13 +12,14 @@ import SkpdDinasPanel from "./SkpdDinasPanel";
 import AsnPerangkatDaerahJenisKelaminPanel from "./AsnPerangkatDaerahJenisKelaminPanel";
 import PenjabatPerangkatDaerahPanel from "./PenjabatPerangkatDaerahPanel";
 import AsnKemantrenPendidikanPanel from "./AsnKemantrenPendidikanPanel";
+import PnsKemantrenPendidikanPanel from "./PnsKemantrenPendidikanPanel";
+import PppkKemantrenPendidikanPanel from "./PppkKemantrenPendidikanPanel";
+import PnsKemantrenGolonganPanel from "./PnsKemantrenGolonganPanel";
+import PppkKemantrenGolonganPanel from "./PppkKemantrenGolonganPanel";
+import PnsKelurahanPanel from "./PnsKelurahanPanel";
+import PppkKelurahanPanel from "./PppkKelurahanPanel";
 
 // Menu navigasi lokal di halaman Statistik.
-// "ready: false" = belum ada endpoint backend-nya, jadi menunya
-// ditampilkan tapi nonaktif (pola sama seperti REKAP_TABS di
-// pages/Admin/Rekapitulasi.jsx) sampai backend-nya siap.
-// "Pensiunan PNS" sudah ready di sisi frontend (model/UI, data dummy)
-// walau backend-nya belum ada — lihat catatan di PensiunanPanel.jsx.
 const STATISTIK_MENU = [
     { key: "struktural", label: "Pejabat Struktural", component: StrukturalPanel, ready: true },
     { key: "fungsional", label: "Pejabat Fungsional", component: FungsionalPanel, ready: true },
@@ -32,7 +33,14 @@ const STATISTIK_MENU = [
     { key: "asn-perangkat-daerah-gender", label: "ASN Perangkat Daerah Berdasarkan Jenis Kelamin", component: AsnPerangkatDaerahJenisKelaminPanel, ready: true },
     { key: "penjabat-perangkat-daerah-gender", label: "Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin", component: PenjabatPerangkatDaerahPanel, ready: true },
     { key: "asn-kemantren-pendidikan", label: "ASN Kemantren Berdasarkan Tingkat Pendidikan", component: AsnKemantrenPendidikanPanel, ready: true },
+    { key: "pns-kemantren-pendidikan", label: "PNS Kemantren Berdasarkan Tingkat Pendidikan", component: PnsKemantrenPendidikanPanel, ready: true },
+    { key: "pppk-kemantren-pendidikan", label: "PPPK Kemantren Berdasarkan Tingkat Pendidikan", component: PppkKemantrenPendidikanPanel, ready: true },
+    { key: "pns-kemantren-golongan", label: "PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin", component: PnsKemantrenGolonganPanel, ready: true },
+    { key: "pppk-kemantren-golongan", label: "PPPK Kemantren Berdasarkan Golongan dan Jenis Kelamin", component: PppkKemantrenGolonganPanel, ready: true },
+    { key: "pns-kelurahan", label: "PNS Kelurahan", component: PnsKelurahanPanel, ready: true },
+    { key: "pppk-kelurahan", label: "PPPK Kelurahan", component: PppkKelurahanPanel, ready: true },
 ];
+
 
 function Statistik() {
     const [activeKey, setActiveKey] = useState(STATISTIK_MENU[0].key);
