@@ -28,12 +28,26 @@ export function GenderChip({ icon, value, variant = "light" }) {
     );
 }
 
-export function TotalCard({ title, total }) {
+// onClick opsional: kalau diisi, kartu jadi bisa diklik (mis. untuk buka
+// tabel preview rincian gabungan semua kategori) — kartu berubah jadi
+// <button> beneran, dapat hover/focus ring, dan tetap bisa dinavigasi
+// keyboard. Sama seperti pola di MiniStatCard.
+export function TotalCard({ title, total, onClick }) {
+    const clickableClass = onClick
+        ? " w-full text-left cursor-pointer transition hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#0F6E6E] focus:ring-offset-2"
+        : "";
+
+    const Tag = onClick ? "button" : "div";
+
     return (
-        <div className="bg-[#172033] text-white rounded-xl p-5 h-full">
+        <Tag
+            type={onClick ? "button" : undefined}
+            onClick={onClick}
+            className={"bg-[#172033] text-white rounded-xl p-5 h-full" + clickableClass}
+        >
             <div className="text-[13px] text-white/70 mb-2">{title}</div>
             <div className="text-4xl font-bold">{total.toLocaleString("id-ID")}</div>
-        </div>
+        </Tag>
     );
 }
 
@@ -145,33 +159,58 @@ export function PreviewTableModal({ title, subtitle, groups, highlightGroup, onC
                                         {group.label}
                                     </div>
                                     <div className="divide-y divide-[#F0F2F5]">
-                                        {group.items.map((item, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="flex items-center justify-between px-4 py-2"
-                                            >
-                                                <span
-                                                    className={
-                                                        item.type === "total"
-                                                            ? "text-sm text-[#172033] font-medium"
-                                                            : "text-sm text-[#687386] pl-4 flex items-center gap-1.5"
-                                                    }
+                                        {group.items.map((item, idx) => {
+                                            // `indent` opsional (0/1/2) untuk kontrol level indentasi
+                                            // secara eksplisit — dipakai saat rincian punya 3 tingkat
+                                            // (mis. pendidikan -> gender -> per Kemantren), bukan cuma
+                                            // 2 tingkat (total -> gender) seperti grup lain. Kalau tidak
+                                            // diisi, fallback ke perilaku lama: total=0, selain itu=1.
+                                            const indent =
+                                                item.indent ?? (item.type === "total" ? 0 : 1);
+                                            const indentClass =
+                                                indent === 0 ? "" : indent === 1 ? "pl-4" : "pl-8";
+                                            // Baris terdalam (indent 2, mis. rincian per Kemantren)
+                                            // dibuat lebih ringkas & padat — teksnya lebih kecil dan
+                                            // paddingnya lebih tipis — supaya daftar panjang (14
+                                            // Kemantren x 2 gender) tidak jadi "tembok teks" yang
+                                            // berat dibaca dan kepanjangan saat di-scroll.
+                                            const isDeepSub = indent === 2;
+                                            const rowPadding = isDeepSub ? "px-4 py-1.5" : "px-4 py-2";
+                                            const labelSizeClass = isDeepSub ? "text-xs" : "text-sm";
+                                            const valueSizeClass = isDeepSub ? "text-xs" : "text-sm";
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`flex items-center justify-between ${rowPadding}`}
                                                 >
-                                                    {item.type === "laki_laki" && <span aria-hidden>♂</span>}
-                                                    {item.type === "perempuan" && <span aria-hidden>♀</span>}
-                                                    {item.label}
-                                                </span>
-                                                <span
-                                                    className={
-                                                        item.type === "total"
-                                                            ? "text-sm font-bold text-[#172033]"
-                                                            : "text-sm font-semibold text-[#3A4658]"
-                                                    }
-                                                >
-                                                    {Number(item.value || 0).toLocaleString("id-ID")}
-                                                </span>
-                                            </div>
-                                        ))}
+                                                    <span
+                                                        className={
+                                                            item.type === "total"
+                                                                ? "text-sm text-[#172033] font-medium"
+                                                                : `${labelSizeClass} text-[#687386] ${indentClass} flex items-center gap-1.5`
+                                                        }
+                                                    >
+                                                        {item.type === "laki_laki" && (
+                                                            <span aria-hidden className="text-[#E57373]">♂</span>
+                                                        )}
+                                                        {item.type === "perempuan" && (
+                                                            <span aria-hidden className="text-[#64B5F6]">♀</span>
+                                                        )}
+                                                        {item.label}
+                                                    </span>
+                                                    <span
+                                                        className={
+                                                            item.type === "total"
+                                                                ? "text-sm font-bold text-[#172033]"
+                                                                : `${valueSizeClass} font-semibold text-[#3A4658]`
+                                                        }
+                                                    >
+                                                        {Number(item.value || 0).toLocaleString("id-ID")}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );

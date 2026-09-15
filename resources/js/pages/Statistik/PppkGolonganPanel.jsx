@@ -14,6 +14,7 @@ import {
     ChartCardLoading,
     ErrorBox,
     MiniStatCard,
+    PreviewTableModal,
     SkeletonCard,
     TotalCard,
 } from "./components/StatUi";
@@ -29,6 +30,12 @@ function PppkGolonganPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Golongan yang sedang di-preview (mis. "I", "III", dst). null
+    // berarti modal tertutup. Dipakai juga untuk menyorot baris terkait
+    // di dalam tabel preview. Nilai khusus "__all__" dipakai saat kartu
+    // "Jumlah PPPK" (TotalCard) diklik — merujuk ke grup ringkasan
+    // "Jumlah Keseluruhan PPPK" yang ditaruh paling atas di previewGroups.
+    const [previewGroup, setPreviewGroup] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -71,6 +78,66 @@ function PppkGolonganPanel() {
           }))
         : [];
 
+    // Daftar grup untuk tabel preview. Grup pertama ("__all__") adalah
+    // ringkasan keseluruhan PPPK (dari kartu "Jumlah PPPK" di atas),
+    // rincian laki-laki/perempuan-nya dihitung dari jumlah semua
+    // golongan. Sisanya 1 grup per Golongan (I, III, V, VII, IX, X, XI)
+    // — mengikuti pola PreviewTableModal di Pejabat Fungsional: 1 baris
+    // total + label "Laki-Laki" / "Perempuan" langsung (tanpa embel-embel
+    // "Jumlah PPPK ...") untuk baris rincian per gender.
+    const previewGroups = data
+        ? [
+              {
+                  key: "__all__",
+                  label: "Jumlah Keseluruhan PPPK",
+                  items: [
+                      {
+                          type: "total",
+                          label: "Jumlah Keseluruhan PPPK",
+                          value: data.jumlah_pppk,
+                      },
+                      {
+                          type: "laki_laki",
+                          label: "Laki-Laki",
+                          value: GOLONGAN_LIST.reduce(
+                              (sum, g) => sum + (data.golongan[g].laki_laki || 0),
+                              0
+                          ),
+                      },
+                      {
+                          type: "perempuan",
+                          label: "Perempuan",
+                          value: GOLONGAN_LIST.reduce(
+                              (sum, g) => sum + (data.golongan[g].perempuan || 0),
+                              0
+                          ),
+                      },
+                  ],
+              },
+              ...GOLONGAN_LIST.map((g) => ({
+                  key: g,
+                  label: `Golongan ${g}`,
+                  items: [
+                      {
+                          type: "total",
+                          label: `Jumlah PPPK Golongan ${g}`,
+                          value: data.golongan[g].total,
+                      },
+                      {
+                          type: "laki_laki",
+                          label: "Laki-Laki",
+                          value: data.golongan[g].laki_laki,
+                      },
+                      {
+                          type: "perempuan",
+                          label: "Perempuan",
+                          value: data.golongan[g].perempuan,
+                      },
+                  ],
+              })),
+          ]
+        : [];
+
     return (
         <div>
             <h2 className="text-[#172033] font-semibold mb-3 text-lg">
@@ -98,7 +165,11 @@ function PppkGolonganPanel() {
             {data && (
                 <>
                     <div className="mb-5">
-                        <TotalCard title="Jumlah PPPK" total={data.jumlah_pppk} />
+                        <TotalCard
+                            title="Jumlah PPPK"
+                            total={data.jumlah_pppk}
+                            onClick={() => setPreviewGroup("__all__")}
+                        />
                     </div>
 
                     <ChartCard title="Perbandingan Golongan berdasarkan Gender">
@@ -130,10 +201,21 @@ function PppkGolonganPanel() {
                                 total={data.golongan[g].total}
                                 laki_laki={data.golongan[g].laki_laki}
                                 perempuan={data.golongan[g].perempuan}
+                                onClick={() => setPreviewGroup(g)}
                             />
                         ))}
                     </div>
                 </>
+            )}
+
+            {previewGroup && (
+                <PreviewTableModal
+                    title="Tabel Preview PPPK Berdasarkan Golongan"
+                    subtitle="Rekap jumlah PPPK per golongan dan jenis kelamin."
+                    groups={previewGroups}
+                    highlightGroup={previewGroup}
+                    onClose={() => setPreviewGroup(null)}
+                />
             )}
         </div>
     );
