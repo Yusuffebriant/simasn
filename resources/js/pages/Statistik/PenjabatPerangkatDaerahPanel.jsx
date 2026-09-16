@@ -1,36 +1,21 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 
 // Urutan & key harus persis sama dengan key yang dikembalikan
 // StatistikService::statistikPenjabatPerangkatDaerahJenisKelamin() di
 // backend (lihat response controller StatistikPenjabatPerangkatDaerahController).
 const PENJABAT_LIST = [
-    { key: "kepala_daerah", label: "Kepala Daerah", chartLabel: "Kepala Daerah" },
-    { key: "mantri_pamong_praja", label: "Jumlah Mantri Pamong Praja", chartLabel: "Mantri Pamong Praja" },
-    { key: "lurah", label: "Jumlah Lurah", chartLabel: "Lurah" },
-    { key: "kepala_opd", label: "Jumlah Kepala OPD", chartLabel: "Kepala OPD" },
-    { key: "pejabat_asn_struktural", label: "Jumlah Pejabat ASN Struktural", chartLabel: "ASN Struktural" },
-    { key: "pejabat_asn_pelaksana", label: "Jumlah Pejabat ASN Pelaksana", chartLabel: "ASN Pelaksana" },
+    { key: "kepala_daerah", label: "Kepala Daerah" },
+    { key: "mantri_pamong_praja", label: "Jumlah Mantri Pamong Praja" },
+    { key: "lurah", label: "Jumlah Lurah" },
+    { key: "kepala_opd", label: "Jumlah Kepala OPD" },
+    { key: "pejabat_asn_struktural", label: "Jumlah Pejabat ASN Struktural" },
+    { key: "pejabat_asn_pelaksana", label: "Jumlah Pejabat ASN Pelaksana" },
     {
         key: "anggota_tim_baperjakat",
         label: "Jumlah Anggota Tim Badan Pertimbangan dan Kepangkatan",
-        chartLabel: "Tim Badan Pertimbangan dan Kepangkatan",
     },
 ];
 
@@ -75,82 +60,68 @@ function PenjabatPerangkatDaerahPanel() {
         };
     }, []);
 
-    const chartData = data
+    // Baris tabel: satu baris per jenis penjabat, tiap baris punya
+    // total, laki_laki, perempuan (langsung dari respons API). Tidak ada
+    // baris Total gabungan karena tiap kategori berbeda jenis (bukan
+    // subset yang saling lepas satu sama lain) — sama seperti versi
+    // MiniStatCard sebelumnya yang juga tidak punya kartu total gabungan.
+    const rows = data
         ? PENJABAT_LIST.map((p) => ({
-              label: p.chartLabel,
+              key: p.key,
+              label: p.label,
+              total: data[p.key]?.total || 0,
               laki_laki: data[p.key]?.laki_laki || 0,
               perempuan: data[p.key]?.perempuan || 0,
           }))
         : [];
 
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="mb-5">
+                <h3 className="text-lg font-bold text-[#172033]">
+                    Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin
+                </h3>
+                <p className="text-sm text-gray-500">
+                    Data penjabat perangkat daerah, dipecah menurut jenis kelamin.
+                </p>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Penjabat Perangkat Daerah berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div
-                        className="grid gap-4 mb-5"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        {PENJABAT_LIST.map((p) => (
-                            <MiniStatCard
-                                key={p.key}
-                                title={p.label}
-                                total={data[p.key]?.total || 0}
-                                laki_laki={data[p.key]?.laki_laki || 0}
-                                perempuan={data[p.key]?.perempuan || 0}
-                            />
-                        ))}
-                    </div>
-
-                    <ChartCard
-                        title="Perbandingan Penjabat Perangkat Daerah berdasarkan Gender"
-                        height={360}
-                    >
-                        <BarChart data={chartData} margin={{ bottom: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                angle={-30}
-                                textAnchor="end"
-                                height={70}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-                </>
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-left">No</th>
+                                <th className="border px-3 py-2 text-left">Jenis Penjabat</th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.key} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );
