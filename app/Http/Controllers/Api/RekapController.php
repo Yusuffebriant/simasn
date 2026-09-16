@@ -9,6 +9,7 @@ use App\Exports\RekapPendidikanExport;
 use App\Exports\RekapGolonganExport;
 use App\Exports\RekapJabatanExport;
 use App\Exports\RekapEselonGolonganGenderExport;
+use App\Exports\RekapNakesExport;
 
 use App\Services\RekapService;
 use Illuminate\Http\Request;
@@ -112,6 +113,65 @@ class RekapController extends Controller
 
         return response()->json($data);
     }
+    public function nakesJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    $data = Cache::remember(
+        "rekap.nakes.{$periode}",
+        now()->addMinutes(10),
+        fn () => (new RekapService())->rekapNakes($periode)
+    );
+
+    return response()->json($data);
+}
+
+public function exportNakes(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    return Excel::download(new RekapNakesExport($periode), "rekap-nakes-{$periode}.xlsx");
+}
+public function sdJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    $data = Cache::remember("rekap.sd.{$periode}", now()->addMinutes(10),
+        fn () => (new RekapService())->rekapSdFungsional($periode));
+    return response()->json($data);
+}
+
+public function smpJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    $data = Cache::remember("rekap.smp.{$periode}", now()->addMinutes(10),
+        fn () => (new RekapService())->rekapSmpFungsional($periode));
+    return response()->json($data);
+}
+
+public function exportSd(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    return Excel::download(new \App\Exports\RekapSdExport($periode), "rekap-sd-{$periode}.xlsx");
+}
+
+public function exportSmp(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    return Excel::download(new \App\Exports\RekapSmpExport($periode), "rekap-smp-{$periode}.xlsx");
+}
+public function kecamatanJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    $data = Cache::remember("rekap.kecamatan.{$periode}", now()->addMinutes(10),
+        fn () => (new RekapService())->rekapKecamatanKelurahan($periode));
+    return response()->json($data);
+}
+
+public function exportKecamatan(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+    return Excel::download(new \App\Exports\RekapKecamatanExport($periode), "rekap-kecamatan-{$periode}.xlsx");
+}
 
 
     /*

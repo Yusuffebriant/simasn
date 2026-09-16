@@ -243,6 +243,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
         // ---- REKAP JSON ----
         Route::get('/rekap/agama', [RekapController::class, 'agamaJson']);
+        Route::get('/rekap/nakes', [RekapController::class, 'nakesJson']);
+        Route::get('/rekap/sd', [RekapController::class, 'sdJson']);
+        Route::get('/rekap/smp', [RekapController::class, 'smpJson']);
+        Route::get('/rekap/kecamatan', [RekapController::class, 'kecamatanJson']);
         Route::get('/rekap/pendidikan', [RekapController::class, 'pendidikanJson']);
         Route::get('/rekap/jabatan', [RekapController::class, 'jabatanJson']);
         Route::get('/rekap/golongan', [RekapController::class, 'golonganJson']);
@@ -251,6 +255,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         // ---- REKAP EXPORT EXCEL ----
         Route::get('/rekap/all/export', [RekapController::class, 'exportAll']);
         Route::get('/rekap/agama/export', [RekapController::class, 'exportAgama']);
+        Route::get('/rekap/sd/export', [RekapController::class, 'exportSd']);
+        Route::get('/rekap/smp/export', [RekapController::class, 'exportSmp']); 
+        Route::get('/rekap/kecamatan/export', [RekapController::class, 'exportKecamatan']);
+        Route::get('/rekap/nakes/export', [RekapController::class, 'exportNakes']);
         Route::get('/rekap/pendidikan/export', [RekapController::class, 'exportPendidikan']);
         Route::get('/rekap/golongan/export', [RekapController::class, 'exportGolongan']);
         Route::get('/rekap/jabatan/export', [RekapController::class, 'exportJabatan']);

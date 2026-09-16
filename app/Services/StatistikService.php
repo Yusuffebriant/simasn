@@ -2942,61 +2942,60 @@ class StatistikService
         return $hasil;
     }
     /**
-     * 5.03.019
-     * Jumlah PNS Kelurahan, dikelompokkan berdasarkan Kemantren induknya.
-     *
-     * PENTING — sumber data BUKAN dari tabel instansi (level instansi cuma
-     * sampai Kemantren/Dinas/Badan, 51 baris, tidak ada baris per Kelurahan),
-     * dan BUKAN dari kolom jabatan (jabatan hanya mengandung nama Kelurahan
-     * untuk jabatan struktural spesifik: Lurah/Sekretaris/Kasi — staf
-     * pelaksana biasa tidak tertangkap dari situ).
-     *
-     * Sumber data yang benar (dikonfirmasi lewat pengecekan manual ke
-     * database): kolom pegawai.unit menyimpan nama Kemantren, format
-     * "KEMANTREN <NAMA>". Kolom pegawai.sub_unit menyimpan unit kerja lebih
-     * detail dan SELALU mengandung substring "KELURAHAN <NAMA>" di suatu
-     * tempat dalam teksnya, walau formatnya tidak konsisten, misal:
-     * - "KELURAHAN KRICAK"
-     * - "SEKRETARIAT KELURAHAN KRICAK"
-     * - "SEKSI PEREKONOMIAN DAN PEMBANGUNAN KELURAHAN KRICAK"
-     * - "SEKSI PEMERINTAHAN KETENTERAMAN DAN KETERTIBAN KELURAHAN KRICAK"
-     *
-     * Karena formatnya tidak konsisten, deteksi kelurahan dilakukan dengan
-     * mencari substring "KELURAHAN <NAMA>" pada sub_unit, dengan daftar nama
-     * kelurahan kandidat DIBATASI hanya kelurahan di bawah Kemantren yang
-     * sama (diketahui dari kolom unit) — supaya tidak ada false-positive
-     * antar kemantren.
-     *
-     * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS').
-     */
-    public function statistikPnsKelurahan(?string $periode = null): array
-    {
-        // Mapping Kemantren -> daftar Kelurahan di bawahnya, sesuai struktur
-        // wilayah administratif Kota Yogyakarta.
-        $kemantrenKelurahanMap = [
-            'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
-            'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
-            'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
-            'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
-            'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
-            'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
-            'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
-            'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
-            'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
-            'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
-            'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
-            'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
-            'UMBULHARJO' => [
-                'SEMAKI',
-                'MUJAMUJU',
-                'TAHUNAN',
-                'WARUNGBOTO',
-                'PANDEYAN',
-                'SOROSUTAN',
-                'GIWANGAN',
-            ],
-            'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
-        ];
+ * 5.03.019
+ * Jumlah PNS Kelurahan berdasarkan Jenis Kelamin, dikelompokkan
+ * berdasarkan Kemantren induknya.
+ *
+ * PENTING — sumber data BUKAN dari tabel instansi (level instansi cuma
+ * sampai Kemantren/Dinas/Badan, 51 baris, tidak ada baris per Kelurahan),
+ * dan BUKAN dari kolom jabatan (jabatan hanya mengandung nama Kelurahan
+ * untuk jabatan struktural spesifik: Lurah/Sekretaris/Kasi — staf
+ * pelaksana biasa tidak tertangkap dari situ).
+ *
+ * Sumber data yang benar (dikonfirmasi lewat pengecekan manual ke
+ * database): kolom pegawai.unit menyimpan nama Kemantren, format
+ * "KEMANTREN <NAMA>". Kolom pegawai.sub_unit menyimpan unit kerja lebih
+ * detail dan SELALU mengandung substring "KELURAHAN <NAMA>" di suatu
+ * tempat dalam teksnya, walau formatnya tidak konsisten, misal:
+ * - "KELURAHAN KRICAK"
+ * - "SEKRETARIAT KELURAHAN KRICAK"
+ * - "SEKSI PEREKONOMIAN DAN PEMBANGUNAN KELURAHAN KRICAK"
+ * - "SEKSI PEMERINTAHAN KETENTERAMAN DAN KETERTIBAN KELURAHAN KRICAK"
+ *
+ * Karena formatnya tidak konsisten, deteksi kelurahan dilakukan dengan
+ * mencari substring "KELURAHAN <NAMA>" pada sub_unit, dengan daftar nama
+ * kelurahan kandidat DIBATASI hanya kelurahan di bawah Kemantren yang
+ * sama (diketahui dari kolom unit) — supaya tidak ada false-positive
+ * antar kemantren.
+ *
+ * REVISI: setiap kelurahan sekarang dipecah per jenis_kelamin
+ * (laki_laki/perempuan), tidak lagi angka total polos seperti versi
+ * sebelumnya — endpoint ini dipastikan belum dipakai frontend saat
+ * perubahan struktur ini dibuat, jadi aman diubah.
+ *
+ * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS').
+ */
+public function statistikPnsKelurahan(?string $periode = null): array
+{
+    $kemantrenKelurahanMap = [
+        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
+        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
+        'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
+        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+        'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
+        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
+        'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+        'UMBULHARJO' => [
+            'SEMAKI', 'MUJAMUJU', 'TAHUNAN', 'WARUNGBOTO',
+            'PANDEYAN', 'SOROSUTAN', 'GIWANGAN',
+        ],
+        'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+    ];
 
         $rows = Pegawai::query()
             ->select(
@@ -3031,25 +3030,17 @@ class StatistikService
             );
         }
 
-        $tidakDikenali = 0;
+        $subUnit = strtoupper(trim((string) $row->sub_unit));
 
-        foreach ($rows as $row) {
-            $unit = strtoupper(trim((string) $row->unit));
-            // "KEMANTREN TEGALREJO" -> "TEGALREJO"
-            $namaKemantren = trim(str_replace('KEMANTREN', '', $unit));
+        // Cari nama kelurahan sebagai substring "KELURAHAN <NAMA>" di
+        // dalam sub_unit. Kandidat dibatasi ke kelurahan milik kemantren
+        // ini saja (dari mapping), supaya tidak salah tangkap.
+        $kelurahanDitemukan = null;
 
-            $jumlah = (int) $row->jumlah;
-
-            if (!isset($kemantrenKelurahanMap[$namaKemantren])) {
-                $tidakDikenali += $jumlah;
-
-                Log::warning('StatistikPnsKelurahan: kemantren dari kolom unit tidak dikenali', [
-                    'unit_raw' => $row->unit,
-                    'sub_unit_raw' => $row->sub_unit,
-                    'jumlah' => $jumlah,
-                ]);
-
-                continue;
+        foreach ($kemantrenKelurahanMap[$namaKemantren] as $kelurahan) {
+            if (str_contains($subUnit, 'KELURAHAN ' . $kelurahan)) {
+                $kelurahanDitemukan = $kelurahan;
+                break;
             }
 
             $subUnit = strtoupper(trim((string) $row->sub_unit));
@@ -3084,10 +3075,14 @@ class StatistikService
             $genderKemantren[$namaKemantren][$kelurahanDitemukan][$gender] += $jumlah;
         }
 
-        $hasil = ['jumlah_pns_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+        if ($kelurahanDitemukan === null) {
+            $tidakDikenali += $jumlah;
 
-        foreach ($hasilKemantren as $kemantren => $kelurahanData) {
-            $totalKemantren = array_sum($kelurahanData);
+            Log::warning('StatistikPnsKelurahan: nama kelurahan tidak ditemukan pada sub_unit', [
+                'unit_raw' => $row->unit,
+                'sub_unit_raw' => $row->sub_unit,
+                'jumlah' => $jumlah,
+            ]);
 
             $hasil['kemantren'][$kemantren] = [
                 'total' => $totalKemantren,
@@ -3095,49 +3090,12 @@ class StatistikService
                 'kelurahan_gender' => $genderKemantren[$kemantren],
             ];
 
-            $hasil['jumlah_pns_kelurahan'] += $totalKemantren;
+            $totalKemantren += $totalKelurahan;
         }
 
-        $hasil['jumlah_pns_kelurahan'] += $tidakDikenali;
-
-        return $hasil;
-    }
-    /**
-     * 5.03.020
-     * Jumlah PPPK Kelurahan, dikelompokkan berdasarkan Kemantren induknya.
-     *
-     * Struktur & logic PERSIS sama dengan statistikPnsKelurahan() (5.03.019)
-     * — bedanya hanya filter status_kepegawaian = 'PPPK'. Sumber data dari
-     * kolom pegawai.unit (format "KEMANTREN <NAMA>") dan pegawai.sub_unit
-     * (mengandung substring "KELURAHAN <NAMA>"), BUKAN dari tabel instansi
-     * atau kolom jabatan — lihat dokblock statistikPnsKelurahan() untuk detail
-     * penemuan struktur data ini.
-     */
-    public function statistikPppkKelurahan(?string $periode = null): array
-    {
-        $kemantrenKelurahanMap = [
-            'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
-            'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
-            'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
-            'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
-            'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
-            'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
-            'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
-            'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
-            'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
-            'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
-            'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
-            'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
-            'UMBULHARJO' => [
-                'SEMAKI',
-                'MUJAMUJU',
-                'TAHUNAN',
-                'WARUNGBOTO',
-                'PANDEYAN',
-                'SOROSUTAN',
-                'GIWANGAN',
-            ],
-            'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+        $hasil['kemantren'][$kemantren] = [
+            'total' => $totalKemantren,
+            'kelurahan' => $kelurahanHasil,
         ];
 
         $rows = Pegawai::query()
@@ -3237,4 +3195,148 @@ class StatistikService
 
         return $hasil;
     }
+
+    $hasil['jumlah_pns_kelurahan'] += $tidakDikenali;
+
+    return $hasil;
+}
+ /**
+ * 5.03.020
+ * Jumlah PPPK Kelurahan berdasarkan Jenis Kelamin, dikelompokkan
+ * berdasarkan Kemantren induknya.
+ *
+ * Struktur & logic PERSIS sama dengan statistikPnsKelurahan() (5.03.019)
+ * — bedanya hanya filter status_kepegawaian = 'PPPK'. Sumber data dari
+ * kolom pegawai.unit (format "KEMANTREN <NAMA>") dan pegawai.sub_unit
+ * (mengandung substring "KELURAHAN <NAMA>"), BUKAN dari tabel instansi
+ * atau kolom jabatan — lihat dokblock statistikPnsKelurahan() untuk detail
+ * penemuan struktur data ini.
+ *
+ * REVISI: setiap kelurahan sekarang dipecah per jenis_kelamin, sama
+ * seperti revisi di statistikPnsKelurahan().
+ */
+public function statistikPppkKelurahan(?string $periode = null): array
+{
+    $kemantrenKelurahanMap = [
+        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
+        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
+        'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
+        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+        'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
+        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
+        'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+        'UMBULHARJO' => [
+            'SEMAKI', 'MUJAMUJU', 'TAHUNAN', 'WARUNGBOTO',
+            'PANDEYAN', 'SOROSUTAN', 'GIWANGAN',
+        ],
+        'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+    ];
+
+    $rows = Pegawai::query()
+        ->select(
+            'unit',
+            'sub_unit',
+            'jenis_kelamin',
+            DB::raw('COUNT(*) as jumlah')
+        )
+        ->where('status_aktif', 'aktif')
+        ->where('status_kepegawaian', 'PPPK')
+        ->whereNotNull('unit')
+        ->whereRaw("UPPER(TRIM(unit)) LIKE 'KEMANTREN %'")
+        ->whereNotNull('sub_unit')
+        ->whereRaw("UPPER(sub_unit) LIKE '%KELURAHAN%'")
+        ->groupBy('unit', 'sub_unit', 'jenis_kelamin')
+        ->get();
+
+    $hasilKemantren = [];
+    foreach ($kemantrenKelurahanMap as $kemantren => $kelurahanList) {
+        $hasilKemantren[$kemantren] = array_fill_keys(
+            $kelurahanList,
+            ['laki_laki' => 0, 'perempuan' => 0]
+        );
+    }
+
+    $tidakDikenali = 0;
+
+    foreach ($rows as $row) {
+        $unit = strtoupper(trim((string) $row->unit));
+        $namaKemantren = trim(str_replace('KEMANTREN', '', $unit));
+
+        $jumlah = (int) $row->jumlah;
+
+        if (!isset($kemantrenKelurahanMap[$namaKemantren])) {
+            $tidakDikenali += $jumlah;
+
+            Log::warning('StatistikPppkKelurahan: kemantren dari kolom unit tidak dikenali', [
+                'unit_raw' => $row->unit,
+                'sub_unit_raw' => $row->sub_unit,
+                'jumlah' => $jumlah,
+            ]);
+
+            continue;
+        }
+
+        $subUnit = strtoupper(trim((string) $row->sub_unit));
+
+        $kelurahanDitemukan = null;
+
+        foreach ($kemantrenKelurahanMap[$namaKemantren] as $kelurahan) {
+            if (str_contains($subUnit, 'KELURAHAN ' . $kelurahan)) {
+                $kelurahanDitemukan = $kelurahan;
+                break;
+            }
+        }
+
+        if ($kelurahanDitemukan === null) {
+            $tidakDikenali += $jumlah;
+
+            Log::warning('StatistikPppkKelurahan: nama kelurahan tidak ditemukan pada sub_unit', [
+                'unit_raw' => $row->unit,
+                'sub_unit_raw' => $row->sub_unit,
+                'jumlah' => $jumlah,
+            ]);
+
+            continue;
+        }
+
+        $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
+
+        $hasilKemantren[$namaKemantren][$kelurahanDitemukan][$gender] += $jumlah;
+    }
+
+    $hasil = ['jumlah_pppk_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+
+    foreach ($hasilKemantren as $kemantren => $kelurahanData) {
+        $totalKemantren = 0;
+
+        $kelurahanHasil = [];
+        foreach ($kelurahanData as $kelurahan => $gender) {
+            $totalKelurahan = $gender['laki_laki'] + $gender['perempuan'];
+
+            $kelurahanHasil[$kelurahan] = [
+                'total' => $totalKelurahan,
+                'laki_laki' => $gender['laki_laki'],
+                'perempuan' => $gender['perempuan'],
+            ];
+
+            $totalKemantren += $totalKelurahan;
+        }
+
+        $hasil['kemantren'][$kemantren] = [
+            'total' => $totalKemantren,
+            'kelurahan' => $kelurahanHasil,
+        ];
+
+        $hasil['jumlah_pppk_kelurahan'] += $totalKemantren;
+    }
+
+    $hasil['jumlah_pppk_kelurahan'] += $tidakDikenali;
+
+    return $hasil;
+}
 }
