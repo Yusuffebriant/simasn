@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    PreviewTableModal,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
+
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// PensiunanPanel.jsx / StrukturalPanel.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
 
 // Daftar golongan PPPK yang benar-benar dipakai — beda dari golongan
 // PNS (I-IV). Golongan genap (II, IV, VI, VIII) & XII+ sengaja tidak
@@ -30,12 +23,7 @@ function PppkGolonganPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    // Golongan yang sedang di-preview (mis. "I", "III", dst). null
-    // berarti modal tertutup. Dipakai juga untuk menyorot baris terkait
-    // di dalam tabel preview. Nilai khusus "__all__" dipakai saat kartu
-    // "Jumlah PPPK" (TotalCard) diklik — merujuk ke grup ringkasan
-    // "Jumlah Keseluruhan PPPK" yang ditaruh paling atas di previewGroups.
-    const [previewGroup, setPreviewGroup] = useState(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -70,152 +58,122 @@ function PppkGolonganPanel() {
         };
     }, []);
 
-    const chartData = data
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/pppk-golongan/export");
+
+            if (!res.ok) {
+                throw new Error("Gagal mengekspor data PPPK berdasarkan golongan.");
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "pppk-golongan.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(
+                err?.message || "Gagal mengekspor data PPPK berdasarkan golongan."
+            );
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    // Baris tabel: Golongan I, III, V, VII, IX, X, XI, tiap baris punya
+    // laki_laki, perempuan, total (langsung dari respons API).
+    const rows = data
         ? GOLONGAN_LIST.map((g) => ({
-              label: g,
-              laki_laki: data.golongan[g].laki_laki,
-              perempuan: data.golongan[g].perempuan,
+              label: `Golongan ${g}`,
+              laki_laki: data.golongan[g]?.laki_laki || 0,
+              perempuan: data.golongan[g]?.perempuan || 0,
+              total: data.golongan[g]?.total || 0,
           }))
         : [];
 
-    // Daftar grup untuk tabel preview. Grup pertama ("__all__") adalah
-    // ringkasan keseluruhan PPPK (dari kartu "Jumlah PPPK" di atas),
-    // rincian laki-laki/perempuan-nya dihitung dari jumlah semua
-    // golongan. Sisanya 1 grup per Golongan (I, III, V, VII, IX, X, XI)
-    // — mengikuti pola PreviewTableModal di Pejabat Fungsional: 1 baris
-    // total + label "Laki-Laki" / "Perempuan" langsung (tanpa embel-embel
-    // "Jumlah PPPK ...") untuk baris rincian per gender.
-    const previewGroups = data
-        ? [
-              {
-                  key: "__all__",
-                  label: "Jumlah Keseluruhan PPPK",
-                  items: [
-                      {
-                          type: "total",
-                          label: "Jumlah Keseluruhan PPPK",
-                          value: data.jumlah_pppk,
-                      },
-                      {
-                          type: "laki_laki",
-                          label: "Laki-Laki",
-                          value: GOLONGAN_LIST.reduce(
-                              (sum, g) => sum + (data.golongan[g].laki_laki || 0),
-                              0
-                          ),
-                      },
-                      {
-                          type: "perempuan",
-                          label: "Perempuan",
-                          value: GOLONGAN_LIST.reduce(
-                              (sum, g) => sum + (data.golongan[g].perempuan || 0),
-                              0
-                          ),
-                      },
-                  ],
-              },
-              ...GOLONGAN_LIST.map((g) => ({
-                  key: g,
-                  label: `Golongan ${g}`,
-                  items: [
-                      {
-                          type: "total",
-                          label: `Jumlah PPPK Golongan ${g}`,
-                          value: data.golongan[g].total,
-                      },
-                      {
-                          type: "laki_laki",
-                          label: "Laki-Laki",
-                          value: data.golongan[g].laki_laki,
-                      },
-                      {
-                          type: "perempuan",
-                          label: "Perempuan",
-                          value: data.golongan[g].perempuan,
-                      },
-                  ],
-              })),
-          ]
-        : [];
+    const totalJumlah = data ? data.jumlah_pppk || 0 : 0;
+    const totalLakiLaki = rows.reduce((sum, r) => sum + r.laki_laki, 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + r.perempuan, 0);
 
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PPPK Berdasarkan Golongan
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        PPPK Berdasarkan Golongan
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data PPPK aktif per golongan, dipecah menurut jenis kelamin.
+                    </p>
+                </div>
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Golongan berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PPPK"
-                            total={data.jumlah_pppk}
-                            onClick={() => setPreviewGroup("__all__")}
-                        />
-                    </div>
-
-                    <ChartCard title="Perbandingan Golongan berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(4, minmax(200px, 1fr))" }}
-                    >
-                        {GOLONGAN_LIST.map((g) => (
-                            <MiniStatCard
-                                key={g}
-                                title={`Jumlah PPPK Golongan ${g}`}
-                                total={data.golongan[g].total}
-                                laki_laki={data.golongan[g].laki_laki}
-                                perempuan={data.golongan[g].perempuan}
-                                onClick={() => setPreviewGroup(g)}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
-
-            {previewGroup && (
-                <PreviewTableModal
-                    title="Tabel Preview PPPK Berdasarkan Golongan"
-                    subtitle="Rekap jumlah PPPK per golongan dan jenis kelamin."
-                    groups={previewGroups}
-                    highlightGroup={previewGroup}
-                    onClose={() => setPreviewGroup(null)}
-                />
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-center w-12">No</th>
+                                <th className="border px-3 py-2 text-left">Golongan</th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.label} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2 text-center">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );

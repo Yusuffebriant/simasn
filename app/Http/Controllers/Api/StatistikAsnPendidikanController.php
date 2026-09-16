@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exports\AsnPendidikanExport;
 use App\Http\Controllers\Controller;
 use App\Services\StatistikService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Maatwebsite\Excel\Facades\Excel;
 
 class StatistikAsnPendidikanController extends Controller
 {
@@ -23,5 +25,13 @@ class StatistikAsnPendidikanController extends Controller
         return response()->json([
             'data' => $data,
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $periode = $request->query('periode');
+        $namaFile = 'asn-pendidikan' . ($periode ? "-{$periode}" : '') . '.xlsx';
+
+        return Excel::download(new AsnPendidikanExport($periode), $namaFile);
     }
 }
