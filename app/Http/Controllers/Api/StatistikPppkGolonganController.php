@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exports\PppkGolonganExport;
 use App\Http\Controllers\Controller;
 use App\Services\StatistikService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class StatistikPppkGolonganController extends Controller
 {
@@ -22,5 +24,13 @@ class StatistikPppkGolonganController extends Controller
         return response()->json([
             'data' => $data,
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $periode = $request->query('periode');
+        $namaFile = 'pppk-golongan' . ($periode ? "-{$periode}" : '') . '.xlsx';
+
+        return Excel::download(new PppkGolonganExport($periode), $namaFile);
     }
 }

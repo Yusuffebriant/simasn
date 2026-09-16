@@ -53,9 +53,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pejabat-struktural/export', [
+        StatistikPejabatStrukturalController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pejabat-fungsional', [
         StatistikPejabatFungsionalController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pejabat-fungsional/export', [
+        StatistikPejabatFungsionalController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pejabat-fungsional-dinas', [
@@ -127,14 +137,29 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pns-golongan/export', [
+        StatistikPnsGolonganController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pppk-golongan', [
         StatistikPppkGolonganController::class,
         'index'
     ]);
 
+    Route::get('/statistik/pppk-golongan/export', [
+        StatistikPppkGolonganController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/asn-pendidikan', [
         StatistikAsnPendidikanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/asn-pendidikan/export', [
+        StatistikAsnPendidikanController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pns-pendidikan', [
@@ -174,6 +199,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/statistik/pensiunan-pns', [
         StatistikPensiunanPNSController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pensiunan-pns/export', [
+        StatistikPensiunanPNSController::class,
+        'export'
     ]);
 
 
