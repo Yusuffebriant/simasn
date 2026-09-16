@@ -1,22 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, LoaderCircle } from "lucide-react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    SkeletonCard,
-    StatCard,
-    TotalCard,
-} from "./components/StatUi";
+import KelurahanRekapTable from "./components/KelurahanRekapTable";
 
 // Ambil nama file dari header Content-Disposition kalau ada, dengan
 // fallback ke nama default — pola sama seperti filenameFromResponse() di
@@ -28,19 +13,14 @@ function filenameFromResponse(res, fallback) {
 }
 
 // PPPK Kelurahan, dikelompokkan berdasarkan Kemantren induknya (5.03.020).
-// Scope: PPPK aktif (status_kepegawaian = 'PPPK') — lihat
-// statistikPppkKelurahan() di StatistikService & endpoint
-// GET /statistik/pppk-kelurahan. Struktur & logic PERSIS sama dengan
-// statistikPnsKelurahan() (5.03.019) — bedanya hanya filter status
-// kepegawaian. Panel ini juga mirror 1:1 dari PnsKelurahanPanel.jsx: data
-// TIDAK dipecah per gender (nested cuma kemantren -> kelurahan), jadi
-// rincian per Kelurahan pakai StatCard biasa (bukan MiniStatCard). Warna
-// grafik tetap teal (#0F6E6E) mengikuti skema warna utama halaman Statistik.
-const WARNA_UTAMA = "#0F6E6E";
-
-// Mapping Kemantren -> daftar Kelurahan, urutan & ejaan disamakan persis
-// dengan $kemantrenKelurahanMap di statistikPppkKelurahan() (StatistikService)
-// supaya urutan kartu & grafik konsisten dengan backend.
+// Scope: PPPK aktif (status_kepegawaian = 'PPPK') — lihat statistikPppkKelurahan()
+// di StatistikService & endpoint GET /statistik/pppk-kelurahan. Ditampilkan
+// sebagai tabel rekap (satu baris per Kelurahan, dikelompokkan per
+// Kemantren dengan baris subtotal), mengikuti bentuk & layout kolom
+// PppkKelurahanExport.php (No, Kemantren, Kelurahan, L, P, Jumlah PPPK) —
+// menggantikan tampilan card & grafik sebelumnya. Rincian gender diambil
+// dari kelurahan_gender pada response (sebelumnya cuma dipakai export
+// Excel, sekarang juga dipakai tabel ini).
 const KEMANTREN_KELURAHAN_MAP = {
     TEGALREJO: ["KRICAK", "KARANGWARU", "TEGALREJO", "BENER"],
     JETIS: ["BUMIJO", "COKRODININGRATAN", "GOWONGAN"],
@@ -60,78 +40,6 @@ const KEMANTREN_KELURAHAN_MAP = {
     ],
     KOTAGEDE: ["REJOWINANGUN", "PRENGGAN", "PURBAYAN"],
 };
-
-const KEMANTREN_LIST = Object.keys(KEMANTREN_KELURAHAN_MAP);
-
-// Judul rapi ("TEGALREJO" -> "Tegalrejo") — sama seperti helper di
-// PnsKelurahanPanel.jsx / AsnKemantrenPendidikanPanel.jsx.
-function toTitleCase(text) {
-    return text
-        .toLowerCase()
-        .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-}
-
-// Satu blok Kemantren: card putih pembungkus dengan judul "Kemantren ...",
-// StatCard ringkasan (variant="dark", disamakan dengan TotalCard), grafik
-// batang per Kelurahan, lalu grid rincian StatCard per Kelurahan. Pola
-// sama seperti KemantrenKelurahanSection di PnsKelurahanPanel.jsx.
-function KemantrenKelurahanSection({ nama, data }) {
-    const daftarKelurahan = KEMANTREN_KELURAHAN_MAP[nama];
-    const chartData = daftarKelurahan.map((kel) => ({
-        label: toTitleCase(kel),
-        jumlah: data.kelurahan[kel] || 0,
-    }));
-
-    return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">
-                Kemantren {toTitleCase(nama)}
-            </h3>
-
-            <div className="mb-4">
-                <StatCard
-                    title={`Jumlah PPPK Kemantren ${toTitleCase(nama)}`}
-                    value={data.total}
-                    variant="dark"
-                />
-            </div>
-
-            <div className="mb-4">
-                <ChartCard
-                    title={`Jumlah PPPK Kelurahan - Kemantren ${toTitleCase(nama)}`}
-                    height={260}
-                >
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                        <XAxis
-                            dataKey="label"
-                            interval={0}
-                            tick={{ fontSize: 11, fill: "#687386" }}
-                            axisLine={{ stroke: "#E1E5EA" }}
-                            tickLine={false}
-                        />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                        <Bar dataKey="jumlah" name="Jumlah PPPK" fill={WARNA_UTAMA} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ChartCard>
-            </div>
-
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
-            >
-                {daftarKelurahan.map((kel) => (
-                    <StatCard
-                        key={kel}
-                        title={`Kelurahan ${toTitleCase(kel)}`}
-                        value={data.kelurahan[kel] || 0}
-                    />
-                ))}
-            </div>
-        </div>
-    );
-}
 
 function PppkKelurahanPanel() {
     const [data, setData] = useState(null);
@@ -183,12 +91,11 @@ function PppkKelurahanPanel() {
                 }
 
                 const json = await res.json();
-                // StatistikPppkKelurahanController mengembalikan hasil service
+                // StatistikPnsKelurahanController mengembalikan hasil service
                 // apa adanya (tanpa pembungkus { success, data }) — sama
-                // seperti controller *Kemantren/*Kelurahan lain. Dibaca
-                // toleran (json.data ?? json) supaya panel tidak pernah
-                // tampil kosong walau controllernya belum/tidak dibungkus
-                // { data }.
+                // seperti controller *Kemantren lain. Dibaca toleran (json.data
+                // ?? json) supaya panel tidak pernah tampil kosong walau
+                // controllernya belum/tidak dibungkus { data }.
                 if (!cancelled) setData(json.data ?? json);
             } catch (err) {
                 if (!cancelled) {
@@ -204,17 +111,6 @@ function PppkKelurahanPanel() {
             cancelled = true;
         };
     }, []);
-
-    // Grafik ringkasan: total PPPK Kelurahan per Kemantren (seluruh
-    // Kelurahan di bawahnya dijumlahkan) — pola sama seperti grafik
-    // ringkasan di PnsKelurahanPanel.jsx, 1 seri saja karena tidak ada
-    // pecahan gender.
-    const ringkasanChartData = data
-        ? KEMANTREN_LIST.map((nama) => ({
-              label: toTitleCase(nama),
-              jumlah: data.kemantren[nama]?.total || 0,
-          }))
-        : [];
 
     return (
         <div>
@@ -237,59 +133,20 @@ function PppkKelurahanPanel() {
                 </button>
             </div>
 
-            {error && <ErrorBox message={error} />}
-
-            {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
-                </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Jumlah PPPK Kelurahan per Kemantren" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PPPK Kelurahan"
-                            total={data.jumlah_pppk_kelurahan}
-                        />
-                    </div>
-
-                    <div className="mb-6">
-                        <ChartCard title="Jumlah PPPK Kelurahan per Kemantren">
-                            <BarChart data={ringkasanChartData} margin={{ bottom: 30 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                <XAxis
-                                    dataKey="label"
-                                    interval={0}
-                                    angle={-35}
-                                    textAnchor="end"
-                                    height={70}
-                                    tick={{ fontSize: 11, fill: "#687386" }}
-                                    axisLine={{ stroke: "#E1E5EA" }}
-                                    tickLine={false}
-                                />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                <Bar dataKey="jumlah" name="Jumlah PPPK" fill={WARNA_UTAMA} radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ChartCard>
-                    </div>
-
-                    <div className="mt-6">
-                        {KEMANTREN_LIST.map((nama) => (
-                            <KemantrenKelurahanSection
-                                key={nama}
-                                nama={nama}
-                                data={data.kemantren[nama]}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
+            <KelurahanRekapTable
+                title="Rekapitulasi PPPK Kelurahan"
+                subtitle={
+                    data
+                        ? `Jumlah PPPK Kelurahan: ${data.jumlah_pppk_kelurahan?.toLocaleString("id-ID")}`
+                        : "Data PPPK per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."
+                }
+                kemantrenKelurahanMap={KEMANTREN_KELURAHAN_MAP}
+                data={data}
+                jumlahKey="jumlah_pppk_kelurahan"
+                rowLabelSuffix="PPPK"
+                loading={loading}
+                error={error}
+            />
         </div>
     );
 }

@@ -1,22 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, LoaderCircle } from "lucide-react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    SkeletonCard,
-    StatCard,
-    TotalCard,
-} from "./components/StatUi";
+import KelurahanRekapTable from "./components/KelurahanRekapTable";
 
 // Ambil nama file dari header Content-Disposition kalau ada, dengan
 // fallback ke nama default — pola sama seperti filenameFromResponse() di
@@ -29,17 +14,13 @@ function filenameFromResponse(res, fallback) {
 
 // PNS Kelurahan, dikelompokkan berdasarkan Kemantren induknya (5.03.019).
 // Scope: PNS aktif (status_kepegawaian = 'PNS') — lihat statistikPnsKelurahan()
-// di StatistikService & endpoint GET /statistik/pns-kelurahan. Beda dengan
-// panel *KemantrenPendidikan/*KemantrenGolongan: data di sini TIDAK dipecah
-// per gender (nested cuma kemantren -> kelurahan), jadi rincian per
-// Kelurahan pakai StatCard biasa (bukan MiniStatCard) — pola sama seperti
-// StatCard di GolonganPanel.jsx / SkpdDinasPanel.jsx. Warna grafik tetap
-// teal (#0F6E6E) mengikuti skema warna utama halaman Statistik.
-const WARNA_UTAMA = "#0F6E6E";
-
-// Mapping Kemantren -> daftar Kelurahan, urutan & ejaan disamakan persis
-// dengan $kemantrenKelurahanMap di statistikPnsKelurahan() (StatistikService)
-// supaya urutan kartu & grafik konsisten dengan backend.
+// di StatistikService & endpoint GET /statistik/pns-kelurahan. Ditampilkan
+// sebagai tabel rekap (satu baris per Kelurahan, dikelompokkan per
+// Kemantren dengan baris subtotal), mengikuti bentuk & layout kolom
+// PnsKelurahanExport.php (No, Kemantren, Kelurahan, L, P, Jumlah PNS) —
+// menggantikan tampilan card & grafik sebelumnya. Rincian gender diambil
+// dari kelurahan_gender pada response (sebelumnya cuma dipakai export
+// Excel, sekarang juga dipakai tabel ini).
 const KEMANTREN_KELURAHAN_MAP = {
     TEGALREJO: ["KRICAK", "KARANGWARU", "TEGALREJO", "BENER"],
     JETIS: ["BUMIJO", "COKRODININGRATAN", "GOWONGAN"],
@@ -59,79 +40,6 @@ const KEMANTREN_KELURAHAN_MAP = {
     ],
     KOTAGEDE: ["REJOWINANGUN", "PRENGGAN", "PURBAYAN"],
 };
-
-const KEMANTREN_LIST = Object.keys(KEMANTREN_KELURAHAN_MAP);
-
-// Judul rapi ("TEGALREJO" -> "Tegalrejo") — sama seperti helper di
-// AsnKemantrenPendidikanPanel.jsx / PnsKemantrenGolonganPanel.jsx.
-function toTitleCase(text) {
-    return text
-        .toLowerCase()
-        .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-}
-
-// Satu blok Kemantren: card putih pembungkus dengan judul "Kemantren ...",
-// StatCard ringkasan (variant="dark", disamakan dengan TotalCard), grafik
-// batang per Kelurahan, lalu grid rincian StatCard per Kelurahan. Pola
-// sama seperti KemantrenGolonganSection di PnsKemantrenGolonganPanel.jsx,
-// tapi tanpa pecahan gender.
-function KemantrenKelurahanSection({ nama, data }) {
-    const daftarKelurahan = KEMANTREN_KELURAHAN_MAP[nama];
-    const chartData = daftarKelurahan.map((kel) => ({
-        label: toTitleCase(kel),
-        jumlah: data.kelurahan[kel] || 0,
-    }));
-
-    return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">
-                Kemantren {toTitleCase(nama)}
-            </h3>
-
-            <div className="mb-4">
-                <StatCard
-                    title={`Jumlah PNS Kemantren ${toTitleCase(nama)}`}
-                    value={data.total}
-                    variant="dark"
-                />
-            </div>
-
-            <div className="mb-4">
-                <ChartCard
-                    title={`Jumlah PNS Kelurahan - Kemantren ${toTitleCase(nama)}`}
-                    height={260}
-                >
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                        <XAxis
-                            dataKey="label"
-                            interval={0}
-                            tick={{ fontSize: 11, fill: "#687386" }}
-                            axisLine={{ stroke: "#E1E5EA" }}
-                            tickLine={false}
-                        />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                        <Bar dataKey="jumlah" name="Jumlah PNS" fill={WARNA_UTAMA} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ChartCard>
-            </div>
-
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
-            >
-                {daftarKelurahan.map((kel) => (
-                    <StatCard
-                        key={kel}
-                        title={`Kelurahan ${toTitleCase(kel)}`}
-                        value={data.kelurahan[kel] || 0}
-                    />
-                ))}
-            </div>
-        </div>
-    );
-}
 
 function PnsKelurahanPanel() {
     const [data, setData] = useState(null);
@@ -204,17 +112,6 @@ function PnsKelurahanPanel() {
         };
     }, []);
 
-    // Grafik ringkasan: total PNS Kelurahan per Kemantren (seluruh
-    // Kelurahan di bawahnya dijumlahkan) — pola sama seperti grafik
-    // ringkasan Kemantren di PnsKemantrenGolonganPanel.jsx, tapi 1 seri
-    // saja karena tidak ada pecahan gender.
-    const ringkasanChartData = data
-        ? KEMANTREN_LIST.map((nama) => ({
-              label: toTitleCase(nama),
-              jumlah: data.kemantren[nama]?.total || 0,
-          }))
-        : [];
-
     return (
         <div>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -236,59 +133,20 @@ function PnsKelurahanPanel() {
                 </button>
             </div>
 
-            {error && <ErrorBox message={error} />}
-
-            {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
-                </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Jumlah PNS Kelurahan per Kemantren" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PNS Kelurahan"
-                            total={data.jumlah_pns_kelurahan}
-                        />
-                    </div>
-
-                    <div className="mb-6">
-                        <ChartCard title="Jumlah PNS Kelurahan per Kemantren">
-                            <BarChart data={ringkasanChartData} margin={{ bottom: 30 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                <XAxis
-                                    dataKey="label"
-                                    interval={0}
-                                    angle={-35}
-                                    textAnchor="end"
-                                    height={70}
-                                    tick={{ fontSize: 11, fill: "#687386" }}
-                                    axisLine={{ stroke: "#E1E5EA" }}
-                                    tickLine={false}
-                                />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                <Bar dataKey="jumlah" name="Jumlah PNS" fill={WARNA_UTAMA} radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ChartCard>
-                    </div>
-
-                    <div className="mt-6">
-                        {KEMANTREN_LIST.map((nama) => (
-                            <KemantrenKelurahanSection
-                                key={nama}
-                                nama={nama}
-                                data={data.kemantren[nama]}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
+            <KelurahanRekapTable
+                title="Rekapitulasi PNS Kelurahan"
+                subtitle={
+                    data
+                        ? `Jumlah PNS Kelurahan: ${data.jumlah_pns_kelurahan?.toLocaleString("id-ID")}`
+                        : "Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."
+                }
+                kemantrenKelurahanMap={KEMANTREN_KELURAHAN_MAP}
+                data={data}
+                jumlahKey="jumlah_pns_kelurahan"
+                rowLabelSuffix="PNS"
+                loading={loading}
+                error={error}
+            />
         </div>
     );
 }
