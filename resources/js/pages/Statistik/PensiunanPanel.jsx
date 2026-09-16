@@ -1,75 +1,60 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
-import { X } from "lucide-react";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 
-// Modal preview: rincian Pensiunan PNS per golongan (total saja, tanpa
-// rincian gender — sesuai daftar data yang diminta).
-function PensiunanDetailModal({ data, onClose }) {
-    const rows = [
-        { label: "Jumlah Pensiunan PNS", value: data.jumlah_pensiunan_pns },
-        { label: "Jumlah Pensiunan PNS Golongan I", value: data.golongan_I?.total },
-        { label: "Jumlah Pensiunan PNS Golongan II", value: data.golongan_II?.total },
-        { label: "Jumlah Pensiunan PNS Golongan III", value: data.golongan_III?.total },
-        { label: "Jumlah Pensiunan PNS Golongan IV", value: data.golongan_IV?.total },
-    ];
-
-    return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
-                <div className="flex items-center justify-between p-5 border-b border-[#E1E5EA]">
-                    <h3 className="text-lg font-bold text-[#172033]">
-                        Detail Pensiunan PNS
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <div className="overflow-y-auto p-5 flex-1">
-                    <div className="border border-[#E1E5EA] rounded-lg overflow-hidden">
-                        {rows.map((row) => (
-                            <div
-                                key={row.label}
-                                className="flex items-center justify-between px-4 py-2.5 border-b border-[#F0F2F5] last:border-b-0"
-                            >
-                                <span className="text-sm text-[#172033]">{row.label}</span>
-                                <span className="text-sm font-bold text-[#172033] tabular-nums">
-                                    {Number(row.value || 0).toLocaleString("id-ID")}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// StrukturalPanel.jsx / FungsionalPanel.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
 }
+
+// Golongan yang ditampilkan sebagai baris tabel, urutan I -> IV mengikuti
+// struktur respons statistikPensiunanPNS() di StatistikService.
+const GOLONGAN_LIST = [
+    { key: "golongan_I", label: "Golongan I" },
+    { key: "golongan_II", label: "Golongan II" },
+    { key: "golongan_III", label: "Golongan III" },
+    { key: "golongan_IV", label: "Golongan IV" },
+];
 
 function PensiunanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [showDetail, setShowDetail] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/pensiunan-pns/export");
+
+            if (!res.ok) {
+                throw new Error("Gagal mengekspor data Pensiunan PNS.");
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "pensiunan-pns.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err?.message || "Gagal mengekspor data Pensiunan PNS.");
+        } finally {
+            setExporting(false);
+        }
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -102,71 +87,111 @@ function PensiunanPanel() {
         };
     }, []);
 
-    const chartData = data
-        ? [
-              { label: "Golongan I", laki_laki: data.golongan_I?.laki_laki || 0, perempuan: data.golongan_I?.perempuan || 0 },
-              { label: "Golongan II", laki_laki: data.golongan_II?.laki_laki || 0, perempuan: data.golongan_II?.perempuan || 0 },
-              { label: "Golongan III", laki_laki: data.golongan_III?.laki_laki || 0, perempuan: data.golongan_III?.perempuan || 0 },
-              { label: "Golongan IV", laki_laki: data.golongan_IV?.laki_laki || 0, perempuan: data.golongan_IV?.perempuan || 0 },
-          ]
+    // Baris tabel: Golongan I-IV, tiap baris punya total, laki_laki,
+    // perempuan (langsung dari respons API).
+    const rows = data
+        ? GOLONGAN_LIST.map(({ key, label }) => ({
+              label,
+              laki_laki: data[key]?.laki_laki || 0,
+              perempuan: data[key]?.perempuan || 0,
+              total: data[key]?.total || 0,
+          }))
         : [];
 
+    const totalJumlah = data ? data.jumlah_pensiunan_pns || 0 : 0;
+    const totalGolongan = rows.reduce((sum, r) => sum + r.total, 0);
+
+    // Pensiunan dengan golongan kosong/tidak dikenali tetap dihitung di
+    // jumlah_pensiunan_pns tapi tidak masuk bucket Golongan I-IV (lihat
+    // statistikPensiunanPNS()). Selisihnya ditampilkan sebagai baris
+    // terpisah supaya angka di tabel konsisten dengan baris Total.
+    const tidakDikenali = Math.max(totalJumlah - totalGolongan, 0);
+
+    const totalLakiLaki = rows.reduce((sum, r) => sum + r.laki_laki, 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + r.perempuan, 0);
+
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                Pensiunan PNS
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        Pensiunan PNS
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data pensiunan PNS
+                        {data?.tahun ? ` tahun ${data.tahun}` : ""} per golongan,
+                        dipecah menurut jenis kelamin.
+                    </p>
+                </div>
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-left">No</th>
+                                <th className="border px-3 py-2 text-left">Golongan</th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.label} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total}</td>
+                                </tr>
+                            ))}
 
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Pensiunan PNS berdasarkan Golongan dan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard title="Jumlah Pensiunan PNS" total={data.jumlah_pensiunan_pns} onClick={() => setShowDetail(true)} />
-                    </div>
-
-                    <ChartCard title="Perbandingan Pensiunan PNS berdasarkan Golongan dan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        <MiniStatCard title="Golongan I" total={data.golongan_I?.total} laki_laki={data.golongan_I?.laki_laki} perempuan={data.golongan_I?.perempuan} onClick={() => setShowDetail(true)} />
-                        <MiniStatCard title="Golongan II" total={data.golongan_II?.total} laki_laki={data.golongan_II?.laki_laki} perempuan={data.golongan_II?.perempuan} onClick={() => setShowDetail(true)} />
-                        <MiniStatCard title="Golongan III" total={data.golongan_III?.total} laki_laki={data.golongan_III?.laki_laki} perempuan={data.golongan_III?.perempuan} onClick={() => setShowDetail(true)} />
-                        <MiniStatCard title="Golongan IV" total={data.golongan_IV?.total} laki_laki={data.golongan_IV?.laki_laki} perempuan={data.golongan_IV?.perempuan} onClick={() => setShowDetail(true)} />
-                    </div>
-                </>
-            )}
-
-            {showDetail && data && (
-                <PensiunanDetailModal data={data} onClose={() => setShowDetail(false)} />
+                            {tidakDikenali > 0 && (
+                                <tr className="hover:bg-gray-50 text-gray-600">
+                                    <td className="border px-3 py-2">&ndash;</td>
+                                    <td className="border px-3 py-2 italic">Golongan Tidak Dikenali</td>
+                                    <td className="border px-2 py-2 text-center">&ndash;</td>
+                                    <td className="border px-2 py-2 text-center">&ndash;</td>
+                                    <td className="border px-2 py-2 text-center">{tidakDikenali}</td>
+                                </tr>
+                            )}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );

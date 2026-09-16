@@ -1,66 +1,27 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    PreviewTableModal,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
-// Label resmi per jenjang pendidikan untuk baris "total" pada tabel
-// preview (beda formatnya per jenjang — SD/SMP/SMA pakai "atau
-// sederajat"/"dan sederajat", Diploma & Strata tidak pakai
-// "sederajat" di baris total). Key HARUS sama dengan key di
-// PENDIDIKAN_LIST / data.pendidikan (lihat pendidikanList.js).
-const PENDIDIKAN_PREVIEW_LABELS = {
-    sd: "Jumlah ASN Tingkat Pendidikan Tamat SD atau sederajat",
-    smp: "Jumlah ASN Tingkat Pendidikan SMP dan sederajat",
-    sma: "Jumlah ASN Tingkat Pendidikan SMA dan sederajat",
-    diploma_i: "Jumlah ASN Tingkat Pendidikan Diploma I",
-    diploma_ii: "Jumlah ASN Tingkat Pendidikan Diploma II",
-    diploma_iii: "Jumlah ASN Tingkat Pendidikan Diploma III",
-    diploma_iv: "Jumlah ASN Tingkat Pendidikan Diploma IV",
-    strata_1: "Jumlah ASN Tingkat Pendidikan Strata 1",
-    strata_2: "Jumlah ASN Tingkat Pendidikan Strata 2",
-    strata_3: "Jumlah ASN Tingkat Pendidikan Strata 3",
-};
-
-// Baris gender di tabel preview dibuat singkat "Laki-Laki"/"Perempuan"
-// (sama seperti modal Pejabat Fungsional), bukan kalimat panjang —
-// jadi tidak perlu label khusus per jenjang untuk baris ini.
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// PensiunanPanel.jsx / PppkGolonganPanel.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
 
 // ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (PNS + PPPK
 // digabung, scope satu kota — lihat statistikAsnPendidikan() di
-// StatistikService). PENTING: beda dari PNS/PPPK, hasil per-jenjang
-// pendidikan di endpoint ini dibungkus di dalam key "pendidikan"
-// (data.pendidikan.sd, data.pendidikan.smp, dst) — bukan langsung di
-// root seperti data.sd. Polanya tetap sama seperti GolonganPanel/
-// PppkGolonganPanel: TotalCard "Jumlah ASN di Kota Yogyakarta" +
-// MiniStatCard per jenjang pendidikan (total + rincian gender), diikuti
-// grafik batang perbandingan. Setiap kartu (TotalCard & MiniStatCard)
-// bisa diklik untuk membuka tabel preview rincian angka resmi, sama
-// seperti pola di FungsionalPanel.
+// StatistikService). Data per-jenjang pendidikan dibungkus di dalam key
+// "pendidikan" (data.pendidikan.sd, data.pendidikan.smp, dst).
 function AsnPendidikanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    // Grup kartu yang sedang di-preview: "total" untuk TotalCard, atau
-    // key jenjang pendidikan (mis. "sd", "sma", "strata_1") untuk
-    // MiniStatCard. null berarti modal tertutup.
-    const [previewGroup, setPreviewGroup] = useState(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -98,131 +59,128 @@ function AsnPendidikanPanel() {
         };
     }, []);
 
-    const chartData = data
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/asn-pendidikan/export");
+
+            if (!res.ok) {
+                throw new Error(
+                    "Gagal mengekspor data ASN berdasarkan tingkat pendidikan."
+                );
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "asn-pendidikan.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(
+                err?.message ||
+                    "Gagal mengekspor data ASN berdasarkan tingkat pendidikan."
+            );
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    // Baris tabel: SD s.d. S3, tiap baris punya laki_laki, perempuan,
+    // total (langsung dari respons API).
+    const rows = data
         ? PENDIDIKAN_LIST.map((p) => ({
-              label: p.chartLabel,
-              laki_laki: data.pendidikan[p.key].laki_laki,
-              perempuan: data.pendidikan[p.key].perempuan,
+              label: p.label,
+              laki_laki: data.pendidikan[p.key]?.laki_laki || 0,
+              perempuan: data.pendidikan[p.key]?.perempuan || 0,
+              total: data.pendidikan[p.key]?.total || 0,
           }))
         : [];
 
-    // Grup "Jumlah ASN di Kota Yogyakarta" (TotalCard) — ditampilkan
-    // sendiri sebagai satu baris total tanpa rincian gender.
-    const totalGroup = data
-        ? {
-              key: "total",
-              label: "Jumlah ASN di Kota Yogyakarta",
-              items: [
-                  {
-                      type: "total",
-                      label: "Jumlah ASN di Kota Yogyakarta",
-                      value: data.jumlah_asn,
-                  },
-              ],
-          }
-        : null;
-
-    // Satu grup per jenjang pendidikan, mengikuti urutan PENDIDIKAN_LIST
-    // supaya konsisten dengan chart & MiniStatCard di atas.
-    const pendidikanGroups = data
-        ? PENDIDIKAN_LIST.map((p) => {
-              const jenjang = data.pendidikan[p.key];
-              const totalLabel =
-                  PENDIDIKAN_PREVIEW_LABELS[p.key] ||
-                  `Jumlah ASN Tingkat Pendidikan ${p.label}`;
-
-              return {
-                  key: p.key,
-                  label: `Jumlah ASN Tingkat Pendidikan ${p.label}`,
-                  items: [
-                      { type: "total", label: totalLabel, value: jenjang.total },
-                      { type: "laki_laki", label: "Laki-Laki", value: jenjang.laki_laki },
-                      { type: "perempuan", label: "Perempuan", value: jenjang.perempuan },
-                  ],
-              };
-          })
-        : [];
-
-    const previewGroups = data ? [totalGroup, ...pendidikanGroups] : [];
+    const totalJumlah = data ? data.jumlah_asn || 0 : 0;
+    const totalLakiLaki = rows.reduce((sum, r) => sum + r.laki_laki, 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + r.perempuan, 0);
 
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        ASN Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data ASN (PNS + PPPK) per tingkat pendidikan, dipecah menurut
+                        jenis kelamin.
+                    </p>
+                </div>
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Tingkat Pendidikan ASN berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah ASN di Kota Yogyakarta"
-                            total={data.jumlah_asn}
-                            onClick={() => setPreviewGroup("total")}
-                        />
-                    </div>
-
-                    <ChartCard title="Perbandingan Tingkat Pendidikan ASN berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        {PENDIDIKAN_LIST.map((p) => (
-                            <MiniStatCard
-                                key={p.key}
-                                title={`Jumlah ASN Tingkat Pendidikan ${p.label}`}
-                                total={data.pendidikan[p.key].total}
-                                laki_laki={data.pendidikan[p.key].laki_laki}
-                                perempuan={data.pendidikan[p.key].perempuan}
-                                onClick={() => setPreviewGroup(p.key)}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
-
-            {previewGroup && (
-                <PreviewTableModal
-                    title="Tabel Preview ASN Berdasarkan Tingkat Pendidikan"
-                    subtitle="Rekap jumlah ASN per jenjang pendidikan dan jenis kelamin."
-                    groups={previewGroups}
-                    highlightGroup={previewGroup}
-                    onClose={() => setPreviewGroup(null)}
-                />
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-center w-12">No</th>
+                                <th className="border px-3 py-2 text-left">
+                                    Tingkat Pendidikan
+                                </th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.label} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2 text-center">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );

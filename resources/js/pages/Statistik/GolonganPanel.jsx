@@ -1,25 +1,19 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
+
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// PensiunanPanel.jsx / PnsKelurahanPanel.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
 
 // Definisi rincian pangkat/ruang per golongan, dipakai untuk merender
-// kartu StatCard rincian secara konsisten untuk golongan I-IV.
+// baris tabel rincian secara konsisten untuk golongan I-IV.
 const RINCIAN_GOLONGAN = {
     I: [
         { kode: "I/a", label: "Golongan I/a (Juru Muda)" },
@@ -48,50 +42,48 @@ const RINCIAN_GOLONGAN = {
     ],
 };
 
-// Satu blok golongan: card putih pembungkus dengan judul "Golongan ...",
-// diawali kartu ringkasan "Jumlah PNS Golongan ..." (variant="dark",
-// warnanya disamakan dengan kartu "Jumlah PNS"), diikuti rincian per
-// pangkat/ruang — satu MiniStatCard per rincian yang sudah menggabungkan
-// gender (total + chip Laki-laki/Perempuan).
-function GolonganSection({ romawi, golongan }) {
+const ROMAWI_LIST = ["I", "II", "III", "IV"];
+
+// Baris "Golongan <romawi>" (subtotal, tebal, latar abu-abu) diikuti
+// baris rincian per pangkat/ruang untuk golongan tsb — pola sama seperti
+// baris "Jumlah Kemantren ..." di RekapGolonganTable.jsx / PnsKelurahanExport.
+function GolonganRows({ romawi, golongan }) {
     const rincianList = RINCIAN_GOLONGAN[romawi];
 
     return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">
-                Golongan {romawi}
-            </h3>
+        <>
+            <tr className="bg-[#F0F2F5] font-semibold">
+                <td className="border px-3 py-2" colSpan={2}>
+                    Golongan {romawi}
+                </td>
+                <td className="border px-2 py-2 text-center">
+                    {golongan.laki_laki.total}
+                </td>
+                <td className="border px-2 py-2 text-center">
+                    {golongan.perempuan.total}
+                </td>
+                <td className="border px-2 py-2 text-center">
+                    {golongan.total}
+                </td>
+            </tr>
 
-            <div className="mb-4">
-                <MiniStatCard
-                    title={`Jumlah PNS Golongan ${romawi}`}
-                    total={golongan.total}
-                    laki_laki={golongan.laki_laki.total}
-                    perempuan={golongan.perempuan.total}
-                    variant="dark"
-                />
-            </div>
+            {rincianList.map((r) => {
+                const laki_laki = golongan.laki_laki.rincian[r.kode] || 0;
+                const perempuan = golongan.perempuan.rincian[r.kode] || 0;
 
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-            >
-                {rincianList.map((r) => {
-                    const laki_laki = golongan.laki_laki.rincian[r.kode] || 0;
-                    const perempuan = golongan.perempuan.rincian[r.kode] || 0;
-
-                    return (
-                        <MiniStatCard
-                            key={r.kode}
-                            title={r.label}
-                            total={laki_laki + perempuan}
-                            laki_laki={laki_laki}
-                            perempuan={perempuan}
-                        />
-                    );
-                })}
-            </div>
-        </div>
+                return (
+                    <tr key={r.kode} className="hover:bg-gray-50">
+                        <td className="border px-3 py-2 text-center w-16">{r.kode}</td>
+                        <td className="border px-3 py-2">{r.label}</td>
+                        <td className="border px-2 py-2 text-center">{laki_laki}</td>
+                        <td className="border px-2 py-2 text-center">{perempuan}</td>
+                        <td className="border px-2 py-2 text-center font-medium">
+                            {laki_laki + perempuan}
+                        </td>
+                    </tr>
+                );
+            })}
+        </>
     );
 }
 
@@ -99,6 +91,7 @@ function GolonganPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -133,74 +126,115 @@ function GolonganPanel() {
         };
     }, []);
 
-    const chartData = data
-        ? [
-              {
-                  label: "Golongan I",
-                  laki_laki: data.golongan_I.laki_laki.total,
-                  perempuan: data.golongan_I.perempuan.total,
-              },
-              {
-                  label: "Golongan II",
-                  laki_laki: data.golongan_II.laki_laki.total,
-                  perempuan: data.golongan_II.perempuan.total,
-              },
-              {
-                  label: "Golongan III",
-                  laki_laki: data.golongan_III.laki_laki.total,
-                  perempuan: data.golongan_III.perempuan.total,
-              },
-              {
-                  label: "Golongan IV",
-                  laki_laki: data.golongan_IV.laki_laki.total,
-                  perempuan: data.golongan_IV.perempuan.total,
-              },
-          ]
-        : [];
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/pns-golongan/export");
+
+            if (!res.ok) {
+                throw new Error("Gagal mengekspor data PNS berdasarkan golongan.");
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "pns-golongan.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(
+                err?.message || "Gagal mengekspor data PNS berdasarkan golongan."
+            );
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    const totalLakiLaki = data
+        ? ROMAWI_LIST.reduce((sum, r) => sum + data[`golongan_${r}`].laki_laki.total, 0)
+        : 0;
+    const totalPerempuan = data
+        ? ROMAWI_LIST.reduce((sum, r) => sum + data[`golongan_${r}`].perempuan.total, 0)
+        : 0;
 
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PNS Berdasarkan Golongan
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        PNS Berdasarkan Golongan
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data PNS aktif per golongan dan pangkat/ruang, dipecah menurut
+                        jenis kelamin.
+                    </p>
+                </div>
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Golongan berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard title="Jumlah PNS" total={data.jumlah_pns} />
-                    </div>
-
-                    <ChartCard title="Perbandingan Golongan berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    <div className="mt-6">
-                        <GolonganSection romawi="I" golongan={data.golongan_I} />
-                        <GolonganSection romawi="II" golongan={data.golongan_II} />
-                        <GolonganSection romawi="III" golongan={data.golongan_III} />
-                        <GolonganSection romawi="IV" golongan={data.golongan_IV} />
-                    </div>
-                </>
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-center w-16">Kode</th>
+                                <th className="border px-3 py-2 text-left">
+                                    Golongan / Pangkat
+                                </th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {ROMAWI_LIST.map((romawi) => (
+                                <GolonganRows
+                                    key={romawi}
+                                    romawi={romawi}
+                                    golongan={data[`golongan_${romawi}`]}
+                                />
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{data.jumlah_pns}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );
