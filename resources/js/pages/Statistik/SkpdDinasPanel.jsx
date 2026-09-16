@@ -1,59 +1,70 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    SkeletonCard,
-    StatCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 
 // Pegawai Berdasarkan Tingkat Pendidikan dan SKPD (18 Dinas).
 // Beda dari panel Pendidikan lainnya (ASN/PNS/PPPK): scope-nya cuma
 // staf/pejabat pada 18 Dinas, datanya TIDAK dipecah per gender
 // (lihat statistikStafDinasPendidikan/Golongan, statistikPejabatStruktural
 // Dinas, statistikPejabatFungsionalDinas, statistikPensiunanDinas di
-// StatistikService — semua sudah agregat se-18 dinas). Jadi kartu
-// rincian di sini pakai StatCard (angka tunggal), bukan MiniStatCard,
-// dan grafiknya satu seri batang saja.
+// StatistikService — semua sudah agregat se-18 dinas). Jadi tiap bagian
+// ditampilkan sebagai tabel No/Kategori/Jumlah (tanpa kolom L/P) dengan
+// pola yang sama seperti tabel di StrukturalPanel/FungsionalPanel &
+// Rekapitulasi ASN di halaman Admin, cuma tanpa pemisahan gender.
 const PENDIDIKAN_STAF_LIST = [
-    { key: "sd", label: "Tamat SD atau sederajat", chartLabel: "SD" },
-    { key: "smp", label: "SMP dan sederajat", chartLabel: "SMP" },
-    { key: "sma", label: "SMA dan sederajat", chartLabel: "SMA" },
-    { key: "diploma", label: "Diploma", chartLabel: "Diploma" },
-    { key: "strata_1", label: "Strata I", chartLabel: "S1" },
-    { key: "strata_2", label: "Strata 2", chartLabel: "S2" },
-    { key: "strata_3", label: "Strata 3", chartLabel: "S3" },
+    { key: "sd", label: "Tamat SD atau sederajat" },
+    { key: "smp", label: "SMP dan sederajat" },
+    { key: "sma", label: "SMA dan sederajat" },
+    { key: "diploma", label: "Diploma" },
+    { key: "strata_1", label: "Strata I" },
+    { key: "strata_2", label: "Strata 2" },
+    { key: "strata_3", label: "Strata 3" },
 ];
 
 const GOLONGAN_LIST = ["I", "II", "III", "IV"];
 const ESELON_LIST = ["I", "II", "III", "IV"];
 
-// Satu blok bagian: card putih pembungkus dengan judul + TotalCard
-// ringkasan + grid StatCard rincian. Dipakai berulang untuk bagian
-// Pendidikan, Golongan, dan Pejabat Struktural supaya konsisten dengan
-// gaya GolonganSection di GolonganPanel.jsx.
-function DinasSection({ title, total, children }) {
+// Tabel generik satu kolom nilai (No / label / Jumlah), dipakai berulang
+// untuk bagian Pendidikan, Golongan, dan Pejabat Struktural. `totalLabel`
+// + `total` opsional menambahkan baris Total di tfoot (dilewati kalau
+// tidak diisi, mis. bagian ringkasan yang kategorinya tidak sejenis).
+function DinasTable({ title, description, columnLabel, rows, totalLabel, total }) {
     return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">{title}</h3>
-            <div className="mb-4">
-                <TotalCard title={title} total={total} />
+        <div className="bg-white p-6 rounded-xl shadow mb-5">
+            <div className="mb-5">
+                <h3 className="text-lg font-bold text-[#172033]">{title}</h3>
+                {description && (
+                    <p className="text-sm text-gray-500">{description}</p>
+                )}
             </div>
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
-            >
-                {children}
+            <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border border-gray-200">
+                    <thead>
+                        <tr className="bg-gray-50">
+                            <th className="border px-3 py-2 text-left">No</th>
+                            <th className="border px-3 py-2 text-left">{columnLabel}</th>
+                            <th className="border px-2 py-2 text-center">Jumlah</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, i) => (
+                            <tr key={row.label} className="hover:bg-gray-50">
+                                <td className="border px-3 py-2">{i + 1}</td>
+                                <td className="border px-3 py-2">{row.label}</td>
+                                <td className="border px-2 py-2 text-center font-medium">{row.value || 0}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    {total !== undefined && (
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">{totalLabel || "Total"}</td>
+                                <td className="border px-2 py-2 text-center">{total}</td>
+                            </tr>
+                        </tfoot>
+                    )}
+                </table>
             </div>
         </div>
     );
@@ -138,25 +149,23 @@ function SkpdDinasPanel() {
 
     const data = pendidikan && golongan && struktural && fungsional && pensiunan;
 
-    const pendidikanChartData = pendidikan
-        ? PENDIDIKAN_STAF_LIST.map((p) => ({
-              label: p.chartLabel,
-              jumlah: pendidikan[p.key],
-          }))
+    const pendidikanRows = pendidikan
+        ? PENDIDIKAN_STAF_LIST.map((p) => ({ label: p.label, value: pendidikan[p.key] }))
         : [];
 
-    const golonganChartData = golongan
-        ? GOLONGAN_LIST.map((g) => ({
-              label: `Golongan ${g}`,
-              jumlah: golongan.golongan[g],
-          }))
+    const golonganRows = golongan
+        ? GOLONGAN_LIST.map((g) => ({ label: `Golongan ${g}`, value: golongan.golongan[g] }))
         : [];
 
-    const eselonChartData = struktural
-        ? ESELON_LIST.map((e) => ({
-              label: `Eselon ${e}`,
-              jumlah: struktural.eselon[e],
-          }))
+    const eselonRows = struktural
+        ? ESELON_LIST.map((e) => ({ label: `Eselon ${e}`, value: struktural.eselon[e] }))
+        : [];
+
+    const ringkasanRows = data
+        ? [
+              { label: "Pejabat Fungsional Kantor Dinas Daerah", value: fungsional.jumlah_pejabat_fungsional },
+              { label: "Pensiunan Kantor Dinas Daerah", value: pensiunan.jumlah_pensiunan },
+          ]
         : [];
 
     return (
@@ -168,103 +177,44 @@ function SkpdDinasPanel() {
             {error && <ErrorBox message={error} />}
 
             {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Staf Kantor Dinas Daerah berdasarkan Tingkat Pendidikan" />
             )}
 
             {data && (
                 <>
-                    <DinasSection
-                        title="Jumlah Staf Kantor Dinas Daerah Berdasarkan Tingkat Pendidikan"
+                    <DinasTable
+                        title="Staf Kantor Dinas Daerah Berdasarkan Tingkat Pendidikan"
+                        description="Data staf aktif di 18 Kantor Dinas Daerah, dipecah menurut tingkat pendidikan."
+                        columnLabel="Tingkat Pendidikan"
+                        rows={pendidikanRows}
                         total={pendidikan.jumlah_staf_dinas}
-                    >
-                        {PENDIDIKAN_STAF_LIST.map((p) => (
-                            <StatCard
-                                key={p.key}
-                                title={p.label}
-                                value={pendidikan[p.key]}
-                            />
-                        ))}
-                    </DinasSection>
+                    />
 
-                    <ChartCard title="Staf Kantor Dinas Daerah berdasarkan Tingkat Pendidikan">
-                        <BarChart data={pendidikanChartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Bar dataKey="jumlah" name="Jumlah Staf" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
+                    <DinasTable
+                        title="Staf Kantor Dinas Daerah Berdasarkan Golongan"
+                        description="Data staf aktif di 18 Kantor Dinas Daerah, dipecah menurut golongan ruang."
+                        columnLabel="Golongan"
+                        rows={golonganRows}
+                        total={golongan.jumlah_staf_dinas}
+                    />
 
-                    <div className="mt-6">
-                        <DinasSection
-                            title="Jumlah Staf Kantor Dinas Daerah Berdasarkan Golongan"
-                            total={golongan.jumlah_staf_dinas}
-                        >
-                            {GOLONGAN_LIST.map((g) => (
-                                <StatCard
-                                    key={g}
-                                    title={`Golongan ${g}`}
-                                    value={golongan.golongan[g]}
-                                />
-                            ))}
-                        </DinasSection>
+                    <DinasTable
+                        title="Pejabat Struktural Kantor Dinas Daerah Berdasarkan Eselon"
+                        description="Data pejabat struktural aktif di 18 Kantor Dinas Daerah, dipecah menurut eselon."
+                        columnLabel="Eselon"
+                        rows={eselonRows}
+                        total={struktural.jumlah_pejabat_struktural}
+                    />
 
-                        <ChartCard title="Staf Kantor Dinas Daerah berdasarkan Golongan">
-                            <BarChart data={golonganChartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                <Bar dataKey="jumlah" name="Jumlah Staf" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ChartCard>
-                    </div>
-
-                    <div className="mt-6">
-                        <DinasSection
-                            title="Jumlah Pejabat Struktural Kantor Dinas Daerah"
-                            total={struktural.jumlah_pejabat_struktural}
-                        >
-                            {ESELON_LIST.map((e) => (
-                                <StatCard
-                                    key={e}
-                                    title={`Eselon ${e}`}
-                                    value={struktural.eselon[e]}
-                                />
-                            ))}
-                        </DinasSection>
-
-                        <ChartCard title="Pejabat Struktural Kantor Dinas Daerah berdasarkan Eselon">
-                            <BarChart data={eselonChartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                <Bar dataKey="jumlah" name="Jumlah Pejabat" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ChartCard>
-                    </div>
-
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        <TotalCard
-                            title="Jumlah Pejabat Fungsional Kantor Dinas Daerah"
-                            total={fungsional.jumlah_pejabat_fungsional}
-                        />
-                        <TotalCard
-                            title="Jumlah Pensiunan Kantor Dinas Daerah"
-                            total={pensiunan.jumlah_pensiunan}
-                        />
-                    </div>
+                    <DinasTable
+                        title="Ringkasan Lainnya"
+                        description="Jumlah pejabat fungsional & pensiunan di 18 Kantor Dinas Daerah (dua kategori berbeda, tidak dijumlahkan)."
+                        columnLabel="Kategori"
+                        rows={ringkasanRows}
+                    />
                 </>
             )}
         </div>

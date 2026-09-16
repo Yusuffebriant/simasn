@@ -1,21 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 
 // Urutan & pengelompokan key harus persis sama dengan key
 // `perangkat_daerah` yang dikembalikan
@@ -75,30 +61,61 @@ const KEMANTREN_LIST = [
     "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
 ];
 
-// Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label kartu Kemantren.
+// Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris Kemantren.
 function toTitleCase(text) {
     return text
         .toLowerCase()
         .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
-// Satu blok bagian: card putih pembungkus dengan judul + grid MiniStatCard
-// rincian — pola sama seperti GolonganSection (GolonganPanel.jsx) dan
-// DinasSection (SkpdDinasPanel.jsx), dipakai berulang untuk tiap kelompok
-// Perangkat Daerah (Sekretariat Daerah & Bagian, Dinas, Badan, Lembaga
-// Lain, Kemantren).
-function PerangkatDaerahSection({ title, summary, children }) {
+// Tabel generik L/P/Total (No / label / L / P / Total), dipakai berulang
+// untuk tiap kelompok Perangkat Daerah — pola sama seperti
+// StrukturalPanel/FungsionalPanel/PnsPendidikanPanel & tabel Rekapitulasi
+// ASN di halaman Admin. Baris Total di tfoot dijumlah otomatis dari rows.
+function GenderTable({ title, description, columnLabel, rows }) {
+    const totalLakiLaki = rows.reduce((sum, r) => sum + (r.laki_laki || 0), 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + (r.perempuan || 0), 0);
+    const totalJumlah = rows.reduce((sum, r) => sum + (r.total || 0), 0);
+
     return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">{title}</h3>
-
-            {summary && <div className="mb-4">{summary}</div>}
-
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-            >
-                {children}
+        <div className="bg-white p-6 rounded-xl shadow mb-5">
+            <div className="mb-5">
+                <h3 className="text-lg font-bold text-[#172033]">{title}</h3>
+                {description && (
+                    <p className="text-sm text-gray-500">{description}</p>
+                )}
+            </div>
+            <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border border-gray-200">
+                    <thead>
+                        <tr className="bg-gray-50">
+                            <th className="border px-3 py-2 text-left">No</th>
+                            <th className="border px-3 py-2 text-left">{columnLabel}</th>
+                            <th className="border px-2 py-2 text-center">L</th>
+                            <th className="border px-2 py-2 text-center">P</th>
+                            <th className="border px-2 py-2 text-center">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, i) => (
+                            <tr key={row.label} className="hover:bg-gray-50">
+                                <td className="border px-3 py-2">{i + 1}</td>
+                                <td className="border px-3 py-2">{row.label}</td>
+                                <td className="border px-2 py-2 text-center">{row.laki_laki || 0}</td>
+                                <td className="border px-2 py-2 text-center">{row.perempuan || 0}</td>
+                                <td className="border px-2 py-2 text-center font-medium">{row.total || 0}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                        <tr className="bg-gray-100 font-bold">
+                            <td colSpan={2} className="border px-3 py-2">Total</td>
+                            <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                            <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                            <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     );
@@ -150,8 +167,8 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
     const pd = data?.perangkat_daerah;
 
     // Jumlahkan laki_laki/perempuan sekelompok key perangkat_daerah,
-    // dipakai untuk grafik ringkasan per kelompok (Sekretariat Daerah &
-    // Bagian, Dinas, Badan, Lembaga Lain, Kemantren).
+    // dipakai untuk baris ringkasan per kelompok (Sekretariat Daerah &
+    // Bagian, Dinas, Badan, Lembaga Lain, Kemantren, Lainnya).
     const sumGroup = (keys) => {
         let laki_laki = 0;
         let perempuan = 0;
@@ -159,71 +176,96 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
             laki_laki += pd?.[key]?.laki_laki || 0;
             perempuan += pd?.[key]?.perempuan || 0;
         });
-        return { laki_laki, perempuan };
+        return { laki_laki, perempuan, total: laki_laki + perempuan };
     };
 
-    // PENTING: kartu total "Jumlah ASN Pemerintah Kota Yogyakarta" DIHITUNG
-    // ULANG di sini dari seluruh baris perangkat_daerah yang benar-benar
-    // ditampilkan di panel ini (Sekretariat Daerah, semua Bagian, semua
-    // Dinas, semua Badan, Lembaga Lain, Kemantren, dan "Lainnya / Belum
-    // Terpetakan") — BUKAN memakai field data.jumlah_asn dari API apa
-    // adanya. Dengan begini kartu total dijamin sama dengan hasil
-    // penjumlahan rincian di bawahnya, murni di sisi frontend, terlepas
-    // dari bagaimana backend menghitung jumlah_asn.
-    const totalDariRincian = pd
-        ? (() => {
-              const semuaKeyLeaf = [
-                  "sekretariat_daerah",
-                  ...BAGIAN_LIST.map((b) => b.key),
-                  ...DINAS_LIST.map((d) => d.key),
-                  ...BADAN_LIST.map((b) => b.key),
-                  ...LEMBAGA_LAIN_LIST.map((l) => l.key),
-              ];
-
-              let { laki_laki, perempuan } = sumGroup(semuaKeyLeaf);
-
-              // Kemantren sudah berupa satu entri agregat (jangan ambil
-              // dari .detail lagi supaya tidak dobel hitung).
-              laki_laki += pd.kemantren?.laki_laki || 0;
-              perempuan += pd.kemantren?.perempuan || 0;
-
-              // "Lainnya / Belum Terpetakan" tetap ikut dijumlah supaya
-              // kartu total mencerminkan SELURUH ASN yang tampil di
-              // panel ini, termasuk yang belum masuk OPD manapun.
-              laki_laki += pd.lainnya?.laki_laki || 0;
-              perempuan += pd.lainnya?.perempuan || 0;
-
-              return { laki_laki, perempuan, total: laki_laki + perempuan };
-          })()
-        : null;
-
-    const chartData = pd
+    // Baris ringkasan per kelompok (dipakai sebagai pengganti grafik batang
+    // yang lama). "Lainnya / Belum Terpetakan" tetap ditampilkan sebagai
+    // baris sendiri supaya Total di tfoot tabel ini sama persis dengan
+    // "Jumlah ASN Pemerintah Kota Yogyakarta" di bawah — tidak ada angka
+    // yang dihitung tapi disembunyikan dari tabel.
+    const groupRows = pd
         ? [
               {
                   label: "Sekretariat Daerah & Bagian",
-                  ...sumGroup([
-                      "sekretariat_daerah",
-                      ...BAGIAN_LIST.map((b) => b.key),
-                  ]),
+                  ...sumGroup(["sekretariat_daerah", ...BAGIAN_LIST.map((b) => b.key)]),
               },
-              {
-                  label: "Dinas",
-                  ...sumGroup(DINAS_LIST.map((d) => d.key)),
-              },
-              {
-                  label: "Badan Daerah",
-                  ...sumGroup(BADAN_LIST.map((b) => b.key)),
-              },
-              {
-                  label: "Lembaga Lain",
-                  ...sumGroup(LEMBAGA_LAIN_LIST.map((l) => l.key)),
-              },
+              { label: "Dinas", ...sumGroup(DINAS_LIST.map((d) => d.key)) },
+              { label: "Badan Daerah", ...sumGroup(BADAN_LIST.map((b) => b.key)) },
+              { label: "Lembaga Lain", ...sumGroup(LEMBAGA_LAIN_LIST.map((l) => l.key)) },
               {
                   label: "Kemantren",
                   laki_laki: pd.kemantren?.laki_laki || 0,
                   perempuan: pd.kemantren?.perempuan || 0,
+                  total: pd.kemantren?.total || 0,
+              },
+              {
+                  label: "Lainnya / Belum Terpetakan",
+                  laki_laki: pd.lainnya?.laki_laki || 0,
+                  perempuan: pd.lainnya?.perempuan || 0,
+                  total: pd.lainnya?.total || 0,
               },
           ]
+        : [];
+
+    const sekretariatRows = pd
+        ? [
+              {
+                  label: "Sekretariat Daerah",
+                  laki_laki: pd.sekretariat_daerah.laki_laki,
+                  perempuan: pd.sekretariat_daerah.perempuan,
+                  total: pd.sekretariat_daerah.total,
+              },
+              ...BAGIAN_LIST.map((b) => ({
+                  label: b.label,
+                  laki_laki: pd[b.key].laki_laki,
+                  perempuan: pd[b.key].perempuan,
+                  total: pd[b.key].total,
+              })),
+          ]
+        : [];
+
+    const dinasRows = pd
+        ? DINAS_LIST.map((d) => ({
+              label: d.label,
+              laki_laki: pd[d.key].laki_laki,
+              perempuan: pd[d.key].perempuan,
+              total: pd[d.key].total,
+          }))
+        : [];
+
+    const badanRows = pd
+        ? BADAN_LIST.map((b) => ({
+              label: b.label,
+              laki_laki: pd[b.key].laki_laki,
+              perempuan: pd[b.key].perempuan,
+              total: pd[b.key].total,
+          }))
+        : [];
+
+    const lembagaLainRows = pd
+        ? LEMBAGA_LAIN_LIST.map((l) => ({
+              label: l.label,
+              laki_laki: pd[l.key].laki_laki,
+              perempuan: pd[l.key].perempuan,
+              total: pd[l.key].total,
+          }))
+        : [];
+
+    const kemantrenRows = pd
+        ? KEMANTREN_LIST.map((nama) => {
+              const detail = pd.kemantren.detail?.[nama] || {
+                  total: 0,
+                  laki_laki: 0,
+                  perempuan: 0,
+              };
+              return {
+                  label: `Kemantren ${toTitleCase(nama)}`,
+                  laki_laki: detail.laki_laki,
+                  perempuan: detail.perempuan,
+                  total: detail.total,
+              };
+          })
         : [];
 
     return (
@@ -235,136 +277,51 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
             {error && <ErrorBox message={error} />}
 
             {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan ASN per Kelompok Perangkat Daerah berdasarkan Gender" />
             )}
 
             {data && pd && (
                 <>
-                    <div className="mb-5">
-                        <MiniStatCard
-                            title="Jumlah ASN Pemerintah Kota Yogyakarta"
-                            total={totalDariRincian.total}
-                            laki_laki={totalDariRincian.laki_laki}
-                            perempuan={totalDariRincian.perempuan}
-                            variant="dark"
-                        />
-                    </div>
+                    <GenderTable
+                        title="Perbandingan ASN per Kelompok Perangkat Daerah"
+                        description="Ringkasan jumlah ASN per kelompok Perangkat Daerah, dipecah menurut jenis kelamin. Baris Total sama dengan Jumlah ASN Pemerintah Kota Yogyakarta secara keseluruhan."
+                        columnLabel="Kelompok Perangkat Daerah"
+                        rows={groupRows}
+                    />
 
-                    <ChartCard title="Perbandingan ASN per Kelompok Perangkat Daerah berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
+                    <GenderTable
+                        title="Sekretariat Daerah & Bagian"
+                        columnLabel="Unit"
+                        rows={sekretariatRows}
+                    />
 
-                    <div className="mt-6">
-                        <PerangkatDaerahSection title="Sekretariat Daerah & Bagian">
-                            <MiniStatCard
-                                title="Sekretariat Daerah"
-                                total={pd.sekretariat_daerah.total}
-                                laki_laki={pd.sekretariat_daerah.laki_laki}
-                                perempuan={pd.sekretariat_daerah.perempuan}
-                            />
-                            {BAGIAN_LIST.map((b) => (
-                                <MiniStatCard
-                                    key={b.key}
-                                    title={b.label}
-                                    total={pd[b.key].total}
-                                    laki_laki={pd[b.key].laki_laki}
-                                    perempuan={pd[b.key].perempuan}
-                                />
-                            ))}
-                        </PerangkatDaerahSection>
+                    <GenderTable
+                        title="Dinas"
+                        columnLabel="Dinas"
+                        rows={dinasRows}
+                    />
 
-                        <PerangkatDaerahSection title="Dinas">
-                            {DINAS_LIST.map((d) => (
-                                <MiniStatCard
-                                    key={d.key}
-                                    title={d.label}
-                                    total={pd[d.key].total}
-                                    laki_laki={pd[d.key].laki_laki}
-                                    perempuan={pd[d.key].perempuan}
-                                />
-                            ))}
-                        </PerangkatDaerahSection>
+                    <GenderTable
+                        title="Badan Daerah"
+                        columnLabel="Badan"
+                        rows={badanRows}
+                    />
 
-                        <PerangkatDaerahSection title="Badan Daerah">
-                            {BADAN_LIST.map((b) => (
-                                <MiniStatCard
-                                    key={b.key}
-                                    title={b.label}
-                                    total={pd[b.key].total}
-                                    laki_laki={pd[b.key].laki_laki}
-                                    perempuan={pd[b.key].perempuan}
-                                />
-                            ))}
-                        </PerangkatDaerahSection>
+                    <GenderTable
+                        title="Satpol PP, Inspektorat, Sekretariat DPRD & RSUD"
+                        columnLabel="Unit"
+                        rows={lembagaLainRows}
+                    />
 
-                        <PerangkatDaerahSection title="Satpol PP, Inspektorat, Sekretariat DPRD & RSUD">
-                            {LEMBAGA_LAIN_LIST.map((l) => (
-                                <MiniStatCard
-                                    key={l.key}
-                                    title={l.label}
-                                    total={pd[l.key].total}
-                                    laki_laki={pd[l.key].laki_laki}
-                                    perempuan={pd[l.key].perempuan}
-                                />
-                            ))}
-                        </PerangkatDaerahSection>
-
-                        <PerangkatDaerahSection
-                            title="Kemantren"
-                            summary={
-                                <MiniStatCard
-                                    title="Jumlah ASN Kemantren"
-                                    total={pd.kemantren.total}
-                                    laki_laki={pd.kemantren.laki_laki}
-                                    perempuan={pd.kemantren.perempuan}
-                                    variant="dark"
-                                />
-                            }
-                        >
-                            {KEMANTREN_LIST.map((nama) => {
-                                const detail = pd.kemantren.detail?.[nama] || {
-                                    total: 0,
-                                    laki_laki: 0,
-                                    perempuan: 0,
-                                };
-                                return (
-                                    <MiniStatCard
-                                        key={nama}
-                                        title={`Kemantren ${toTitleCase(nama)}`}
-                                        total={detail.total}
-                                        laki_laki={detail.laki_laki}
-                                        perempuan={detail.perempuan}
-                                    />
-                                );
-                            })}
-                        </PerangkatDaerahSection>
-                    </div>
+                    <GenderTable
+                        title="Kemantren"
+                        description="Jumlah ASN Kemantren keseluruhan ada pada baris Total tabel ini."
+                        columnLabel="Kemantren"
+                        rows={kemantrenRows}
+                    />
                 </>
             )}
         </div>

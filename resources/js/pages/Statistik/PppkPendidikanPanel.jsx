@@ -1,40 +1,18 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    PreviewTableModal,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import { ErrorBox } from "./components/StatUi";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
 // PPPK Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (hanya PPPK
-// aktif — lihat statistikPppkPendidikan() di StatistikService). Polanya
-// sama seperti PnsPendidikanPanel/PppkGolonganPanel: TotalCard "Jumlah
-// PPPK" + MiniStatCard per jenjang pendidikan (total + rincian gender),
-// diikuti grafik batang perbandingan, dan tabel preview saat kartu diklik.
+// aktif — lihat statistikPppkPendidikan() di StatistikService). Tabelnya
+// mengikuti pola yang sama seperti PnsPendidikanPanel/StrukturalPanel &
+// tabel Rekapitulasi ASN di halaman Admin: No / label / L / P / Total,
+// dengan baris Total di tfoot.
 function PppkPendidikanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    // Jenjang pendidikan yang sedang di-preview (mis. "sd", "smp", dst,
-    // sesuai key di PENDIDIKAN_LIST). null berarti modal tertutup.
-    // Nilai khusus "__all__" dipakai saat kartu "Jumlah PPPK" (TotalCard)
-    // diklik — merujuk ke grup ringkasan "Jumlah Keseluruhan PPPK" yang
-    // ditaruh paling atas di previewGroups.
-    const [previewGroup, setPreviewGroup] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -72,153 +50,75 @@ function PppkPendidikanPanel() {
         };
     }, []);
 
-    const chartData = data
+    // Baris tabel: satu baris per jenjang pendidikan (SD s.d. S3), tiap
+    // baris punya total, laki_laki, perempuan (langsung dari respons API).
+    const rows = data
         ? PENDIDIKAN_LIST.map((p) => ({
-              label: p.chartLabel,
-              laki_laki: data[p.key].laki_laki,
-              perempuan: data[p.key].perempuan,
+              key: p.key,
+              label: p.label,
+              ...data[p.key],
           }))
         : [];
 
-    // Daftar grup untuk tabel preview. Grup pertama ("__all__") adalah
-    // ringkasan keseluruhan PPPK (dari kartu "Jumlah PPPK" di atas),
-    // rincian laki-laki/perempuan-nya dihitung dari jumlah semua jenjang
-    // pendidikan. Sisanya 1 grup per jenjang pendidikan (SD, SMP, SMA,
-    // Diploma I-IV, Strata 1-3) — mengikuti pola PreviewTableModal di
-    // PNS Berdasarkan Tingkat Pendidikan / PPPK Berdasarkan Golongan:
-    // 1 baris total + label "Laki-Laki" / "Perempuan" langsung untuk
-    // baris rincian gender.
-    const previewGroups = data
-        ? [
-              {
-                  key: "__all__",
-                  label: "Jumlah Keseluruhan PPPK",
-                  items: [
-                      {
-                          type: "total",
-                          label: "Jumlah Keseluruhan PPPK",
-                          value: data.jumlah_pppk,
-                      },
-                      {
-                          type: "laki_laki",
-                          label: "Laki-Laki",
-                          value: PENDIDIKAN_LIST.reduce(
-                              (sum, p) => sum + (data[p.key].laki_laki || 0),
-                              0
-                          ),
-                      },
-                      {
-                          type: "perempuan",
-                          label: "Perempuan",
-                          value: PENDIDIKAN_LIST.reduce(
-                              (sum, p) => sum + (data[p.key].perempuan || 0),
-                              0
-                          ),
-                      },
-                  ],
-              },
-              ...PENDIDIKAN_LIST.map((p) => ({
-                  key: p.key,
-                  label: p.label,
-                  items: [
-                      {
-                          type: "total",
-                          label: `Jumlah PPPK Tingkat Pendidikan ${p.label}`,
-                          value: data[p.key].total,
-                      },
-                      {
-                          type: "laki_laki",
-                          label: "Laki-Laki",
-                          value: data[p.key].laki_laki,
-                      },
-                      {
-                          type: "perempuan",
-                          label: "Perempuan",
-                          value: data[p.key].perempuan,
-                      },
-                  ],
-              })),
-          ]
-        : [];
+    const totalLakiLaki = rows.reduce((sum, r) => sum + (r.laki_laki || 0), 0);
+    const totalPerempuan = rows.reduce((sum, r) => sum + (r.perempuan || 0), 0);
+    const totalJumlah = data ? data.jumlah_pppk : 0;
 
     return (
-        <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PPPK Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
-            </h2>
+        <div className="bg-white p-6 rounded-xl shadow">
+            <div className="mb-5">
+                <h3 className="text-lg font-bold text-[#172033]">
+                    PPPK Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
+                </h3>
+                <p className="text-sm text-gray-500">
+                    Data PPPK aktif per tingkat pendidikan, dipecah menurut jenis kelamin.
+                </p>
+            </div>
 
             {error && <ErrorBox message={error} />}
 
-            {loading && !data && (
-                <div
-                    className="grid gap-4 mb-6"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                >
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
+            {loading && !data ? (
+                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Memuat data...
                 </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Perbandingan Tingkat Pendidikan PPPK berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PPPK"
-                            total={data.jumlah_pppk}
-                            onClick={() => setPreviewGroup("__all__")}
-                        />
-                    </div>
-
-                    <ChartCard title="Perbandingan Tingkat Pendidikan PPPK berdasarkan Gender">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        {PENDIDIKAN_LIST.map((p) => (
-                            <MiniStatCard
-                                key={p.key}
-                                title={`Jumlah PPPK Tingkat Pendidikan ${p.label}`}
-                                total={data[p.key].total}
-                                laki_laki={data[p.key].laki_laki}
-                                perempuan={data[p.key].perempuan}
-                                onClick={() => setPreviewGroup(p.key)}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
-
-            {previewGroup && (
-                <PreviewTableModal
-                    title="Tabel Preview PPPK Berdasarkan Tingkat Pendidikan"
-                    subtitle="Rekap jumlah PPPK per tingkat pendidikan dan jenis kelamin."
-                    groups={previewGroups}
-                    highlightGroup={previewGroup}
-                    onClose={() => setPreviewGroup(null)}
-                />
+            ) : data ? (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200">
+                        <thead>
+                            <tr className="bg-gray-50">
+                                <th className="border px-3 py-2 text-left">No</th>
+                                <th className="border px-3 py-2 text-left">Tingkat Pendidikan</th>
+                                <th className="border px-2 py-2 text-center">L</th>
+                                <th className="border px-2 py-2 text-center">P</th>
+                                <th className="border px-2 py-2 text-center">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => (
+                                <tr key={row.key} className="hover:bg-gray-50">
+                                    <td className="border px-3 py-2">{i + 1}</td>
+                                    <td className="border px-3 py-2">{row.label}</td>
+                                    <td className="border px-2 py-2 text-center">{row.laki_laki || 0}</td>
+                                    <td className="border px-2 py-2 text-center">{row.perempuan || 0}</td>
+                                    <td className="border px-2 py-2 text-center font-medium">{row.total || 0}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="bg-gray-100 font-bold">
+                                <td colSpan={2} className="border px-3 py-2">Total</td>
+                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
+                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
+                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center text-gray-400 py-12 text-sm">
+                    Tidak ada data untuk ditampilkan.
+                </div>
             )}
         </div>
     );
