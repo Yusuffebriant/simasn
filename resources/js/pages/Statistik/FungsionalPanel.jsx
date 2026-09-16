@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ErrorBox } from "./components/StatUi";
+
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// StrukturalPanel.jsx / PnsKelurahanPanel.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
 
 // Label rumpun jabatan fungsional tertentu, urutan sesuai tampilan lama
 // (kartu Dosen/Guru/Medis/Teknis/Auditor/P2UPD).
@@ -18,6 +27,36 @@ function FungsionalPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [exporting, setExporting] = useState(false);
+
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/pejabat-fungsional/export");
+
+            if (!res.ok) {
+                throw new Error("Gagal mengekspor data Pejabat Fungsional.");
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "pejabat-fungsional.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err?.message || "Gagal mengekspor data Pejabat Fungsional.");
+        } finally {
+            setExporting(false);
+        }
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -74,15 +113,30 @@ function FungsionalPanel() {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow">
-            <div className="mb-5">
-                <h3 className="text-lg font-bold text-[#172033]">
-                    Pejabat Fungsional
-                </h3>
-                <p className="text-sm text-gray-500">
-                    Data pejabat fungsional aktif, dipecah menurut jenis kelamin.
-                    Baris "Rumpun ..." adalah rincian di dalam Fungsional Tertentu
-                    (JFT) dan tidak dijumlah lagi ke baris Total.
-                </p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        Pejabat Fungsional
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data pejabat fungsional aktif, dipecah menurut jenis kelamin.
+                        Baris "Rumpun ..." adalah rincian di dalam Fungsional Tertentu
+                        (JFT) dan tidak dijumlah lagi ke baris Total.
+                    </p>
+                </div>
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
             </div>
 
             {error && <ErrorBox message={error} />}
