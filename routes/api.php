@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\StatistikPppkKemantrenGolonganController;
 use App\Http\Controllers\Api\StatistikPensiunanPNSController;
 use App\Http\Controllers\Api\StatistikPnsKelurahanController;
 use App\Http\Controllers\Api\StatistikPppkKelurahanController;
+use App\Http\Controllers\Api\StatistikAllController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -47,6 +48,17 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     // =========================================================
     // STATISTIK PEJABAT
     // =========================================================
+
+    // Export Semua Statistik — satu file Excel berisi seluruh tabel di
+    // halaman Statistik (satu sheet per tabel). Ditaruh paling atas
+    // (bukan di bawah salah satu sub-bagian) karena cakupannya lintas
+    // semua sub-bagian statistik.php di bawah ini, sama seperti
+    // /rekap/all/export di halaman Admin yang juga tidak terikat satu
+    // sub-bagian rekap.
+    Route::get('/statistik/all/export', [
+        StatistikAllController::class,
+        'export'
+    ]);
 
     Route::get('/statistik/pejabat-struktural', [
         StatistikPejabatStrukturalController::class,
@@ -83,9 +95,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/penjabat-perangkat-daerah/export', [
+        StatistikPenjabatPerangkatDaerahController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/asn-kemantren-pendidikan', [
         StatistikAsnKemantrenPendidikanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/asn-kemantren-pendidikan/export', [
+        StatistikAsnKemantrenPendidikanController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pns-kemantren-pendidikan', [
@@ -109,7 +131,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     ]);
 
     Route::get('/statistik/pns-kelurahan', [
-        StatistikPnsKelurahanController::class,     
+        StatistikPnsKelurahanController::class,
         'index'
     ]);
 
@@ -167,14 +189,32 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pns-pendidikan/export', [
+        StatistikPnsPendidikanController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/staf-dinas/pendidikan', [
         StatistikStafDinasPendidikanController::class,
         'index'
     ]);
 
+    // Satu tombol Export untuk SELURUH panel "Pegawai Berdasarkan
+    // Pendidikan & SKPD" (pendidikan + golongan + eselon + ringkasan),
+    // makanya path-nya /staf-dinas/export, bukan /staf-dinas/pendidikan/export.
+    Route::get('/statistik/staf-dinas/export', [
+        StatistikStafDinasPendidikanController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pppk-pendidikan', [
         StatistikPppkPendidikanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pppk-pendidikan/export', [
+        StatistikPppkPendidikanController::class,
+        'export'
     ]);
 
     Route::get('/statistik/staf-dinas/golongan', [
@@ -190,6 +230,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/statistik/asn-perangkat-daerah-jenis-kelamin', [
         StatistikAsnPerangkatDaerahJenisKelaminController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/asn-perangkat-daerah-jenis-kelamin/export', [
+        StatistikAsnPerangkatDaerahJenisKelaminController::class,
+        'export'
     ]);
 
     // =========================================================
@@ -233,7 +278,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         // ---- PEGAWAI CRUD ----
         Route::apiResource('pegawai', PegawaiController::class)
             ->only(['index', 'show', 'update', 'destroy']);
-        
+
         // ---- REFERENSI ----
         Route::get('/referensi/instansi', [ReferensiController::class, 'instansi']);
         Route::get('/referensi/golongan', [ReferensiController::class, 'golonganRuang']);

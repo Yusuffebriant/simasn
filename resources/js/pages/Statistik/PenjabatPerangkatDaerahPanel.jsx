@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ErrorBox } from "./components/StatUi";
+import ExportExcelButton from "./components/ExportExcelButton";
 
 // Urutan & key harus persis sama dengan key yang dikembalikan
 // StatistikService::statistikPenjabatPerangkatDaerahJenisKelamin() di
@@ -77,13 +78,23 @@ function PenjabatPerangkatDaerahPanel() {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow">
-            <div className="mb-5">
-                <h3 className="text-lg font-bold text-[#172033]">
-                    Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin
-                </h3>
-                <p className="text-sm text-gray-500">
-                    Data penjabat perangkat daerah, dipecah menurut jenis kelamin.
-                </p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        Penjabat Perangkat Daerah Berdasarkan Jenis Kelamin
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data penjabat perangkat daerah, dipecah menurut jenis kelamin.
+                    </p>
+                </div>
+
+                <ExportExcelButton
+                    path="/statistik/penjabat-perangkat-daerah/export"
+                    filename="penjabat-perangkat-daerah.xlsx"
+                    errorMessage="Gagal mengekspor data Penjabat Perangkat Daerah berdasarkan jenis kelamin."
+                    disabled={loading || !data}
+                    onError={setError}
+                />
             </div>
 
             {error && <ErrorBox message={error} />}

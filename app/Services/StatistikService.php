@@ -2663,15 +2663,16 @@ class StatistikService
      * 5.03.017
      * Jumlah PNS Kemantren berdasarkan Golongan dan Jenis Kelamin.
      *
-     * Struktur nested: kemantren -> gender -> golongan (I-IV).
+     * Struktur nested: kemantren -> gender -> golongan ruang (I/a s.d. IV/e).
      * Berbeda dari statistikPnsKemantrenPendidikan() (5.03.015) yang nested-nya
      * pendidikan -> gender -> kemantren; di sini kemantren jadi level teratas.
      *
      * Hanya PNS aktif yang dihitung (status_kepegawaian = 'PNS'), golongan
      * diambil dari golongan_ruang.kelompok = 'PNS' — konsisten dengan
-     * statistikPnsGolongan(). Golongan romawi diambil dari angka sebelum '/'
-     * pada golongan_ruang.kode (mis. 'III/a' -> 'III'), sama seperti pola di
-     * statistikPensiunanPNS()/statistikStafDinasGolongan().
+     * statistikPnsGolongan(). Golongan dihitung PER KODE golongan ruang
+     * (mis. 'III/a' tetap 'III/a', TIDAK digabung jadi romawi 'III'), sama
+     * seperti tabel Rekapitulasi ASN di halaman Admin (RekapService::
+     * rekapGolongan()) yang juga memecah kolom sampai I/a..IV/e.
      *
      * Daftar kemantren mengikuti statistikAsnKemantrenPendidikan() supaya
      * konsisten.
@@ -2714,13 +2715,41 @@ class StatistikService
             ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
             ->get();
 
-        // Siapkan struktur kosong: kemantren -> gender -> golongan I-IV,
+        // Daftar golongan ruang PNS, urut sesuai GolonganRuangSeeder.
+        // Dipakai apa adanya sebagai kolom (tidak digabung per romawi).
+        $golonganList = [
+            'I/a',
+            'I/b',
+            'I/c',
+            'I/d',
+            'II/a',
+            'II/b',
+            'II/c',
+            'II/d',
+            'III/a',
+            'III/b',
+            'III/c',
+            'III/d',
+            'IV/a',
+            'IV/b',
+            'IV/c',
+            'IV/d',
+            'IV/e',
+        ];
+
+        // 'III/A' (hasil strtoupper) -> 'III/a' (kunci agregat).
+        $kodeMap = array_combine(
+            array_map('strtoupper', $golonganList),
+            $golonganList
+        );
+
+        // Siapkan struktur kosong: kemantren -> gender -> golongan ruang,
         // supaya kombinasi yang datanya 0 tetap muncul di response.
         $agregat = [];
         foreach ($kemantrenList as $kemantren) {
             $agregat[$kemantren] = [
-                'laki_laki' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
-                'perempuan' => ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0],
+                'laki_laki' => array_fill_keys($golonganList, 0),
+                'perempuan' => array_fill_keys($golonganList, 0),
             ];
         }
 
@@ -2738,21 +2767,17 @@ class StatistikService
             $gender = $row->jenis_kelamin === 'L' ? 'laki_laki' : 'perempuan';
             $jumlah = (int) $row->jumlah;
 
-            $kode = trim((string) $row->golongan_kode);
+            // Kode dipakai utuh ('III/a'), bukan cuma romawi di depan '/'.
+            // Dicocokkan case-insensitive supaya 'III/A' tetap kebaca.
+            $kode = strtoupper(trim((string) $row->golongan_kode));
+            $kanonik = $kodeMap[$kode] ?? null;
 
-            if (!str_contains($kode, '/')) {
+            if ($kanonik === null) {
                 $tidakDikenali += $jumlah;
                 continue;
             }
 
-            $romawi = explode('/', $kode)[0];
-
-            if (!isset($agregat[$namaKemantren][$gender][$romawi])) {
-                $tidakDikenali += $jumlah;
-                continue;
-            }
-
-            $agregat[$namaKemantren][$gender][$romawi] += $jumlah;
+            $agregat[$namaKemantren][$gender][$kanonik] += $jumlah;
         }
 
         $hasil = ['jumlah_pns_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
@@ -2765,22 +2790,21 @@ class StatistikService
             $totalP = array_sum($golP);
             $totalKemantren = $totalL + $totalP;
 
+            // Key JSON: 'III/a' -> 'golongan_III_a' (slash jadi underscore)
+            // supaya aman dipakai sebagai key object di frontend.
+            $pecahL = ['total' => $totalL];
+            $pecahP = ['total' => $totalP];
+
+            foreach ($golonganList as $kode) {
+                $key = 'golongan_' . str_replace('/', '_', $kode);
+                $pecahL[$key] = $golL[$kode];
+                $pecahP[$key] = $golP[$kode];
+            }
+
             $hasil['kemantren'][$kemantren] = [
                 'total' => $totalKemantren,
-                'laki_laki' => [
-                    'total' => $totalL,
-                    'golongan_I' => $golL['I'],
-                    'golongan_II' => $golL['II'],
-                    'golongan_III' => $golL['III'],
-                    'golongan_IV' => $golL['IV'],
-                ],
-                'perempuan' => [
-                    'total' => $totalP,
-                    'golongan_I' => $golP['I'],
-                    'golongan_II' => $golP['II'],
-                    'golongan_III' => $golP['III'],
-                    'golongan_IV' => $golP['IV'],
-                ],
+                'laki_laki' => $pecahL,
+                'perempuan' => $pecahP,
             ];
 
             $hasil['jumlah_pns_kemantren'] += $totalKemantren;
@@ -2795,13 +2819,15 @@ class StatistikService
      * 5.03.018
      * Jumlah PPPK Kemantren berdasarkan Golongan dan Jenis Kelamin.
      *
-     * Struktur nested: kemantren -> gender -> rentang golongan.
-     * Golongan PPPK memakai kode romawi POLOS tanpa huruf (I, II, ... XVII),
-     * BEDA dengan golongan PNS yang formatnya 'III/a' — lihat
-     * statistikPppkGolongan() yang sudah membuktikan pola ini.
+     * Struktur nested: kemantren -> gender -> golongan.
+     * Golongan PPPK memakai kode romawi POLOS tanpa huruf (I, III, V, VII,
+     * IX, X, XI — lihat GolonganRuangSeeder), BEDA dengan golongan PNS yang
+     * formatnya 'III/a' — lihat statistikPppkGolongan() yang sudah
+     * membuktikan pola ini.
      *
-     * Golongan dikelompokkan menjadi 4 rentang sesuai kebutuhan laporan:
-     * I-IV, V-VIII, IX-XII, XIII-XVII (bukan per-golongan tunggal seperti PNS).
+     * Golongan dihitung PER KODE (TIDAK lagi digabung jadi rentang I-IV,
+     * V-VIII, dst), mengikuti blok PPPK pada tabel Rekapitulasi ASN di
+     * halaman Admin (RekapService::rekapGolongan()) yang juga per kode.
      *
      * Hanya PPPK aktif yang dihitung, golongan diambil dari
      * golongan_ruang.kelompok = 'PPPK' — konsisten dengan
@@ -2833,28 +2859,9 @@ class StatistikService
             'KOTAGEDE',
         ];
 
-        // Mapping kode romawi PPPK (I-XVII) ke rentang bucket laporan.
-        $rentangMap = [
-            'I' => 'I-IV',
-            'II' => 'I-IV',
-            'III' => 'I-IV',
-            'IV' => 'I-IV',
-            'V' => 'V-VIII',
-            'VI' => 'V-VIII',
-            'VII' => 'V-VIII',
-            'VIII' => 'V-VIII',
-            'IX' => 'IX-XII',
-            'X' => 'IX-XII',
-            'XI' => 'IX-XII',
-            'XII' => 'IX-XII',
-            'XIII' => 'XIII-XVII',
-            'XIV' => 'XIII-XVII',
-            'XV' => 'XIII-XVII',
-            'XVI' => 'XIII-XVII',
-            'XVII' => 'XIII-XVII',
-        ];
-
-        $rentangList = ['I-IV', 'V-VIII', 'IX-XII', 'XIII-XVII'];
+        // Daftar kode golongan PPPK, urut sesuai GolonganRuangSeeder dan
+        // sama dengan PPPK_LIST di RekapGolonganTable (halaman Admin).
+        $golonganList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
         $rows = Pegawai::query()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
@@ -2871,13 +2878,13 @@ class StatistikService
             ->groupBy('instansi.nama', 'golongan_ruang.kode', 'pegawai.jenis_kelamin')
             ->get();
 
-        // Siapkan struktur kosong: kemantren -> gender -> rentang golongan,
+        // Siapkan struktur kosong: kemantren -> gender -> golongan,
         // supaya kombinasi yang datanya 0 tetap muncul di response.
         $agregat = [];
         foreach ($kemantrenList as $kemantren) {
             $agregat[$kemantren] = [
-                'laki_laki' => array_fill_keys($rentangList, 0),
-                'perempuan' => array_fill_keys($rentangList, 0),
+                'laki_laki' => array_fill_keys($golonganList, 0),
+                'perempuan' => array_fill_keys($golonganList, 0),
             ];
         }
 
@@ -2896,14 +2903,13 @@ class StatistikService
             $jumlah = (int) $row->jumlah;
 
             $kode = strtoupper(trim((string) $row->golongan_kode));
-            $rentang = $rentangMap[$kode] ?? null;
 
-            if ($rentang === null) {
+            if (!isset($agregat[$namaKemantren][$gender][$kode])) {
                 $tidakDikenali += $jumlah;
                 continue;
             }
 
-            $agregat[$namaKemantren][$gender][$rentang] += $jumlah;
+            $agregat[$namaKemantren][$gender][$kode] += $jumlah;
         }
 
         $hasil = ['jumlah_pppk_kemantren' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
@@ -2916,22 +2922,20 @@ class StatistikService
             $totalP = array_sum($golP);
             $totalKemantren = $totalL + $totalP;
 
+            // Key JSON: 'VII' -> 'golongan_VII'.
+            $pecahL = ['total' => $totalL];
+            $pecahP = ['total' => $totalP];
+
+            foreach ($golonganList as $kode) {
+                $key = 'golongan_' . $kode;
+                $pecahL[$key] = $golL[$kode];
+                $pecahP[$key] = $golP[$kode];
+            }
+
             $hasil['kemantren'][$kemantren] = [
                 'total' => $totalKemantren,
-                'laki_laki' => [
-                    'total' => $totalL,
-                    'golongan_I_IV' => $golL['I-IV'],
-                    'golongan_V_VIII' => $golL['V-VIII'],
-                    'golongan_IX_XII' => $golL['IX-XII'],
-                    'golongan_XIII_XVII' => $golL['XIII-XVII'],
-                ],
-                'perempuan' => [
-                    'total' => $totalP,
-                    'golongan_I_IV' => $golP['I-IV'],
-                    'golongan_V_VIII' => $golP['V-VIII'],
-                    'golongan_IX_XII' => $golP['IX-XII'],
-                    'golongan_XIII_XVII' => $golP['XIII-XVII'],
-                ],
+                'laki_laki' => $pecahL,
+                'perempuan' => $pecahP,
             ];
 
             $hasil['jumlah_pppk_kemantren'] += $totalKemantren;

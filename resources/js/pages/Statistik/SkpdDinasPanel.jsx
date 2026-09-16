@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ErrorBox } from "./components/StatUi";
+import ExportExcelButton from "./components/ExportExcelButton";
 
 // Pegawai Berdasarkan Tingkat Pendidikan dan SKPD (18 Dinas).
 // Beda dari panel Pendidikan lainnya (ASN/PNS/PPPK): scope-nya cuma
@@ -170,9 +171,22 @@ function SkpdDinasPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                Pegawai Berdasarkan Tingkat Pendidikan dan SKPD (18 Dinas)
-            </h2>
+            {/* Panel ini terdiri dari beberapa tabel sekaligus, jadi
+                tombol Export-nya cuma satu di header — satu file berisi
+                semua tabel di bawah. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <h2 className="text-[#172033] font-semibold text-lg">
+                    Pegawai Berdasarkan Tingkat Pendidikan dan SKPD (18 Dinas)
+                </h2>
+
+                <ExportExcelButton
+                    path="/statistik/staf-dinas/export"
+                    filename="pegawai-pendidikan-skpd.xlsx"
+                    errorMessage="Gagal mengekspor data pegawai berdasarkan tingkat pendidikan dan SKPD."
+                    disabled={loading || !data}
+                    onError={setError}
+                />
+            </div>
 
             {error && <ErrorBox message={error} />}
 

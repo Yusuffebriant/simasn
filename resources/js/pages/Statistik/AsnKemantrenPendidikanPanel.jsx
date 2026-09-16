@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ErrorBox } from "./components/StatUi";
+import ExportExcelButton from "./components/ExportExcelButton";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
 // ASN Kemantren Berdasarkan Tingkat Pendidikan (5.03.014).
@@ -90,13 +91,23 @@ function AsnKemantrenPendidikanPanel() {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow">
-            <div className="mb-5">
-                <h3 className="text-lg font-bold text-[#172033]">
-                    ASN Kemantren Berdasarkan Tingkat Pendidikan
-                </h3>
-                <p className="text-sm text-gray-500">
-                    Data ASN aktif (PNS + PPPK) di 14 Kemantren Kota Yogyakarta, dipecah menurut tingkat pendidikan.
-                </p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                    <h3 className="text-lg font-bold text-[#172033]">
+                        ASN Kemantren Berdasarkan Tingkat Pendidikan
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        Data ASN aktif (PNS + PPPK) di 14 Kemantren Kota Yogyakarta, dipecah menurut tingkat pendidikan.
+                    </p>
+                </div>
+
+                <ExportExcelButton
+                    path="/statistik/asn-kemantren-pendidikan/export"
+                    filename="asn-kemantren-pendidikan.xlsx"
+                    errorMessage="Gagal mengekspor data ASN Kemantren berdasarkan tingkat pendidikan."
+                    disabled={loading || !data}
+                    onError={setError}
+                />
             </div>
 
             {error && <ErrorBox message={error} />}

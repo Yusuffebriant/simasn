@@ -1,73 +1,34 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import KemantrenRekapTable from "./components/KemantrenRekapTable";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
 // PPPK Kemantren Berdasarkan Tingkat Pendidikan (5.03.016).
 // Scope: PPPK aktif (status_kepegawaian = 'PPPK') yang ber-UNIT salah satu
 // dari 14 Kemantren Kota Yogyakarta — lihat statistikPppkKemantrenPendidikan()
 // di StatistikService & endpoint GET /statistik/pppk-kemantren-pendidikan.
-//
-// Beda dengan AsnKemantrenPendidikanPanel.jsx (5.03.014): datanya nested 3
-// level (pendidikan -> gender -> kemantren). Rincian per Kemantren memakai
-// 1 MiniStatCard gabungan (total laki-laki + perempuan, dengan chip ♂/♀) —
-// bukan 2 kartu StatCard terpisah per gender — supaya konsisten dan lebih
-// ringkas seperti PnsKemantrenPendidikanPanel.jsx. Grafik batang recharts
-// tetap teal (#0F6E6E) untuk laki-laki + emas (#D4A017) untuk perempuan.
+// Ditampilkan sebagai tabel rekap (baris Kemantren x kolom tingkat
+// pendidikan SD-S3, masing-masing L/P), mengikuti bentuk tabel di halaman
+// Rekapitulasi ASN Admin (lihat RekapKategoriTable) — sama seperti
+// PnsKemantrenPendidikanPanel.jsx — menggantikan tampilan card & grafik
+// sebelumnya.
 const KEMANTREN_LIST = [
     "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
     "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
     "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
 ];
 
-const WARNA_LAKI = "#0F6E6E";
-const WARNA_PEREMPUAN = "#D4A017";
-
-// Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label kartu & grafik
-// Kemantren — sama seperti helper di AsnKemantrenPendidikanPanel.jsx.
+// Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris tabel.
 function toTitleCase(text) {
     return text
         .toLowerCase()
         .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
-// Card putih pembungkus satu jenjang pendidikan: judul + TotalCard total
-// jenjang (laki-laki + perempuan) + grid MiniStatCard rincian per Kemantren
-// (1 card per Kemantren, gender laki-laki/perempuan digabung sebagai chip
-// ♂/♀ di dalamnya). Pola sama persis dengan KemantrenPendidikanSection di
-// PnsKemantrenPendidikanPanel.jsx supaya kedua panel konsisten.
-function PendidikanSection({ title, total, children }) {
-    return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">{title}</h3>
-            <div className="mb-4">
-                <TotalCard title={title} total={total} />
-            </div>
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-            >
-                {children}
-            </div>
-        </div>
-    );
-}
+const PENDIDIKAN_CATEGORIES = PENDIDIKAN_LIST.map((p) => ({
+    key: p.key,
+    label: p.chartLabel,
+}));
 
 function PppkKemantrenPendidikanPanel() {
     const [data, setData] = useState(null);
@@ -114,14 +75,39 @@ function PppkKemantrenPendidikanPanel() {
         };
     }, []);
 
-    // Grafik ringkasan: total PPPK Kemantren per jenjang pendidikan, dipecah
-    // laki-laki vs perempuan (seluruh 14 Kemantren dijumlahkan).
-    const ringkasanChartData = data
-        ? PENDIDIKAN_LIST.map((p) => ({
-              label: p.chartLabel,
-              laki_laki: data.pendidikan[p.key].laki_laki.total,
-              perempuan: data.pendidikan[p.key].perempuan.total,
-          }))
+    // Susun baris tabel: satu baris per Kemantren. Data mentah dari
+    // service dipecah per jenjang -> gender -> Kemantren
+    // (data.pendidikan[key].laki_laki.kemantren[nama]), jadi di sini
+    // dibalik ("pivot") menjadi per Kemantren -> jenjang -> gender supaya
+    // cocok dengan bentuk KemantrenRekapTable (baris Kemantren, kolom
+    // jenjang pendidikan) — sama seperti PnsKemantrenPendidikanPanel.jsx.
+    const rows = data
+        ? KEMANTREN_LIST.map((nama) => {
+              const laki_laki = {};
+              const perempuan = {};
+              let jumlah_laki_laki = 0;
+              let jumlah_perempuan = 0;
+
+              PENDIDIKAN_LIST.forEach((p) => {
+                  const jenjang = data.pendidikan[p.key];
+                  const l = jenjang?.laki_laki?.kemantren?.[nama] || 0;
+                  const pr = jenjang?.perempuan?.kemantren?.[nama] || 0;
+
+                  laki_laki[p.key] = l;
+                  perempuan[p.key] = pr;
+                  jumlah_laki_laki += l;
+                  jumlah_perempuan += pr;
+              });
+
+              return {
+                  label: toTitleCase(nama),
+                  laki_laki,
+                  perempuan,
+                  jumlah_laki_laki,
+                  jumlah_perempuan,
+                  jumlah_total: jumlah_laki_laki + jumlah_perempuan,
+              };
+          })
         : [];
 
     return (
@@ -130,133 +116,18 @@ function PppkKemantrenPendidikanPanel() {
                 PPPK Kemantren Berdasarkan Tingkat Pendidikan
             </h2>
 
-            {error && <ErrorBox message={error} />}
-
-            {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
-                </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Jumlah PPPK Kemantren berdasarkan Tingkat Pendidikan" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PPPK Kemantren"
-                            total={data.jumlah_pppk_kemantren}
-                        />
-                    </div>
-
-                    <ChartCard title="Jumlah PPPK Kemantren berdasarkan Tingkat Pendidikan">
-                        <BarChart data={ringkasanChartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                            <XAxis
-                                dataKey="label"
-                                interval={0}
-                                tick={{ fontSize: 11, fill: "#687386" }}
-                                axisLine={{ stroke: "#E1E5EA" }}
-                                tickLine={false}
-                            />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                            <Legend />
-                            <Bar dataKey="laki_laki" name="Laki-laki" fill={WARNA_LAKI} radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="perempuan" name="Perempuan" fill={WARNA_PEREMPUAN} radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ChartCard>
-
-                    {/* Ringkasan tiap jenjang dalam satu baris kartu: total
-                        jenjang + chip rincian gender, sama seperti grid
-                        MiniStatCard di PppkPendidikanPanel.jsx. */}
-                    <div
-                        className="grid gap-4 mt-6"
-                        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-                    >
-                        {PENDIDIKAN_LIST.map((p) => (
-                            <MiniStatCard
-                                key={p.key}
-                                title={`Jumlah PPPK Kemantren Tingkat Pendidikan ${p.label}`}
-                                total={data.pendidikan[p.key].total}
-                                laki_laki={data.pendidikan[p.key].laki_laki.total}
-                                perempuan={data.pendidikan[p.key].perempuan.total}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="mt-6">
-                        {PENDIDIKAN_LIST.map((p) => {
-                            const jenjang = data.pendidikan[p.key];
-                            const perKemantrenL = jenjang.laki_laki.kemantren;
-                            const perKemantrenP = jenjang.perempuan.kemantren;
-
-                            const chartData = KEMANTREN_LIST.map((nama) => ({
-                                label: toTitleCase(nama),
-                                laki_laki: perKemantrenL[nama] || 0,
-                                perempuan: perKemantrenP[nama] || 0,
-                            }));
-
-                            return (
-                                <div key={p.key} className="mb-6">
-                                    <PendidikanSection
-                                        title={`Jumlah PPPK Kemantren berdasarkan Tingkat Pendidikan ${p.label} per Kemantren`}
-                                        total={jenjang.total}
-                                    >
-                                        {KEMANTREN_LIST.map((nama) => (
-                                            <MiniStatCard
-                                                key={nama}
-                                                title={`Kemantren ${toTitleCase(nama)}`}
-                                                total={
-                                                    (perKemantrenL[nama] || 0) +
-                                                    (perKemantrenP[nama] || 0)
-                                                }
-                                                laki_laki={perKemantrenL[nama] || 0}
-                                                perempuan={perKemantrenP[nama] || 0}
-                                            />
-                                        ))}
-                                    </PendidikanSection>
-
-                                    <ChartCard
-                                        title={`PPPK Tingkat Pendidikan ${p.label} per Kemantren berdasarkan Jenis Kelamin`}
-                                    >
-                                        <BarChart data={chartData} margin={{ bottom: 30 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                            <XAxis
-                                                dataKey="label"
-                                                interval={0}
-                                                angle={-35}
-                                                textAnchor="end"
-                                                height={70}
-                                                tick={{ fontSize: 11, fill: "#687386" }}
-                                                axisLine={{ stroke: "#E1E5EA" }}
-                                                tickLine={false}
-                                            />
-                                            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                            <Legend />
-                                            <Bar
-                                                dataKey="laki_laki"
-                                                name={`Laki-laki ${p.chartLabel}`}
-                                                fill={WARNA_LAKI}
-                                                radius={[4, 4, 0, 0]}
-                                            />
-                                            <Bar
-                                                dataKey="perempuan"
-                                                name={`Perempuan ${p.chartLabel}`}
-                                                fill={WARNA_PEREMPUAN}
-                                                radius={[4, 4, 0, 0]}
-                                            />
-                                        </BarChart>
-                                    </ChartCard>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </>
-            )}
+            <KemantrenRekapTable
+                title="Rekapitulasi PPPK Kemantren Berdasarkan Tingkat Pendidikan"
+                subtitle={
+                    data
+                        ? `Jumlah PPPK Kemantren: ${data.jumlah_pppk_kemantren?.toLocaleString("id-ID")}`
+                        : "Data PPPK Kemantren per tingkat pendidikan, dipecah menurut jenis kelamin."
+                }
+                categories={PENDIDIKAN_CATEGORIES}
+                rows={rows}
+                loading={loading}
+                error={error}
+            />
         </div>
     );
 }

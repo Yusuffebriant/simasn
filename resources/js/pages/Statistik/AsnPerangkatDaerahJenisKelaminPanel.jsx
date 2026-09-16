@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ErrorBox } from "./components/StatUi";
+import ExportExcelButton from "./components/ExportExcelButton";
 
 // Urutan & pengelompokan key harus persis sama dengan key
 // `perangkat_daerah` yang dikembalikan
@@ -270,9 +271,22 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                ASN Perangkat Daerah Berdasarkan Jenis Kelamin
-            </h2>
+            {/* Panel ini terdiri dari beberapa tabel sekaligus, jadi
+                tombol Export-nya cuma satu di header — satu file berisi
+                semua tabel di bawah. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <h2 className="text-[#172033] font-semibold text-lg">
+                    ASN Perangkat Daerah Berdasarkan Jenis Kelamin
+                </h2>
+
+                <ExportExcelButton
+                    path="/statistik/asn-perangkat-daerah-jenis-kelamin/export"
+                    filename="asn-perangkat-daerah-jenis-kelamin.xlsx"
+                    errorMessage="Gagal mengekspor data ASN Perangkat Daerah berdasarkan jenis kelamin."
+                    disabled={loading || !data}
+                    onError={setError}
+                />
+            </div>
 
             {error && <ErrorBox message={error} />}
 

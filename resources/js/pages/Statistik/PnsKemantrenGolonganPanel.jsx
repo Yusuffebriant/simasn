@@ -1,112 +1,52 @@
 import { useEffect, useState } from "react";
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
 import { apiFetch } from "../../lib/api";
-import {
-    ChartCard,
-    ChartCardLoading,
-    ErrorBox,
-    MiniStatCard,
-    SkeletonCard,
-    TotalCard,
-} from "./components/StatUi";
+import KemantrenRekapTable from "./components/KemantrenRekapTable";
 
 // PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin (5.03.017).
 // Scope: PNS aktif yang ber-UNIT salah satu dari 14 Kemantren Kota
 // Yogyakarta — lihat statistikPnsKemantrenGolongan() di StatistikService
-// & endpoint GET /statistik/pns-kemantren-golongan. Data dipecah per
-// Kemantren -> gender -> golongan I-IV, jadi rincian pakai MiniStatCard
-// (total + chip Laki-laki/Perempuan) — pola sama seperti GolonganSection
-// di GolonganPanel.jsx, diulang per Kemantren seperti
-// AsnKemantrenPendidikanPanel.jsx.
+// & endpoint GET /statistik/pns-kemantren-golongan. Ditampilkan sebagai
+// tabel rekap (baris Kemantren x kolom golongan ruang I/a s.d. IV/e,
+// masing-masing L/P), mengikuti bentuk tabel di halaman Rekapitulasi
+// ASN Admin (lihat RekapKategoriTable/RekapGolonganTable) —
+// menggantikan tampilan card & grafik sebelumnya. Golongan TIDAK
+// digabung jadi romawi I-IV; karena kolomnya jadi banyak, tabel
+// digeser horizontal (lihat KemantrenRekapTable).
 const KEMANTREN_LIST = [
     "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
     "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
     "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
 ];
 
+// Kolom golongan ruang PNS, urut & selengkap GolonganRuangSeeder.
+// Key harus sama persis dengan key di $d['laki_laki']/$d['perempuan']
+// yang dikembalikan statistikPnsKemantrenGolongan() ('III/a' ->
+// 'golongan_III_a').
 const GOLONGAN_LIST = [
-    { key: "golongan_I", romawi: "I" },
-    { key: "golongan_II", romawi: "II" },
-    { key: "golongan_III", romawi: "III" },
-    { key: "golongan_IV", romawi: "IV" },
+    { key: "golongan_I_a", label: "I/a" },
+    { key: "golongan_I_b", label: "I/b" },
+    { key: "golongan_I_c", label: "I/c" },
+    { key: "golongan_I_d", label: "I/d" },
+    { key: "golongan_II_a", label: "II/a" },
+    { key: "golongan_II_b", label: "II/b" },
+    { key: "golongan_II_c", label: "II/c" },
+    { key: "golongan_II_d", label: "II/d" },
+    { key: "golongan_III_a", label: "III/a" },
+    { key: "golongan_III_b", label: "III/b" },
+    { key: "golongan_III_c", label: "III/c" },
+    { key: "golongan_III_d", label: "III/d" },
+    { key: "golongan_IV_a", label: "IV/a" },
+    { key: "golongan_IV_b", label: "IV/b" },
+    { key: "golongan_IV_c", label: "IV/c" },
+    { key: "golongan_IV_d", label: "IV/d" },
+    { key: "golongan_IV_e", label: "IV/e" },
 ];
 
-// Judul rapi ("TEGALREJO" -> "Tegalrejo") — sama seperti helper di
-// AsnKemantrenPendidikanPanel.jsx / AsnPerangkatDaerahJenisKelaminPanel.jsx.
+// Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris tabel.
 function toTitleCase(text) {
     return text
         .toLowerCase()
         .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-}
-
-// Satu blok Kemantren: card putih pembungkus dengan judul "Kemantren ...",
-// diawali MiniStatCard ringkasan (variant="dark", disamakan dengan
-// TotalCard), diikuti grafik perbandingan golongan berdasarkan gender,
-// lalu grid rincian per golongan I-IV (MiniStatCard, total + gender).
-function KemantrenGolonganSection({ nama, data }) {
-    const chartData = GOLONGAN_LIST.map((g) => ({
-        label: `Golongan ${g.romawi}`,
-        laki_laki: data.laki_laki[g.key] || 0,
-        perempuan: data.perempuan[g.key] || 0,
-    }));
-
-    return (
-        <div className="bg-white border border-[#E1E5EA] rounded-xl p-5 mb-5">
-            <h3 className="text-[#172033] font-semibold mb-4">
-                Kemantren {toTitleCase(nama)}
-            </h3>
-
-            <div className="mb-4">
-                <MiniStatCard
-                    title={`Jumlah PNS Kemantren ${toTitleCase(nama)}`}
-                    total={data.total}
-                    laki_laki={data.laki_laki.total}
-                    perempuan={data.perempuan.total}
-                    variant="dark"
-                />
-            </div>
-
-            <div className="mb-4">
-                <ChartCard
-                    title={`Perbandingan Golongan berdasarkan Gender - Kemantren ${toTitleCase(nama)}`}
-                    height={260}
-                >
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                        <Legend />
-                        <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ChartCard>
-            </div>
-
-            <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-            >
-                {GOLONGAN_LIST.map((g) => (
-                    <MiniStatCard
-                        key={g.key}
-                        title={`Golongan ${g.romawi}`}
-                        total={(data.laki_laki[g.key] || 0) + (data.perempuan[g.key] || 0)}
-                        laki_laki={data.laki_laki[g.key] || 0}
-                        perempuan={data.perempuan[g.key] || 0}
-                    />
-                ))}
-            </div>
-        </div>
-    );
 }
 
 function PnsKemantrenGolonganPanel() {
@@ -133,12 +73,8 @@ function PnsKemantrenGolonganPanel() {
                 const json = await res.json();
                 // StatistikPnsKemantrenGolonganController mengembalikan hasil
                 // service apa adanya (tanpa pembungkus { success, data }) —
-                // beda dengan controller ASN Kemantren. Dibaca toleran (sama
-                // seperti PnsKemantrenPendidikanPanel.jsx &
-                // PppkKemantrenPendidikanPanel.jsx) supaya panel tetap jalan
-                // kalau nanti controller-nya diseragamkan. Sebelumnya di sini
-                // langsung pakai json.data saja — makanya card & grafik tidak
-                // pernah muncul (json.data selalu undefined).
+                // dibaca toleran supaya tetap jalan kalau nanti controller-nya
+                // diseragamkan.
                 if (!cancelled) setData(json.data ?? json);
             } catch (err) {
                 if (!cancelled) {
@@ -158,14 +94,26 @@ function PnsKemantrenGolonganPanel() {
         };
     }, []);
 
-    // Grafik ringkasan: total PNS per Kemantren, dipecah gender — pola
-    // sama seperti grafik ringkasan Kemantren di AsnKemantrenPendidikanPanel.jsx.
-    const ringkasanChartData = data
-        ? KEMANTREN_LIST.map((nama) => ({
-              label: toTitleCase(nama),
-              laki_laki: data.kemantren[nama]?.laki_laki?.total || 0,
-              perempuan: data.kemantren[nama]?.perempuan?.total || 0,
-          }))
+    // Susun baris tabel: satu baris per Kemantren, kolom sesuai
+    // GOLONGAN_LIST (masing-masing pecahan laki-laki/perempuan) + kolom
+    // Jumlah L/P/Total — pola sama seperti row RekapKategoriTable.
+    const rows = data
+        ? KEMANTREN_LIST.map((nama) => {
+              const kemantren = data.kemantren[nama] || {
+                  total: 0,
+                  laki_laki: {},
+                  perempuan: {},
+              };
+
+              return {
+                  label: toTitleCase(nama),
+                  laki_laki: kemantren.laki_laki,
+                  perempuan: kemantren.perempuan,
+                  jumlah_laki_laki: kemantren.laki_laki?.total || 0,
+                  jumlah_perempuan: kemantren.perempuan?.total || 0,
+                  jumlah_total: kemantren.total || 0,
+              };
+          })
         : [];
 
     return (
@@ -174,61 +122,18 @@ function PnsKemantrenGolonganPanel() {
                 PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin
             </h2>
 
-            {error && <ErrorBox message={error} />}
-
-            {loading && !data && (
-                <div className="mb-6">
-                    <SkeletonCard />
-                </div>
-            )}
-
-            {loading && !data && (
-                <ChartCardLoading title="Jumlah PNS Kemantren per Kemantren berdasarkan Gender" />
-            )}
-
-            {data && (
-                <>
-                    <div className="mb-5">
-                        <TotalCard
-                            title="Jumlah PNS Kemantren"
-                            total={data.jumlah_pns_kemantren}
-                        />
-                    </div>
-
-                    <div className="mb-6">
-                        <ChartCard title="Jumlah PNS Kemantren per Kemantren berdasarkan Gender">
-                            <BarChart data={ringkasanChartData} margin={{ bottom: 30 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                <XAxis
-                                    dataKey="label"
-                                    interval={0}
-                                    angle={-35}
-                                    textAnchor="end"
-                                    height={70}
-                                    tick={{ fontSize: 11, fill: "#687386" }}
-                                    axisLine={{ stroke: "#E1E5EA" }}
-                                    tickLine={false}
-                                />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E1E5EA" }} />
-                                <Legend />
-                                <Bar dataKey="laki_laki" name="Laki-laki" fill="#0F6E6E" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="perempuan" name="Perempuan" fill="#D4A017" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ChartCard>
-                    </div>
-
-                    <div className="mt-6">
-                        {KEMANTREN_LIST.map((nama) => (
-                            <KemantrenGolonganSection
-                                key={nama}
-                                nama={nama}
-                                data={data.kemantren[nama]}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
+            <KemantrenRekapTable
+                title="Rekapitulasi PNS Kemantren Berdasarkan Golongan"
+                subtitle={
+                    data
+                        ? `Jumlah PNS Kemantren: ${data.jumlah_pns_kemantren?.toLocaleString("id-ID")}`
+                        : "Data PNS Kemantren per golongan ruang, dipecah menurut jenis kelamin."
+                }
+                categories={GOLONGAN_LIST}
+                rows={rows}
+                loading={loading}
+                error={error}
+            />
         </div>
     );
 }
