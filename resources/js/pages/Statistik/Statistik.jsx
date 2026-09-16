@@ -18,9 +18,15 @@ import PnsKemantrenGolonganPanel from "./PnsKemantrenGolonganPanel";
 import PppkKemantrenGolonganPanel from "./PppkKemantrenGolonganPanel";
 import PnsKelurahanPanel from "./PnsKelurahanPanel";
 import PppkKelurahanPanel from "./PppkKelurahanPanel";
+import StatistikExportAllPanel from "./StatistikExportAllPanel";
 
-// Menu navigasi lokal di halaman Statistik.
+// Menu navigasi lokal di halaman Statistik. "export-all" sengaja
+// ditaruh paling atas dan dipisah (lihat render nav di bawah) karena
+// dia bukan tabel data seperti menu lain, tapi aksi lintas-tabel — sama
+// seperti "Export Laporan" yang jadi tab terpisah di halaman Admin
+// (Admin.jsx), bukan menyatu dengan daftar rekap per kategori.
 const STATISTIK_MENU = [
+    { key: "export-all", label: "Export Semua Statistik", component: StatistikExportAllPanel, ready: true },
     { key: "struktural", label: "Pejabat Struktural", component: StrukturalPanel, ready: true },
     { key: "fungsional", label: "Pejabat Fungsional", component: FungsionalPanel, ready: true },
     { key: "pensiun", label: "Pensiunan PNS", component: PensiunanPanel, ready: true },
@@ -43,7 +49,11 @@ const STATISTIK_MENU = [
 
 
 function Statistik() {
-    const [activeKey, setActiveKey] = useState(STATISTIK_MENU[0].key);
+    // Default tetap "struktural" (bukan STATISTIK_MENU[0]) supaya
+    // halaman ini masih mendarat di Pejabat Struktural seperti
+    // sebelumnya — "export-all" cuma ditaruh paling atas di nav, bukan
+    // dimaksudkan jadi tampilan awal saat halaman Statistik dibuka.
+    const [activeKey, setActiveKey] = useState("struktural");
 
     const activeMenu =
         STATISTIK_MENU.find((m) => m.key === activeKey) || STATISTIK_MENU[0];
@@ -63,28 +73,37 @@ function Statistik() {
                     </h2>
                     <nav>
                         {STATISTIK_MENU.map((menu) => (
-                            <button
-                                key={menu.key}
-                                onClick={() => menu.ready && setActiveKey(menu.key)}
-                                disabled={!menu.ready}
-                                title={menu.ready ? undefined : "Segera hadir"}
-                                className={`w-full text-left px-6 py-3 text-sm font-medium border-l-4 transition-colors ${
-                                    activeKey === menu.key
-                                        ? "border-[#006A4E] bg-[#E7F1FB] text-[#006A4E]"
-                                        : "border-transparent text-[#4B5563]"
-                                } ${
-                                    menu.ready
-                                        ? "hover:bg-[#F5F7FA] cursor-pointer"
-                                        : "text-[#B8BFC9] cursor-not-allowed"
-                                }`}
-                            >
-                                {menu.label}
-                                {!menu.ready && (
-                                    <span className="ml-1.5 text-[10px] uppercase text-[#B8BFC9]">
-                                        (segera)
-                                    </span>
+                            <div key={menu.key}>
+                                <button
+                                    onClick={() => menu.ready && setActiveKey(menu.key)}
+                                    disabled={!menu.ready}
+                                    title={menu.ready ? undefined : "Segera hadir"}
+                                    className={`w-full text-left px-6 py-3 text-sm font-medium border-l-4 transition-colors ${
+                                        activeKey === menu.key
+                                            ? "border-[#006A4E] bg-[#E7F1FB] text-[#006A4E]"
+                                            : "border-transparent text-[#4B5563]"
+                                    } ${
+                                        menu.ready
+                                            ? "hover:bg-[#F5F7FA] cursor-pointer"
+                                            : "text-[#B8BFC9] cursor-not-allowed"
+                                    }`}
+                                >
+                                    {menu.label}
+                                    {!menu.ready && (
+                                        <span className="ml-1.5 text-[10px] uppercase text-[#B8BFC9]">
+                                            (segera)
+                                        </span>
+                                    )}
+                                </button>
+
+                                {/* Garis pemisah sesudah "Export Semua Statistik" —
+                                    dia aksi lintas-tabel, bukan bagian dari daftar
+                                    tabel data di bawahnya, jadi dipisah supaya
+                                    tidak dikira salah satu kategori statistik. */}
+                                {menu.key === "export-all" && (
+                                    <div className="my-2 border-t border-[#E1E5EA]" />
                                 )}
-                            </button>
+                            </div>
                         ))}
                     </nav>
                 </div>
