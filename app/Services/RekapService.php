@@ -1019,5 +1019,5 @@ public function rekapKecamatanKelurahan(?string $periode = null): array
         $first = false;
     }
 }
-    
+}
 }
