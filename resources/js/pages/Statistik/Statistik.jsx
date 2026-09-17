@@ -59,6 +59,12 @@ function Statistik() {
         STATISTIK_MENU.find((m) => m.key === activeKey) || STATISTIK_MENU[0];
     const ActivePanel = activeMenu.component;
 
+    // Dipisah dari daftar: "export-all" dirender sendiri di luar area
+    // scroll (lihat <aside> di bawah) supaya dia freeze di atas dan
+    // tidak ikut turun waktu daftar kategori di-scroll.
+    const exportAllMenu = STATISTIK_MENU.find((m) => m.key === "export-all");
+    const otherMenus = STATISTIK_MENU.filter((m) => m.key !== "export-all");
+
     return (
         <div className="flex min-h-screen bg-[#F5F7FA]">
             <Sidebar />
@@ -66,27 +72,49 @@ function Statistik() {
             {/* Navigasi lokal Statistik — ditaruh mengambang di tengah layar
                 (vertikal) dan sticky, jadi posisinya tetap di tengah walau
                 konten utama di sebelah kanan di-scroll. */}
-            <aside className="w-64 shrink-0 self-start sticky top-0 h-screen flex items-center py-6 px-4">
-                <div className="w-full max-h-[calc(100vh-3rem)] overflow-y-auto bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-5">
-                    <h2 className="px-6 text-xs font-semibold uppercase tracking-wide text-[#8A93A0] mb-3">
+            <aside className="w-64 shrink-0 self-start sticky top-0 h-screen flex items-center py-6 pl-9 pr-4">
+                <div className="w-full max-h-[calc(100vh-3rem)] flex flex-col overflow-hidden bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-5">
+                    <h2 className="shrink-0 px-6 text-xs font-semibold uppercase tracking-wide text-[#8A93A0] mb-3">
                         Statistik
                     </h2>
-                    <nav>
-                        {STATISTIK_MENU.map((menu) => (
-                            <div key={menu.key}>
+
+                    {/* Tombol "Export Semua Statistik" ditaruh di luar <nav>
+                        yang scroll di bawah, jadi dia freeze di atas dan
+                        tidak ikut turun waktu daftar kategori di-scroll.
+                        Ukurannya sedikit dikecilkan (px-5 py-2.5, teks 13px)
+                        supaya tidak makan tempat terlalu banyak di area
+                        yang selalu terlihat ini. */}
+                    <button
+                        onClick={() => setActiveKey(exportAllMenu.key)}
+                        className={`shrink-0 w-full text-left px-5 py-2.5 text-[13px] font-semibold border-l-4 transition-colors text-white border-[#006A4E] ${
+                            activeKey === exportAllMenu.key
+                                ? "bg-[#00593F]"
+                                : "bg-[#006A4E] hover:bg-[#00593F] cursor-pointer"
+                        }`}
+                    >
+                        {exportAllMenu.label}
+                    </button>
+                    <div className="shrink-0 my-2 border-t border-[#E1E5EA]" />
+
+                    <nav className="max-h-[400px] overflow-y-auto">
+                        {otherMenus.map((menu) => {
+                            const isActive = activeKey === menu.key;
+
+                            const itemClass = isActive
+                                ? "border-[#006A4E] bg-[#E7F1FB] text-[#006A4E]"
+                                : `border-transparent text-[#4B5563] ${
+                                      menu.ready
+                                          ? "hover:bg-[#F5F7FA] cursor-pointer"
+                                          : "text-[#B8BFC9] cursor-not-allowed"
+                                  }`;
+
+                            return (
                                 <button
+                                    key={menu.key}
                                     onClick={() => menu.ready && setActiveKey(menu.key)}
                                     disabled={!menu.ready}
                                     title={menu.ready ? undefined : "Segera hadir"}
-                                    className={`w-full text-left px-6 py-3 text-sm font-medium border-l-4 transition-colors ${
-                                        activeKey === menu.key
-                                            ? "border-[#006A4E] bg-[#E7F1FB] text-[#006A4E]"
-                                            : "border-transparent text-[#4B5563]"
-                                    } ${
-                                        menu.ready
-                                            ? "hover:bg-[#F5F7FA] cursor-pointer"
-                                            : "text-[#B8BFC9] cursor-not-allowed"
-                                    }`}
+                                    className={`w-full text-left px-6 py-3 text-sm font-medium border-l-4 transition-colors ${itemClass}`}
                                 >
                                     {menu.label}
                                     {!menu.ready && (
@@ -95,16 +123,8 @@ function Statistik() {
                                         </span>
                                     )}
                                 </button>
-
-                                {/* Garis pemisah sesudah "Export Semua Statistik" —
-                                    dia aksi lintas-tabel, bukan bagian dari daftar
-                                    tabel data di bawahnya, jadi dipisah supaya
-                                    tidak dikira salah satu kategori statistik. */}
-                                {menu.key === "export-all" && (
-                                    <div className="my-2 border-t border-[#E1E5EA]" />
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </nav>
                 </div>
             </aside>
