@@ -31,12 +31,12 @@ function Sidebar() {
 
     const navItems = [
         { href: "/", label: "Dashboard", show: true },
-        { href: "/statistik", label: "Statistik", show: loggedIn },
         {
             href: "/admin",
             label: "Admin",
             show: hasRole("super-admin", "admin-instansi"),
         },
+        { href: "/statistik", label: "Statistik", show: loggedIn },
         {
             href: "/setting",
             label: "Settings",
