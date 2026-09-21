@@ -114,10 +114,17 @@ function PppkKelurahanPanel() {
 
     return (
         <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h2 className="text-[#172033] font-semibold text-lg">
-                    PPPK Kelurahan
-                </h2>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                    <h2 className="text-[#172033] font-semibold text-lg">
+                        PPPK Kelurahan
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                        {data
+                            ? `Data PPPK per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin. Jumlah PPPK Kelurahan: ${data.jumlah_pppk_kelurahan?.toLocaleString("id-ID")}.`
+                            : "Data PPPK per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."}
+                    </p>
+                </div>
 
                 <button
                     onClick={handleExport}
@@ -134,12 +141,6 @@ function PppkKelurahanPanel() {
             </div>
 
             <KelurahanRekapTable
-                title="Rekapitulasi PPPK Kelurahan"
-                subtitle={
-                    data
-                        ? `Jumlah PPPK Kelurahan: ${data.jumlah_pppk_kelurahan?.toLocaleString("id-ID")}`
-                        : "Data PPPK per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."
-                }
                 kemantrenKelurahanMap={KEMANTREN_KELURAHAN_MAP}
                 data={data}
                 jumlahKey="jumlah_pppk_kelurahan"

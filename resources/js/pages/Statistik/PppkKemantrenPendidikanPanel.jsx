@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import KemantrenRekapTable from "./components/KemantrenRekapTable";
+import ExportExcelButton from "./components/ExportExcelButton";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
 // PPPK Kemantren Berdasarkan Tingkat Pendidikan (5.03.016).
@@ -112,21 +113,26 @@ function PppkKemantrenPendidikanPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PPPK Kemantren Berdasarkan Tingkat Pendidikan
-            </h2>
-
             <KemantrenRekapTable
-                title="Rekapitulasi PPPK Kemantren Berdasarkan Tingkat Pendidikan"
+                title="PPPK Kemantren Berdasarkan Tingkat Pendidikan"
                 subtitle={
                     data
-                        ? `Jumlah PPPK Kemantren: ${data.jumlah_pppk_kemantren?.toLocaleString("id-ID")}`
-                        : "Data PPPK Kemantren per tingkat pendidikan, dipecah menurut jenis kelamin."
+                        ? `Data PPPK Kemantren aktif per tingkat pendidikan, dipecah menurut jenis kelamin. Jumlah PPPK Kemantren: ${data.jumlah_pppk_kemantren?.toLocaleString("id-ID")}.`
+                        : "Data PPPK Kemantren aktif per tingkat pendidikan, dipecah menurut jenis kelamin."
                 }
                 categories={PENDIDIKAN_CATEGORIES}
                 rows={rows}
                 loading={loading}
                 error={error}
+                exportButton={
+                    <ExportExcelButton
+                        path="/statistik/pppk-kemantren-pendidikan/export"
+                        filename="pppk-kemantren-pendidikan.xlsx"
+                        errorMessage="Gagal mengekspor data PPPK Kemantren berdasarkan tingkat pendidikan."
+                        disabled={loading || !data}
+                        onError={setError}
+                    />
+                }
             />
         </div>
     );

@@ -114,10 +114,17 @@ function PnsKelurahanPanel() {
 
     return (
         <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h2 className="text-[#172033] font-semibold text-lg">
-                    PNS Kelurahan
-                </h2>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                    <h2 className="text-[#172033] font-semibold text-lg">
+                        PNS Kelurahan
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                        {data
+                            ? `Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin. Jumlah PNS Kelurahan: ${data.jumlah_pns_kelurahan?.toLocaleString("id-ID")}.`
+                            : "Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."}
+                    </p>
+                </div>
 
                 <button
                     onClick={handleExport}
@@ -134,12 +141,6 @@ function PnsKelurahanPanel() {
             </div>
 
             <KelurahanRekapTable
-                title="Rekapitulasi PNS Kelurahan"
-                subtitle={
-                    data
-                        ? `Jumlah PNS Kelurahan: ${data.jumlah_pns_kelurahan?.toLocaleString("id-ID")}`
-                        : "Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."
-                }
                 kemantrenKelurahanMap={KEMANTREN_KELURAHAN_MAP}
                 data={data}
                 jumlahKey="jumlah_pns_kelurahan"

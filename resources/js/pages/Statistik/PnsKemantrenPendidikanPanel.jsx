@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import KemantrenRekapTable from "./components/KemantrenRekapTable";
+import ExportExcelButton from "./components/ExportExcelButton";
 import { PENDIDIKAN_LIST } from "./pendidikanList";
 
 // PNS Kemantren Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (5.03.015).
@@ -108,21 +109,26 @@ function PnsKemantrenPendidikanPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PNS Kemantren Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
-            </h2>
-
             <KemantrenRekapTable
-                title="Rekapitulasi PNS Kemantren Berdasarkan Tingkat Pendidikan"
+                title="PNS Kemantren Berdasarkan Tingkat Pendidikan"
                 subtitle={
                     data
-                        ? `Jumlah PNS Kemantren: ${data.jumlah_pns_kemantren?.toLocaleString("id-ID")}`
-                        : "Data PNS Kemantren per tingkat pendidikan, dipecah menurut jenis kelamin."
+                        ? `Data PNS Kemantren aktif per tingkat pendidikan, dipecah menurut jenis kelamin. Jumlah PNS Kemantren: ${data.jumlah_pns_kemantren?.toLocaleString("id-ID")}.`
+                        : "Data PNS Kemantren aktif per tingkat pendidikan, dipecah menurut jenis kelamin."
                 }
                 categories={PENDIDIKAN_CATEGORIES}
                 rows={rows}
                 loading={loading}
                 error={error}
+                exportButton={
+                    <ExportExcelButton
+                        path="/statistik/pns-kemantren-pendidikan/export"
+                        filename="pns-kemantren-pendidikan.xlsx"
+                        errorMessage="Gagal mengekspor data PNS Kemantren berdasarkan tingkat pendidikan."
+                        disabled={loading || !data}
+                        onError={setError}
+                    />
+                }
             />
         </div>
     );

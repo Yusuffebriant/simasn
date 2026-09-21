@@ -115,9 +115,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pns-kemantren-pendidikan/export', [
+        StatistikPnsKemantrenPendidikanController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pppk-kemantren-pendidikan', [
         StatistikPppkKemantrenPendidikanController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pppk-kemantren-pendidikan/export', [
+        StatistikPppkKemantrenPendidikanController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pns-kemantren-golongan', [
@@ -125,9 +135,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         'index'
     ]);
 
+    Route::get('/statistik/pns-kemantren-golongan/export', [
+        StatistikPnsKemantrenGolonganController::class,
+        'export'
+    ]);
+
     Route::get('/statistik/pppk-kemantren-golongan', [
         StatistikPppkKemantrenGolonganController::class,
         'index'
+    ]);
+
+    Route::get('/statistik/pppk-kemantren-golongan/export', [
+        StatistikPppkKemantrenGolonganController::class,
+        'export'
     ]);
 
     Route::get('/statistik/pns-kelurahan', [
