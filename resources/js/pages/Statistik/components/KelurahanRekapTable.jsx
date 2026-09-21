@@ -86,12 +86,14 @@ function KelurahanRekapTable({
 
     return (
         <div className="bg-white p-6 rounded-xl shadow mb-6">
-            <div className="mb-5">
-                <h3 className="text-lg font-bold text-[#172033]">{title}</h3>
-                {subtitle && (
-                    <p className="text-sm text-gray-500">{subtitle}</p>
-                )}
-            </div>
+            {title && (
+                <div className="mb-5">
+                    <h3 className="text-lg font-bold text-[#172033]">{title}</h3>
+                    {subtitle && (
+                        <p className="text-sm text-gray-500">{subtitle}</p>
+                    )}
+                </div>
+            )}
 
             {error && <ErrorBox message={error} />}
 

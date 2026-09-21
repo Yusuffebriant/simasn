@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import KemantrenRekapTable from "./components/KemantrenRekapTable";
+import ExportExcelButton from "./components/ExportExcelButton";
 
 // PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin (5.03.017).
 // Scope: PNS aktif yang ber-UNIT salah satu dari 14 Kemantren Kota
@@ -118,21 +119,26 @@ function PnsKemantrenGolonganPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin
-            </h2>
-
             <KemantrenRekapTable
-                title="Rekapitulasi PNS Kemantren Berdasarkan Golongan"
+                title="PNS Kemantren Berdasarkan Golongan dan Jenis Kelamin"
                 subtitle={
                     data
-                        ? `Jumlah PNS Kemantren: ${data.jumlah_pns_kemantren?.toLocaleString("id-ID")}`
-                        : "Data PNS Kemantren per golongan ruang, dipecah menurut jenis kelamin."
+                        ? `Data PNS Kemantren aktif per golongan ruang, dipecah menurut jenis kelamin. Jumlah PNS Kemantren: ${data.jumlah_pns_kemantren?.toLocaleString("id-ID")}.`
+                        : "Data PNS Kemantren aktif per golongan ruang, dipecah menurut jenis kelamin."
                 }
                 categories={GOLONGAN_LIST}
                 rows={rows}
                 loading={loading}
                 error={error}
+                exportButton={
+                    <ExportExcelButton
+                        path="/statistik/pns-kemantren-golongan/export"
+                        filename="pns-kemantren-golongan.xlsx"
+                        errorMessage="Gagal mengekspor data PNS Kemantren berdasarkan golongan dan jenis kelamin."
+                        disabled={loading || !data}
+                        onError={setError}
+                    />
+                }
             />
         </div>
     );

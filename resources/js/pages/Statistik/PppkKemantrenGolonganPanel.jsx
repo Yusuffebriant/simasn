@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import KemantrenRekapTable from "./components/KemantrenRekapTable";
+import ExportExcelButton from "./components/ExportExcelButton";
 
 // PPPK Kemantren Berdasarkan Golongan dan Jenis Kelamin (5.03.018).
 // Scope: PPPK aktif yang ber-instansi salah satu dari 14 Kemantren Kota
@@ -113,21 +114,26 @@ function PppkKemantrenGolonganPanel() {
 
     return (
         <div>
-            <h2 className="text-[#172033] font-semibold mb-3 text-lg">
-                PPPK Kemantren Berdasarkan Golongan dan Jenis Kelamin
-            </h2>
-
             <KemantrenRekapTable
-                title="Rekapitulasi PPPK Kemantren Berdasarkan Golongan"
+                title="PPPK Kemantren Berdasarkan Golongan dan Jenis Kelamin"
                 subtitle={
                     data
-                        ? `Jumlah PPPK Kemantren: ${data.jumlah_pppk_kemantren?.toLocaleString("id-ID")}`
-                        : "Data PPPK Kemantren per golongan, dipecah menurut jenis kelamin."
+                        ? `Data PPPK Kemantren aktif per golongan ruang, dipecah menurut jenis kelamin. Jumlah PPPK Kemantren: ${data.jumlah_pppk_kemantren?.toLocaleString("id-ID")}.`
+                        : "Data PPPK Kemantren aktif per golongan ruang, dipecah menurut jenis kelamin."
                 }
                 categories={GOLONGAN_LIST}
                 rows={rows}
                 loading={loading}
                 error={error}
+                exportButton={
+                    <ExportExcelButton
+                        path="/statistik/pppk-kemantren-golongan/export"
+                        filename="pppk-kemantren-golongan.xlsx"
+                        errorMessage="Gagal mengekspor data PPPK Kemantren berdasarkan golongan dan jenis kelamin."
+                        disabled={loading || !data}
+                        onError={setError}
+                    />
+                }
             />
         </div>
     );
