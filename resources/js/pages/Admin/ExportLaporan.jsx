@@ -20,6 +20,9 @@ const REKAP_LIST = [
     "Rekap Golongan",
     "Rekap Jabatan",
     "Rekap Eselon & Golongan",
+    "Rekap Nakes",
+    "Rekap SD & SMP",
+    "Rekap Kecamatan & Kelurahan",
 ];
 
 function ExportLaporan() {
@@ -89,9 +92,10 @@ function ExportLaporan() {
 
                 <p className="text-sm text-gray-500 mb-5">
                     Mengunduh 1 file Excel berisi seluruh rekapitulasi
-                    (agama, pendidikan, golongan ruang, jabatan, dan
-                    eselon) untuk periode yang dipilih — masing-masing
-                    rekap pada sheet-nya sendiri.
+                    (agama, pendidikan, golongan ruang, jabatan, eselon,
+                    nakes, SD, SMP, dan kecamatan/kelurahan) untuk
+                    periode yang dipilih — masing-masing rekap pada
+                    sheet-nya sendiri.
                 </p>
 
                 <div className="flex flex-wrap items-end gap-4">

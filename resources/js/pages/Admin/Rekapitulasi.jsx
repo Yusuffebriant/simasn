@@ -2,6 +2,9 @@ import { useState } from "react";
 import RekapKategoriTable from "../../components/Rekap/RekapKategoriTable";
 import RekapGolonganTable from "../../components/Rekap/RekapGolonganTable";
 import RekapJabatanTable from "../../components/Rekap/RekapJabatanTable";
+import RekapNakesTable from "../../components/Rekap/RekapNakesTable";
+import RekapSdSmpTable from "../../components/Rekap/RekapSdSmpTable";
+import RekapKecamatanTable from "../../components/Rekap/RekapKecamatanTable";
 
 // Daftar sub-rekap. "ready: false" = belum dibuatkan (nyusul satu per satu).
 const REKAP_TABS = [
@@ -10,6 +13,9 @@ const REKAP_TABS = [
     { key: "eselon", label: "Eselon", ready: true },
     { key: "pendidikan", label: "Pendidikan", ready: true },
     { key: "jabatan", label: "Jabatan", ready: true },
+    { key: "nakes", label: "Nakes", ready: true },
+    { key: "sd-smp", label: "SD & SMP", ready: true },
+    { key: "kecamatan", label: "Kecamatan/Kelurahan", ready: true },
 ];
 
 const AGAMA_LIST = ["Islam", "Kristen", "Katholik", "Hindu", "Budha"];
@@ -100,6 +106,12 @@ function Rekapitulasi() {
             )}
 
             {activeTab === "jabatan" && <RekapJabatanTable />}
+
+            {activeTab === "nakes" && <RekapNakesTable />}
+
+            {activeTab === "sd-smp" && <RekapSdSmpTable />}
+
+            {activeTab === "kecamatan" && <RekapKecamatanTable />}
         </div>
     );
 }

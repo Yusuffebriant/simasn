@@ -46,6 +46,30 @@ class RekapAllExport implements Export, WithMultipleSheets
                     return 'Rekap Eselon & Golongan';
                 }
             },
+            new class($this->periode) extends RekapNakesExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap Nakes';
+                }
+            },
+            new class($this->periode) extends RekapSdExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap SD';
+                }
+            },
+            new class($this->periode) extends RekapSmpExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap SMP';
+                }
+            },
+            new class($this->periode) extends RekapKecamatanExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap Kecamatan-Kelurahan';
+                }
+            },
         ];
     }
 }
