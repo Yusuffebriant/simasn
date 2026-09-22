@@ -316,6 +316,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/rekap/jabatan', [RekapController::class, 'jabatanJson']);
         Route::get('/rekap/golongan', [RekapController::class, 'golonganJson']);
         Route::get('/rekap/eselon-golongan-gender', [RekapController::class, 'eselonGolonganGenderJson']);
+        Route::get('/rekap/struktur-golongan', [RekapController::class, 'strukturGolonganJson']);
+        Route::get('/rekap/struktur-eselon', [RekapController::class, 'strukturEselonJson']);
+        Route::get('/rekap/jf-tertentu', [RekapController::class, 'jfTertentuJson']);
+        Route::get('/rekap/jf-pelaksana', [RekapController::class, 'jfPelaksanaJson']);
 
         // ---- REKAP EXPORT EXCEL ----
         Route::get('/rekap/all/export', [RekapController::class, 'exportAll']);
@@ -329,6 +333,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/rekap/golongan/export', [RekapController::class, 'exportGolongan']);
         Route::get('/rekap/jabatan/export', [RekapController::class, 'exportJabatan']);
         Route::get('/rekap/eselon-golongan-gender/export', [RekapController::class, 'exportEselonGolonganGender']);
+        Route::get('/rekap/struktur-golongan/export', [RekapController::class, 'exportStrukturGolongan']);
+        Route::get('/rekap/struktur-eselon/export', [RekapController::class, 'exportStrukturEselon']);
+        Route::get('/rekap/jf-tertentu/export', [RekapController::class, 'exportJfTertentu']);
+        Route::get('/rekap/jf-pelaksana/export', [RekapController::class, 'exportJfPelaksana']);
 
         // ---- SETTINGS (manajemen akun pengguna) ----
         Route::apiResource('users', UserController::class)->except(['show']);

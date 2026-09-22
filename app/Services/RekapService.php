@@ -729,6 +729,339 @@ class RekapService
 
         return array_values($perEselon);
     }
+
+    private const ESELON_LIST = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
+
+    private const STRUK_GOL_LIST = [
+        'III/a', 'III/b', 'III/c', 'III/d',
+        'IV/a', 'IV/b', 'IV/c', 'IV/d',
+    ];
+
+    private const JF_TERTENTU_GOL_LIST = [
+        'II/a', 'II/b', 'II/c', 'II/d',
+        'III/a', 'III/b', 'III/c', 'III/d',
+        'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e',
+    ];
+    private const JF_TERTENTU_PPPK_LIST = ['V', 'VII', 'IX', 'X', 'XI'];
+
+    private const JF_PELAKSANA_GOL_LIST = [
+        'I/a', 'I/b', 'I/c', 'I/d',
+        'II/a', 'II/b', 'II/c', 'II/d',
+        'III/a', 'III/b', 'III/c', 'III/d',
+        'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e',
+    ];
+    private const JF_PELAKSANA_PPPK_LIST = ['I', 'III', 'V', 'VII', 'IX', 'X'];
+
+    /**
+     * Sheet "struk gol": Struktural per Instansi x Golongan (III/a-IV/d) x
+     * Gender. Struktural ditentukan dari eselon.kode (sama seperti
+     * rekapJabatan()), bukan jenis_kedudukan.
+     */
+    public function rekapStrukturGolonganInstansi(?string $periode = null): array
+    {
+        $golonganList = self::STRUK_GOL_LIST;
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
+            ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                'eselon.kode as eselon_kode',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy(
+                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
+                'eselon.kode', 'pegawai.jenis_kelamin'
+            )
+            ->get();
+
+        $perInstansi = [];
+
+        foreach ($rows as $row) {
+            $eselonKode = preg_replace('/\s+/', ' ', strtoupper(trim((string) $row->eselon_kode)));
+            if (!in_array($eselonKode, self::ESELON_LIST, true)) {
+                continue; // hanya struktural
+            }
+
+            $id = $row->instansi_id;
+
+            if (!isset($perInstansi[$id])) {
+                $perInstansi[$id] = [
+                    'instansi' => $row->instansi_nama,
+                    'pria' => array_fill_keys($golonganList, 0),
+                    'wanita' => array_fill_keys($golonganList, 0),
+                ];
+            }
+
+            $kode = trim((string) $row->golongan_kode);
+            if (!in_array($kode, $golonganList, true)) {
+                continue;
+            }
+
+            $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+            $perInstansi[$id][$kelompok][$kode] += (int) $row->jumlah;
+        }
+
+        foreach ($perInstansi as &$data) {
+            $data['jml_pria'] = array_sum($data['pria']);
+            $data['jml_wanita'] = array_sum($data['wanita']);
+            $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
+        }
+
+        return array_values($perInstansi);
+    }
+
+    /**
+     * Sheet "struk es": Struktural per Instansi x Eselon x Gender.
+     */
+    public function rekapStrukturEselonInstansi(?string $periode = null): array
+    {
+        $eselonList = self::ESELON_LIST;
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->join('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'eselon.kode as eselon_kode',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy('instansi.id', 'instansi.nama', 'eselon.kode', 'pegawai.jenis_kelamin')
+            ->get();
+
+        $perInstansi = [];
+
+        foreach ($rows as $row) {
+            $kodeEselon = preg_replace('/\s+/', ' ', strtoupper(trim((string) $row->eselon_kode)));
+            if (!in_array($kodeEselon, $eselonList, true)) {
+                continue;
+            }
+
+            $id = $row->instansi_id;
+
+            if (!isset($perInstansi[$id])) {
+                $perInstansi[$id] = [
+                    'instansi' => $row->instansi_nama,
+                    'pria' => array_fill_keys($eselonList, 0),
+                    'wanita' => array_fill_keys($eselonList, 0),
+                ];
+            }
+
+            $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+            $perInstansi[$id][$kelompok][$kodeEselon] += (int) $row->jumlah;
+        }
+
+        foreach ($perInstansi as &$data) {
+            $data['jml_pria'] = array_sum($data['pria']);
+            $data['jml_wanita'] = array_sum($data['wanita']);
+            $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
+        }
+
+        return array_values($perInstansi);
+    }
+
+    /**
+     * Sheet "jf tertentu": JF Tertentu per Instansi x Golongan (II/a-IV/e,
+     * diselang PPPK V,VII,IX,X,XI) x Gender + agregat PNS (I-IV) & PPPK.
+     * JF Tertentu = jenis_kedudukan FUNGSIONAL dan TIDAK sedang menjabat
+     * eselon (supaya konsisten dgn prioritas eselon di rekapJabatan()).
+     */
+    public function rekapJfTertentu(?string $periode = null): array
+    {
+        $golonganList = self::JF_TERTENTU_GOL_LIST;
+        $pppkList = self::JF_TERTENTU_PPPK_LIST;
+        $kolomList = array_merge($golonganList, $pppkList);
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
+            ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                'golongan_ruang.kelompok as golongan_kelompok',
+                'eselon.kode as eselon_kode',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->whereRaw("UPPER(TRIM(pegawai.jenis_kedudukan)) = 'FUNGSIONAL'")
+            ->groupBy(
+                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
+                'golongan_ruang.kelompok', 'eselon.kode', 'pegawai.jenis_kelamin'
+            )
+            ->get();
+
+        $perInstansi = [];
+
+        foreach ($rows as $row) {
+            $eselonKode = preg_replace('/\s+/', ' ', strtoupper(trim((string) $row->eselon_kode)));
+            if (in_array($eselonKode, self::ESELON_LIST, true)) {
+                continue; // sudah tercatat di struk gol / struk es
+            }
+
+            $id = $row->instansi_id;
+
+            if (!isset($perInstansi[$id])) {
+                $perInstansi[$id] = [
+                    'instansi' => $row->instansi_nama,
+                    'pria' => array_fill_keys($kolomList, 0),
+                    'wanita' => array_fill_keys($kolomList, 0),
+                ];
+            }
+
+            $jumlah = (int) $row->jumlah;
+            $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+            $kode = trim((string) $row->golongan_kode);
+
+            if ($row->golongan_kelompok === 'PPPK') {
+                if (in_array($kode, $pppkList, true)) {
+                    $perInstansi[$id][$kelompok][$kode] += $jumlah;
+                }
+                continue;
+            }
+
+            if (in_array($kode, $golonganList, true)) {
+                $perInstansi[$id][$kelompok][$kode] += $jumlah;
+            }
+        }
+
+        foreach ($perInstansi as &$data) {
+            $data['jml_pria'] = array_sum($data['pria']);
+            $data['jml_wanita'] = array_sum($data['wanita']);
+            $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
+
+            $pnsAgg = ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0];
+            $pppkAgg = array_fill_keys($pppkList, 0);
+
+            foreach ($data['pria'] as $kode => $jml) {
+                $total = $jml + $data['wanita'][$kode];
+                if (in_array($kode, $pppkList, true)) {
+                    $pppkAgg[$kode] = $total;
+                    continue;
+                }
+                $romawi = explode('/', $kode)[0];
+                if (isset($pnsAgg[$romawi])) {
+                    $pnsAgg[$romawi] += $total;
+                }
+            }
+
+            $data['pns_agg'] = $pnsAgg;
+            $data['pns_total'] = array_sum($pnsAgg);
+            $data['pppk'] = $pppkAgg;
+            $data['pppk_total'] = array_sum($pppkAgg);
+        }
+
+        return array_values($perInstansi);
+    }
+
+    /**
+     * Sheet "jf pelaksana": Fungsional Umum/Pelaksana per Instansi x
+     * Golongan (I/a-IV/e, diselang PPPK I,III,V,VII,IX,X) x Gender +
+     * agregat PNS (I-IV) & PPPK.
+     */
+    public function rekapJfPelaksana(?string $periode = null): array
+    {
+        $golonganList = self::JF_PELAKSANA_GOL_LIST;
+        $pppkList = self::JF_PELAKSANA_PPPK_LIST;
+        $kolomList = array_merge($golonganList, $pppkList);
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
+            ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'golongan_ruang.kode as golongan_kode',
+                'golongan_ruang.kelompok as golongan_kelompok',
+                'eselon.kode as eselon_kode',
+                'pegawai.jenis_kedudukan',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy(
+                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
+                'golongan_ruang.kelompok', 'eselon.kode',
+                'pegawai.jenis_kedudukan', 'pegawai.jenis_kelamin'
+            )
+            ->get();
+
+        $perInstansi = [];
+
+        foreach ($rows as $row) {
+            $eselonKode = preg_replace('/\s+/', ' ', strtoupper(trim((string) $row->eselon_kode)));
+            $jenisKedudukan = strtoupper(trim((string) $row->jenis_kedudukan));
+
+            if (in_array($eselonKode, self::ESELON_LIST, true) || $jenisKedudukan === 'FUNGSIONAL') {
+                continue;
+            }
+
+            $id = $row->instansi_id;
+
+            if (!isset($perInstansi[$id])) {
+                $perInstansi[$id] = [
+                    'instansi' => $row->instansi_nama,
+                    'pria' => array_fill_keys($kolomList, 0),
+                    'wanita' => array_fill_keys($kolomList, 0),
+                ];
+            }
+
+            $jumlah = (int) $row->jumlah;
+            $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
+            $kode = trim((string) $row->golongan_kode);
+
+            if ($row->golongan_kelompok === 'PPPK') {
+                if (in_array($kode, $pppkList, true)) {
+                    $perInstansi[$id][$kelompok][$kode] += $jumlah;
+                }
+                continue;
+            }
+
+            if (in_array($kode, $golonganList, true)) {
+                $perInstansi[$id][$kelompok][$kode] += $jumlah;
+            }
+        }
+
+        foreach ($perInstansi as &$data) {
+            $data['jml_pria'] = array_sum($data['pria']);
+            $data['jml_wanita'] = array_sum($data['wanita']);
+            $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
+
+            $pnsAgg = ['I' => 0, 'II' => 0, 'III' => 0, 'IV' => 0];
+            $pppkAgg = array_fill_keys($pppkList, 0);
+
+            foreach ($data['pria'] as $kode => $jml) {
+                $total = $jml + $data['wanita'][$kode];
+                if (in_array($kode, $pppkList, true)) {
+                    $pppkAgg[$kode] = $total;
+                    continue;
+                }
+                $romawi = explode('/', $kode)[0];
+                if (isset($pnsAgg[$romawi])) {
+                    $pnsAgg[$romawi] += $total;
+                }
+            }
+
+            $data['pns_agg'] = $pnsAgg;
+            $data['pns_total'] = array_sum($pnsAgg);
+            $data['pppk'] = $pppkAgg;
+            $data['pppk_total'] = array_sum($pppkAgg);
+        }
+
+        return array_values($perInstansi);
+    }
+
     private const NAKES_LIST = [
         'UPT PUSKESMAS DANUREJAN 1',
         'UPT PUSKESMAS DANUREJAN 2',
@@ -872,6 +1205,8 @@ class RekapService
 
         return $hasil;
     }
+    
+
     /**
      * Rekap Guru Fungsional per SD Negeri.
      *

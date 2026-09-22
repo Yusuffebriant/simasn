@@ -10,6 +10,10 @@ use App\Exports\RekapGolonganExport;
 use App\Exports\RekapJabatanExport;
 use App\Exports\RekapEselonGolonganGenderExport;
 use App\Exports\RekapNakesExport;
+use App\Exports\RekapStrukturGolonganExport;
+use App\Exports\RekapStrukturEselonExport;
+use App\Exports\RekapJfTertentuExport;
+use App\Exports\RekapJfPelaksanaExport;
 
 use App\Services\RekapService;
 use Illuminate\Http\Request;
@@ -254,4 +258,95 @@ class RekapController extends Controller
             "rekap-eselon-golongan-gender-{$periode}.xlsx"
         );
     }
+    public function strukturGolonganJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    $data = Cache::remember(
+        "rekap.struktur-golongan.{$periode}",
+        now()->addMinutes(10),
+        fn () => (new RekapService())->rekapStrukturGolonganInstansi($periode)
+    );
+
+    return response()->json($data);
+}
+
+public function exportStrukturGolongan(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    return Excel::download(
+        new RekapStrukturGolonganExport($periode),
+        "rekap-struktur-golongan-{$periode}.xlsx"
+    );
+}
+
+public function strukturEselonJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    $data = Cache::remember(
+        "rekap.struktur-eselon.{$periode}",
+        now()->addMinutes(10),
+        fn () => (new RekapService())->rekapStrukturEselonInstansi($periode)
+    );
+
+    return response()->json($data);
+}
+
+public function exportStrukturEselon(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    return Excel::download(
+        new RekapStrukturEselonExport($periode),
+        "rekap-struktur-eselon-{$periode}.xlsx"
+    );
+}
+
+public function jfTertentuJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    $data = Cache::remember(
+        "rekap.jf-tertentu.{$periode}",
+        now()->addMinutes(10),
+        fn () => (new RekapService())->rekapJfTertentu($periode)
+    );
+
+    return response()->json($data);
+}
+
+public function exportJfTertentu(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    return Excel::download(
+        new RekapJfTertentuExport($periode),
+        "rekap-jf-tertentu-{$periode}.xlsx"
+    );
+}
+
+public function jfPelaksanaJson(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    $data = Cache::remember(
+        "rekap.jf-pelaksana.{$periode}",
+        now()->addMinutes(10),
+        fn () => (new RekapService())->rekapJfPelaksana($periode)
+    );
+
+    return response()->json($data);
+}
+
+public function exportJfPelaksana(Request $request)
+{
+    $periode = $request->query('periode', now()->format('Y-m'));
+
+    return Excel::download(
+        new RekapJfPelaksanaExport($periode),
+        "rekap-jf-pelaksana-{$periode}.xlsx"
+    );
+}
 }

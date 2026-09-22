@@ -70,6 +70,30 @@ class RekapAllExport implements Export, WithMultipleSheets
                     return 'Rekap Kecamatan-Kelurahan';
                 }
             },
+            new class($this->periode) extends RekapStrukturGolonganExport implements WithTitle {
+    public function title(): string
+    {
+        return 'Struktural per Golongan';
+    }
+},
+new class($this->periode) extends RekapStrukturEselonExport implements WithTitle {
+    public function title(): string
+    {
+        return 'Struktural per Eselon';
+    }
+},
+new class($this->periode) extends RekapJfTertentuExport implements WithTitle {
+    public function title(): string
+    {
+        return 'JF Tertentu';
+    }
+},
+new class($this->periode) extends RekapJfPelaksanaExport implements WithTitle {
+    public function title(): string
+    {
+        return 'JF Pelaksana';
+    }
+},
         ];
     }
 }
