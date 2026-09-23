@@ -147,53 +147,31 @@ function Home() {
                         </div>
 
                         {/* Charts */}
-                        <div className="grid gap-4 items-stretch" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
-                            <div className="flex flex-col gap-4">
-                                <ChartCard
-                                    title="Golongan"
-                                    total={data.golongan.reduce((s, r) => s + r.jumlah, 0)}
-                                >
-                                    <BarChart data={data.golongan} barCategoryGap="28%">
-                                        <defs>
-                                            <linearGradient id="golonganBar" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#17908A" />
-                                                <stop offset="100%" stopColor="#0B4F4B" />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
-                                        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
-                                        <Tooltip
-                                            cursor={{ fill: "#0F6E6E", opacity: 0.06 }}
-                                            formatter={(value) => [value.toLocaleString("id-ID"), "Jumlah Pegawai"]}
-                                            contentStyle={{ borderRadius: 10, border: "1px solid #E1E5EA", boxShadow: "0 4px 12px rgba(23,32,51,0.08)" }}
-                                        />
-                                        <Bar dataKey="jumlah" name="Jumlah Pegawai" fill="url(#golonganBar)" radius={[6, 6, 0, 0]} maxBarSize={56} />
-                                    </BarChart>
-                                </ChartCard>
-
-                                {data.usia && (
-                                    <CategoryStatTable
-                                        title="Usia"
-                                        labelHeader="Usia"
-                                        data={data.usia}
+                        <div className="grid gap-4 items-stretch" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                            <ChartCard
+                                title="Golongan"
+                                total={data.golongan.reduce((s, r) => s + r.jumlah, 0)}
+                            >
+                                <BarChart data={data.golongan} barCategoryGap="28%">
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
+                                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
+                                    <Tooltip
+                                        cursor={{ fill: "#006A4E", opacity: 0.06 }}
+                                        formatter={(value) => [value.toLocaleString("id-ID"), "Jumlah Pegawai"]}
+                                        contentStyle={{ borderRadius: 10, border: "1px solid #E1E5EA", boxShadow: "0 4px 12px rgba(23,32,51,0.08)" }}
                                     />
-                                )}
-                            </div>
+                                    <Bar dataKey="jumlah" name="Jumlah Pegawai" fill="#006A4E" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                                </BarChart>
+                            </ChartCard>
 
                             <PendidikanChartCard data={data.pendidikan} />
-                        </div>
 
-                        {/* Masa Kerja Pangkat, Agama */}
-                        <div
-                            className="grid gap-4 mt-4"
-                            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}
-                        >
-                            {data.masa_kerja_pangkat && (
+                            {data.usia && (
                                 <CategoryStatTable
-                                    title="Masa Kerja Pangkat"
-                                    labelHeader="Masa Kerja"
-                                    data={data.masa_kerja_pangkat}
+                                    title="Usia"
+                                    labelHeader="Usia"
+                                    data={data.usia}
                                 />
                             )}
 
@@ -239,8 +217,8 @@ function GenderChip({ icon, value, size = "default", tone = "default" }) {
         tone === "onDark"
             ? "bg-white/10 text-white"
             : icon === "♂"
-                ? "bg-[#0F6E6E]/10 text-[#0B5A54]"
-                : "bg-[#4FA6A6]/15 text-[#2F7A78]";
+                ? "bg-[#006A4E]/10 text-[#00432F]"
+                : "bg-[#D4A017]/15 text-[#8A6100]";
 
     return (
         <span
@@ -254,7 +232,7 @@ function GenderChip({ icon, value, size = "default", tone = "default" }) {
 
 function TotalCard({ title, total, pria, wanita }) {
     return (
-        <div className="bg-gradient-to-br from-[#1B2740] to-[#131B2C] text-white rounded-xl p-5 shadow-sm">
+        <div className="bg-[#0B3B2C] text-white rounded-xl p-5 shadow-sm">
             <div className="text-[13px] text-white/70 mb-2">{title}</div>
             <div className="text-4xl font-bold mb-4">{total.toLocaleString("id-ID")}</div>
             <div className="flex gap-2">
@@ -268,8 +246,8 @@ function TotalCard({ title, total, pria, wanita }) {
 function MiniStatCard({ title, total, pria, wanita }) {
     const hasGender = typeof pria === "number" && typeof wanita === "number";
     return (
-        <div className="bg-[#E7F1FB] border border-[#D3E5F5] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-[13px] text-[#3A5A78] mb-2">{title}</div>
+        <div className="bg-[#E6F4EE] border border-[#C8E6D9] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[13px] text-[#1F6B4E] mb-2">{title}</div>
             <div className="text-3xl font-bold text-[#172033] mb-3">{total.toLocaleString("id-ID")}</div>
             {hasGender && (
                 <div className="flex gap-2">
@@ -283,8 +261,8 @@ function MiniStatCard({ title, total, pria, wanita }) {
 
 function GenerasiCard({ label, total, pria, wanita }) {
     return (
-        <div className="bg-[#CBE7F0] border border-[#B5DBE8] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-[13px] text-[#215A6B] mb-2 font-medium">{label}</div>
+        <div className="bg-[#FBF0D9] border border-[#F0DDAE] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[13px] text-[#8A6100] mb-2 font-medium">{label}</div>
             <div className="text-3xl font-bold text-[#172033] mb-3">{total.toLocaleString("id-ID")}</div>
             <div className="flex gap-2">
                 <GenderChip icon="♂" value={pria} />
@@ -508,16 +486,6 @@ function PendidikanChartCard({ data }) {
             <div className="flex-1" style={{ width: "100%", minHeight: minChartHeight }}>
                 <ResponsiveContainer>
                     <BarChart data={data} layout="vertical" margin={{ left: 10 }} barCategoryGap="30%">
-                        <defs>
-                            <linearGradient id="priaBar" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#0B4F4B" />
-                                <stop offset="100%" stopColor="#17908A" />
-                            </linearGradient>
-                            <linearGradient id="wanitaBar" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#3D9494" />
-                                <stop offset="100%" stopColor="#6FC1C1" />
-                            </linearGradient>
-                        </defs>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E1E5EA" />
                         <XAxis
                             type="number"
@@ -536,7 +504,7 @@ function PendidikanChartCard({ data }) {
                             tickLine={false}
                         />
                         <Tooltip
-                            cursor={{ fill: "#0F6E6E", opacity: 0.06 }}
+                            cursor={{ fill: "#006A4E", opacity: 0.06 }}
                             formatter={(value, name) => [
                                 value.toLocaleString("id-ID"),
                                 name === "pria" ? "Pria" : "Wanita",
@@ -558,14 +526,14 @@ function PendidikanChartCard({ data }) {
                             dataKey="pria"
                             name="pria"
                             stackId="gender"
-                            fill="url(#priaBar)"
+                            fill="#006A4E"
                             maxBarSize={18}
                         />
                         <Bar
                             dataKey="wanita"
                             name="wanita"
                             stackId="gender"
-                            fill="url(#wanitaBar)"
+                            fill="#D4A017"
                             radius={[0, 4, 4, 0]}
                             maxBarSize={18}
                         />
