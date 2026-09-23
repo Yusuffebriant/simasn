@@ -5,6 +5,10 @@ import RekapJabatanTable from "../../components/Rekap/RekapJabatanTable";
 import RekapNakesTable from "../../components/Rekap/RekapNakesTable";
 import RekapSdSmpTable from "../../components/Rekap/RekapSdSmpTable";
 import RekapKecamatanTable from "../../components/Rekap/RekapKecamatanTable";
+import RekapJfTertentuTable from "../../components/Rekap/RekapJfTertentuTable";
+import RekapJfPelaksanaTable from "../../components/Rekap/RekapJfPelaksanaTable";
+import RekapStrukturGolonganTable from "../../components/Rekap/RekapStrukturGolonganTable";
+import RekapStrukturEselonTable from "../../components/Rekap/RekapStrukturEselonTable";
 
 // Daftar sub-rekap. "ready: false" = belum dibuatkan (nyusul satu per satu).
 const REKAP_TABS = [
@@ -16,6 +20,10 @@ const REKAP_TABS = [
     { key: "nakes", label: "Nakes", ready: true },
     { key: "sd-smp", label: "SD & SMP", ready: true },
     { key: "kecamatan", label: "Kecamatan/Kelurahan", ready: true },
+    { key: "jf-tertentu", label: "JF Tertentu", ready: true },
+    { key: "jf-pelaksana", label: "JF Pelaksana", ready: true },
+    { key: "struktur-golongan", label: "Struktural per Golongan", ready: true },
+    { key: "struktur-eselon", label: "Struktural per Eselon", ready: true },
 ];
 
 const AGAMA_LIST = ["Islam", "Kristen", "Katholik", "Hindu", "Budha"];
@@ -112,6 +120,14 @@ function Rekapitulasi() {
             {activeTab === "sd-smp" && <RekapSdSmpTable />}
 
             {activeTab === "kecamatan" && <RekapKecamatanTable />}
+
+            {activeTab === "jf-tertentu" && <RekapJfTertentuTable />}
+
+            {activeTab === "jf-pelaksana" && <RekapJfPelaksanaTable />}
+
+            {activeTab === "struktur-golongan" && <RekapStrukturGolonganTable />}
+
+            {activeTab === "struktur-eselon" && <RekapStrukturEselonTable />}
         </div>
     );
 }

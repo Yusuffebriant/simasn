@@ -35,7 +35,7 @@ class RekapSmpExport implements FromArray, WithEvents
                 $sheet = $event->sheet->getDelegate();
                 $sheet->insertNewRowBefore(1, $this->headerRows);
 
-                $sheet->setCellValue('A1', 'REKAP Data Fungsional  SMP');
+                $sheet->setCellValue('A1', 'REKAP Data Fungsional SMP');
                 $sheet->mergeCells('A1:E1');
 
                 $sheet->setCellValue('A2', 'No');
