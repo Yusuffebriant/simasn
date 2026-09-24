@@ -116,12 +116,53 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                 $row += 2;
 
                 // ==== Kartu KPI Ringkasan ====
+                // Tiap kartu sekarang menyertakan rincian Pria/Wanita (baris
+                // kecil di bawah angka total) — sebelumnya cuma angka total
+                // polos. JFT ditambah 3 kartu rincian (Pendidikan/Kesehatan/
+                // Teknis) supaya sama seperti tampilan Home Dashboard.
                 $cards = [
-                    ['label' => 'Total Pegawai', 'total' => $this->data['total']['total'] ?? 0],
-                    ['label' => 'Jabatan Struktural', 'total' => $this->data['jabatan']['struktural']['total'] ?? 0],
-                    ['label' => 'JFU', 'total' => $this->data['jabatan']['jfu'] ?? 0],
-                    ['label' => 'JFT', 'total' => $this->data['jabatan']['jft'] ?? 0],
+                    [
+                        'label' => 'Total Pegawai',
+                        'total' => $this->data['total']['total'] ?? 0,
+                        'pria' => $this->data['total']['pria'] ?? 0,
+                        'wanita' => $this->data['total']['wanita'] ?? 0,
+                    ],
+                    [
+                        'label' => 'Jabatan Struktural',
+                        'total' => $this->data['jabatan']['struktural']['total'] ?? 0,
+                        'pria' => $this->data['jabatan']['struktural']['pria'] ?? 0,
+                        'wanita' => $this->data['jabatan']['struktural']['wanita'] ?? 0,
+                    ],
+                    [
+                        'label' => 'JFU',
+                        'total' => $this->data['jabatan']['jfu']['total'] ?? 0,
+                        'pria' => $this->data['jabatan']['jfu']['pria'] ?? 0,
+                        'wanita' => $this->data['jabatan']['jfu']['wanita'] ?? 0,
+                    ],
+                    [
+                        'label' => 'JFT',
+                        'total' => $this->data['jabatan']['jft']['total'] ?? 0,
+                        'pria' => $this->data['jabatan']['jft']['pria'] ?? 0,
+                        'wanita' => $this->data['jabatan']['jft']['wanita'] ?? 0,
+                    ],
                 ];
+
+                foreach ($this->data['jabatan']['jft_rincian'] ?? [] as $r) {
+                    $labelRincian = match ($r['label']) {
+                        'pendidikan' => 'JFT - Pendidikan',
+                        'kesehatan' => 'JFT - Kesehatan',
+                        'teknis' => 'JFT - Teknis',
+                        default => 'JFT - ' . ucfirst($r['label']),
+                    };
+
+                    $cards[] = [
+                        'label' => $labelRincian,
+                        'total' => $r['total'] ?? 0,
+                        'pria' => $r['pria'] ?? 0,
+                        'wanita' => $r['wanita'] ?? 0,
+                    ];
+                }
+
                 $row = $this->drawSectionHeader($sheet, $row, 'Ringkasan', count($cards));
                 $row = $this->drawKpiCards($sheet, $row, $cards);
                 $row++;
@@ -208,8 +249,11 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                 // Lebar kolom dibuat TETAP (bukan auto-size dari seluruh isi
                 // sheet) supaya kartu KPI/Generasi tampil sebagai kotak yang
                 // proporsional & seragam, tidak ikut melebar mengikuti teks
-                // terpanjang di tabel-tabel di bawahnya.
-                foreach (range('A', 'E') as $col) {
+                // terpanjang di tabel-tabel di bawahnya. Rentangnya sampai
+                // kolom G (bukan E) karena kartu Ringkasan sekarang ada 7
+                // (Total, Struktural, JFU, JFT, JFT-Pendidikan,
+                // JFT-Kesehatan, JFT-Teknis).
+                foreach (range('A', 'G') as $col) {
                     $sheet->getColumnDimension($col)->setWidth(18);
                 }
             },
@@ -249,16 +293,28 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
     {
         $headerRow = $startRow;
         $valueRow = $startRow + 1;
+        $subRow = $startRow + 2;
         $col = 'A';
 
         foreach ($cards as $i => $card) {
             $accent = self::CARD_COLORS[$i % count(self::CARD_COLORS)];
             $headerCell = "{$col}{$headerRow}";
             $valueCell = "{$col}{$valueRow}";
-            $range = "{$col}{$headerRow}:{$col}{$valueRow}";
+            $subCell = "{$col}{$subRow}";
+            // Baris rincian L/P cuma digambar kalau kartunya memang bawa
+            // data pria/wanita (semua kartu Ringkasan sekarang begitu,
+            // tapi dijaga tetap opsional supaya pemanggil lama yang belum
+            // sempat dilengkapi gender tidak error).
+            $adaGender = array_key_exists('pria', $card) && array_key_exists('wanita', $card);
+            $range = $adaGender
+                ? "{$col}{$headerRow}:{$col}{$subRow}"
+                : "{$col}{$headerRow}:{$col}{$valueRow}";
 
             $sheet->setCellValue($headerCell, $card['label']);
             $sheet->setCellValue($valueCell, $card['total']);
+            if ($adaGender) {
+                $sheet->setCellValue($subCell, 'L: ' . $card['pria'] . '  P: ' . $card['wanita']);
+            }
 
             // Header: strip warna solid, teks putih bold, rata tengah
             $sheet->getStyle($headerCell)->getFont()->setBold(true)->setSize(9)
@@ -278,6 +334,17 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
             $sheet->getStyle($valueCell)->getFill()
                 ->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB(self::CARD_BODY_FILL);
 
+            if ($adaGender) {
+                // Baris kecil "L: x  P: y" di bawah angka, gaya sama
+                // seperti kartu Generasi (drawGenerasiCards).
+                $sheet->getStyle($subCell)->getFont()->setSize(8)->getColor()->setARGB('FF808080');
+                $sheet->getStyle($subCell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle($subCell)->getFill()
+                    ->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF7F7F7');
+
+                $sheet->getRowDimension($subRow)->setRowHeight(14);
+            }
+
             // Border kotak mengelilingi seluruh kartu, warna senada aksen
             $sheet->getStyle($range)->getBorders()->getAllBorders()
                 ->setBorderStyle(Border::BORDER_MEDIUM)->getColor()->setARGB($accent);
@@ -288,7 +355,9 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
             $col++;
         }
 
-        return $valueRow + 1;
+        return ($cards && array_key_exists('pria', $cards[0]) && array_key_exists('wanita', $cards[0]))
+            ? $subRow + 1
+            : $valueRow + 1;
     }
 
     /**
