@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import Sidebar from "../../components/Sidebar";
 import { isLoggedIn, getUser, apiFetch } from "../../lib/api";
+import ExportExcelButton from "../Statistik/components/ExportExcelButton";
 
 function Home() {
     const loggedIn = isLoggedIn();
@@ -61,14 +62,24 @@ function Home() {
             <Sidebar />
 
             <main className="flex-1 p-10 overflow-x-auto">
-                <div className="mb-9">
-                    <h1 className="text-3xl font-bold text-[#172033]">
-                        Dashboard
-                    </h1>
-                    <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
-                    <p className="text-[#687386] text-[15px]">
-                         Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
-                    </p>
+                <div className="mb-9 flex items-start justify-between flex-wrap gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-[#172033]">
+                            Dashboard
+                        </h1>
+                        <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
+                        <p className="text-[#687386] text-[15px]">
+                             Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
+                        </p>
+                    </div>
+
+                    <ExportExcelButton
+                        path="/rekap/dashboard/export"
+                        filename="dashboard-simasn.xlsx"
+                        errorMessage="Gagal mengekspor data dashboard."
+                        disabled={!data || loading}
+                        onError={setError}
+                    />
                 </div>
 
                 <div className="bg-white rounded-xl border border-[#E1E5EA] p-6 mb-6 flex items-center justify-between flex-wrap gap-4">
@@ -132,8 +143,28 @@ function Home() {
                                 wanita={data.jabatan.struktural.wanita}
                             />
 
-                            <MiniStatCard title="JFU" total={data.jabatan.jfu} />
-                            <MiniStatCard title="JFT" total={data.jabatan.jft} />
+                            <MiniStatCard
+                                title="JFU"
+                                total={data.jabatan.jfu.total}
+                                pria={data.jabatan.jfu.pria}
+                                wanita={data.jabatan.jfu.wanita}
+                            />
+                            <MiniStatCard
+                                title="JFT"
+                                total={data.jabatan.jft.total}
+                                pria={data.jabatan.jft.pria}
+                                wanita={data.jabatan.jft.wanita}
+                            />
+
+                            {data.jabatan.jft_rincian?.map((r) => (
+                                <MiniStatCard
+                                    key={r.label}
+                                    title={`JFT - ${jftRincianLabel(r.label)}`}
+                                    total={r.total}
+                                    pria={r.pria}
+                                    wanita={r.wanita}
+                                />
+                            ))}
                         </div>
 
                         {/* Generasi */}
@@ -195,6 +226,17 @@ function Home() {
             </main>
         </div>
     );
+}
+
+// Label tampilan untuk tiap rincian JFT (key dari backend: pendidikan/
+// kesehatan/teknis) — lihat RekapService::klasifikasiJft().
+function jftRincianLabel(key) {
+    const labels = {
+        pendidikan: "Pendidikan",
+        kesehatan: "Kesehatan",
+        teknis: "Teknis",
+    };
+    return labels[key] || key;
 }
 
 function LockedStatCard({ title, loading }) {
