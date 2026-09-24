@@ -43,6 +43,12 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::get('/rekap/dashboard', [RekapController::class, 'dashboardJson'])
     ->middleware('throttle:60,1');
 
+// Export Excel untuk data Dashboard di atas — sama-sama publik, karena
+// isinya persis data yang sudah tampil di halaman Home (tidak ada data
+// tambahan yang lebih sensitif dibanding /rekap/dashboard).
+Route::get('/rekap/dashboard/export', [RekapController::class, 'exportDashboard'])
+    ->middleware('throttle:60,1');
+
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // =========================================================

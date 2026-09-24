@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Log;
 
 class RekapService
 {
+    /**
+     * Batas bawah usia wajar untuk pegawai aktif (tahun). Dipakai sebagai
+     * pengaman data anomali di rekapDashboard() — lihat catatan di sana.
+     */
+    private const USIA_MINIMAL_WAJAR = 17;
 
     public function rekapAgama(?string $periode = null): array
     {
@@ -380,8 +385,11 @@ class RekapService
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->where('pegawai.status_aktif', 'aktif')
             ->select(
+                'pegawai.nip',
+                'pegawai.nama',
                 'pegawai.jenis_kelamin',
                 'pegawai.jenis_kedudukan',
+                'pegawai.jabatan',
                 'pegawai.tanggal_lahir',
                 'pegawai.tmt_pangkat',
                 'golongan_ruang.kode as golongan_kode',
@@ -396,8 +404,21 @@ class RekapService
 
         $strukturalPria = 0;
         $strukturalWanita = 0;
-        $jfu = 0;
-        $jft = 0;
+        $jfuPria = 0;
+        $jfuWanita = 0;
+        $jftPria = 0;
+        $jftWanita = 0;
+
+        // Rincian JFT jadi 3 rumpun sederhana untuk kartu Ringkasan
+        // Dashboard (versi ringkas dari rumpunJabatanFungsional() di
+        // StatistikService yang punya 6 rumpun detail untuk halaman
+        // Statistik — sengaja dibedakan supaya kartu Ringkasan tetap
+        // sederhana: Pendidikan, Kesehatan, Teknis).
+        $jftRincianKeys = ['pendidikan', 'kesehatan', 'teknis'];
+        $jftRincian = [];
+        foreach ($jftRincianKeys as $jk) {
+            $jftRincian[$jk] = ['pria' => 0, 'wanita' => 0];
+        }
 
         $generasiKeys = ['Baby Boomer', 'Generasi X', 'Generasi Y', 'Generasi Z'];
         $generasi = [];
@@ -426,6 +447,10 @@ class RekapService
             'BELUM DIISI' => 0,
         ];
 
+        // Tanpa 'BELUM DIISI' — sama seperti rekapPendidikan(), pegawai
+        // dengan jenjang pendidikan kosong/tak dikenal dilewatkan dari
+        // rekap ini (lihat penanganannya di bawah), bukan ditumpuk jadi
+        // satu kategori "BELUM DIISI" di tabel & grafik Pendidikan.
         $pendidikanList = [
             'SD',
             'SLTP',
@@ -437,7 +462,6 @@ class RekapService
             'S1',
             'S2',
             'S3',
-            'BELUM DIISI',
         ];
         $pendidikanGroup = [];
         foreach ($pendidikanList as $pl) {
@@ -454,9 +478,12 @@ class RekapService
             if (in_array($kodeEselon, $eselonList, true)) {
                 $isPria ? $strukturalPria++ : $strukturalWanita++;
             } elseif ($jenisKedudukan === 'FUNGSIONAL') {
-                $jft++;
+                $isPria ? $jftPria++ : $jftWanita++;
+
+                $kategoriJft = $this->klasifikasiJft((string) $row->jabatan);
+                $jftRincian[$kategoriJft][$isPria ? 'pria' : 'wanita']++;
             } else {
-                $jfu++;
+                $isPria ? $jfuPria++ : $jfuWanita++;
             }
 
             if ($row->tanggal_lahir) {
@@ -485,15 +512,34 @@ class RekapService
 
                 $usiaTahun = $row->tanggal_lahir->diffInYears(now());
 
-                $kategoriUsia = match (true) {
-                    $usiaTahun <= 25 => 's.d. 25 Tahun',
-                    $usiaTahun <= 35 => '26 - 35 Tahun',
-                    $usiaTahun <= 45 => '36 - 45 Tahun',
-                    $usiaTahun <= 55 => '46 - 55 Tahun',
-                    default => '56 Tahun atau Lebih',
-                };
+                // FIX (bug tabel Usia): sebagian kecil data tanggal_lahir
+                // hasil import ternyata salah entry sehingga usia
+                // terhitungnya tidak wajar untuk pegawai aktif (mis.
+                // tanggal_lahir 2023 -> usia hitungan cuma beberapa tahun).
+                // Baris seperti ini DILEWATKAN dari rekap Usia (bukan
+                // dipaksakan masuk ke bucket "s.d. 25 Tahun") supaya
+                // distribusinya tidak tercemar data yang jelas salah —
+                // sama seperti pendekatan 'tidak_dikenali' di
+                // rekapPendidikan(). Baris tetap dihitung di Total Pegawai
+                // & kartu lain, hanya tidak ikut tabel Usia.
+                if ($usiaTahun < self::USIA_MINIMAL_WAJAR) {
+                    Log::warning('RekapDashboard: usia pegawai tidak wajar, dilewati dari rekap Usia', [
+                        'nip' => $row->nip ?? null,
+                        'nama' => $row->nama ?? null,
+                        'tanggal_lahir' => (string) $row->tanggal_lahir,
+                        'usia_tahun' => $usiaTahun,
+                    ]);
+                } else {
+                    $kategoriUsia = match (true) {
+                        $usiaTahun <= 25 => 's.d. 25 Tahun',
+                        $usiaTahun <= 35 => '26 - 35 Tahun',
+                        $usiaTahun <= 45 => '36 - 45 Tahun',
+                        $usiaTahun <= 55 => '46 - 55 Tahun',
+                        default => '56 Tahun atau Lebih',
+                    };
 
-                $usia[$kategoriUsia][$isPria ? 'pria' : 'wanita']++;
+                    $usia[$kategoriUsia][$isPria ? 'pria' : 'wanita']++;
+                }
             }
 
             if ($row->tmt_pangkat) {
@@ -534,10 +580,15 @@ class RekapService
                 'S1', 'S-1', 'S-1/SARJANA', 'SARJANA'               => 'S1',
                 'S2', 'S-2', 'S-2/MAGISTER'                         => 'S2',
                 'S3', 'S-3', 'S-3/DOKTOR'                           => 'S3',
-                default => 'BELUM DIISI',
-            } : 'BELUM DIISI';
+                default => null,
+            } : null;
 
-            $pendidikanGroup[$pnd][$isPria ? 'pria' : 'wanita']++;
+            // Jenjang kosong/tidak dikenal dilewatkan dari tabel & grafik
+            // Pendidikan (tanpa kategori "BELUM DIISI") — lihat catatan di
+            // definisi $pendidikanList di atas.
+            if ($pnd !== null) {
+                $pendidikanGroup[$pnd][$isPria ? 'pria' : 'wanita']++;
+            }
         }
 
         // Rekap per Unit Kerja (instansi)
@@ -634,8 +685,25 @@ class RekapService
                     'pria' => $strukturalPria,
                     'wanita' => $strukturalWanita,
                 ],
-                'jfu' => $jfu,
-                'jft' => $jft,
+                'jfu' => [
+                    'total' => $jfuPria + $jfuWanita,
+                    'pria' => $jfuPria,
+                    'wanita' => $jfuWanita,
+                ],
+                'jft' => [
+                    'total' => $jftPria + $jftWanita,
+                    'pria' => $jftPria,
+                    'wanita' => $jftWanita,
+                ],
+                'jft_rincian' => array_map(
+                    fn($label) => [
+                        'label' => $label,
+                        'total' => $jftRincian[$label]['pria'] + $jftRincian[$label]['wanita'],
+                        'pria' => $jftRincian[$label]['pria'],
+                        'wanita' => $jftRincian[$label]['wanita'],
+                    ],
+                    $jftRincianKeys
+                ),
             ],
             'generasi' => array_values(array_map(
                 fn($label) => [
@@ -681,6 +749,59 @@ class RekapService
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
         ];
+    }
+
+    /**
+     * Klasifikasi rincian Jabatan Fungsional Tertentu (JFT) untuk kartu
+     * "JFT - Pendidikan / Kesehatan / Teknis" di Ringkasan Dashboard.
+     * Versi ringkas (3 rumpun) dari rumpunJabatanFungsional() milik
+     * StatistikService (6 rumpun, dipakai di halaman Statistik) —
+     * keyword kesehatan-nya sama persis supaya konsisten.
+     */
+    private function klasifikasiJft(string $jabatan): string
+    {
+        $jabatan = strtoupper(trim($jabatan));
+
+        $kesehatanKeywords = [
+            'DOKTER',
+            'PERAWAT',
+            'BIDAN',
+            'APOTEKER',
+            'PEREKAM MEDIS',
+            'PRANATA LABORATORIUM KESEHATAN',
+            'NUTRISIONIS',
+            'EPIDEMIOLOG',
+            'ADMINISTRATOR KESEHATAN',
+            'PENYULUH KESEHATAN',
+            'RADIOGRAFER',
+            'TEKNISI TRANSFUSI DARAH',
+            'SANITARIAN',
+            'TERAPIS GIGI',
+            'MEDIK VETERINER',
+            'PARAMEDIK VETERINER',
+            'PROMOSI KESEHATAN',
+            'SANITASI LINGKUNGAN',
+            'FISIOTERAPIS',
+            'FISIKAWAN MEDIS',
+            'PSIKOLOG KLINIS',
+            'TEKNISI ELEKTROMEDIS',
+            'TERAPIS WICARA',
+            'PENATA ANESTESI',
+            'OKUPASI TERAPIS',
+            'PEMBIMBING KESEHATAN KERJA',
+        ];
+
+        if (str_starts_with($jabatan, 'GURU') || str_contains($jabatan, 'DOSEN')) {
+            return 'pendidikan';
+        }
+
+        foreach ($kesehatanKeywords as $keyword) {
+            if (str_contains($jabatan, $keyword)) {
+                return 'kesehatan';
+            }
+        }
+
+        return 'teknis';
     }
 
     public function rekapEselonGolonganGender(?string $periode = null): array
@@ -733,22 +854,51 @@ class RekapService
     private const ESELON_LIST = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
 
     private const STRUK_GOL_LIST = [
-        'III/a', 'III/b', 'III/c', 'III/d',
-        'IV/a', 'IV/b', 'IV/c', 'IV/d',
+        'III/a',
+        'III/b',
+        'III/c',
+        'III/d',
+        'IV/a',
+        'IV/b',
+        'IV/c',
+        'IV/d',
     ];
 
     private const JF_TERTENTU_GOL_LIST = [
-        'II/a', 'II/b', 'II/c', 'II/d',
-        'III/a', 'III/b', 'III/c', 'III/d',
-        'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e',
+        'II/a',
+        'II/b',
+        'II/c',
+        'II/d',
+        'III/a',
+        'III/b',
+        'III/c',
+        'III/d',
+        'IV/a',
+        'IV/b',
+        'IV/c',
+        'IV/d',
+        'IV/e',
     ];
     private const JF_TERTENTU_PPPK_LIST = ['V', 'VII', 'IX', 'X', 'XI'];
 
     private const JF_PELAKSANA_GOL_LIST = [
-        'I/a', 'I/b', 'I/c', 'I/d',
-        'II/a', 'II/b', 'II/c', 'II/d',
-        'III/a', 'III/b', 'III/c', 'III/d',
-        'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e',
+        'I/a',
+        'I/b',
+        'I/c',
+        'I/d',
+        'II/a',
+        'II/b',
+        'II/c',
+        'II/d',
+        'III/a',
+        'III/b',
+        'III/c',
+        'III/d',
+        'IV/a',
+        'IV/b',
+        'IV/c',
+        'IV/d',
+        'IV/e',
     ];
     private const JF_PELAKSANA_PPPK_LIST = ['I', 'III', 'V', 'VII', 'IX', 'X'];
 
@@ -775,8 +925,11 @@ class RekapService
             )
             ->where('pegawai.status_aktif', 'aktif')
             ->groupBy(
-                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
-                'eselon.kode', 'pegawai.jenis_kelamin'
+                'instansi.id',
+                'instansi.nama',
+                'golongan_ruang.kode',
+                'eselon.kode',
+                'pegawai.jenis_kelamin'
             )
             ->get();
 
@@ -896,8 +1049,12 @@ class RekapService
             ->where('pegawai.status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(pegawai.jenis_kedudukan)) = 'FUNGSIONAL'")
             ->groupBy(
-                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
-                'golongan_ruang.kelompok', 'eselon.kode', 'pegawai.jenis_kelamin'
+                'instansi.id',
+                'instansi.nama',
+                'golongan_ruang.kode',
+                'golongan_ruang.kelompok',
+                'eselon.kode',
+                'pegawai.jenis_kelamin'
             )
             ->get();
 
@@ -991,9 +1148,13 @@ class RekapService
             )
             ->where('pegawai.status_aktif', 'aktif')
             ->groupBy(
-                'instansi.id', 'instansi.nama', 'golongan_ruang.kode',
-                'golongan_ruang.kelompok', 'eselon.kode',
-                'pegawai.jenis_kedudukan', 'pegawai.jenis_kelamin'
+                'instansi.id',
+                'instansi.nama',
+                'golongan_ruang.kode',
+                'golongan_ruang.kelompok',
+                'eselon.kode',
+                'pegawai.jenis_kedudukan',
+                'pegawai.jenis_kelamin'
             )
             ->get();
 
@@ -1205,7 +1366,7 @@ class RekapService
 
         return $hasil;
     }
-    
+
 
     /**
      * Rekap Guru Fungsional per SD Negeri.
