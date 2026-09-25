@@ -23,8 +23,7 @@ class ProcessPegawaiImport implements ShouldQueue
     public function __construct(
         protected ImportBatch $batch,
         protected string $filePath
-    ) {
-    }
+    ) {}
 
     public function handle(): void
     {
@@ -41,11 +40,37 @@ class ProcessPegawaiImport implements ShouldQueue
                 'total_baris' => $this->batch->berhasil + $this->batch->gagal,
             ]);
 
-            // Hapus cache rekap setelah seluruh proses import selesai
-            Cache::forget("rekap.agama.{$this->batch->periode}");
-            Cache::forget("rekap.pendidikan.{$this->batch->periode}");
-            Cache::forget("rekap.jabatan.{$this->batch->periode}");
-
+            // Hapus cache rekap setelah seluruh proses import selesai.
+            //
+            // FIX: sebelumnya hanya 3 key (agama/pendidikan/jabatan) yang
+            // dihapus, padahal RekapController meng-cache SEMUA endpoint
+            // rekap (termasuk dashboard) per periode selama 10 menit. Ini
+            // yang menyebabkan angka di Dashboard (mis. kartu Generasi,
+            // tabel Usia, grafik Golongan, dll.) bisa tampak "salah
+            // hitung"/tidak konsisten segera setelah import baru selesai —
+            // padahal cuma menyajikan data cache lama sampai TTL-nya habis.
+            // Sekarang semua key rekap per periode ikut dihapus supaya
+            // seluruh halaman rekap langsung menampilkan data terbaru.
+            foreach (
+                [
+                    'rekap.dashboard',
+                    'rekap.agama',
+                    'rekap.pendidikan',
+                    'rekap.jabatan',
+                    'rekap.golongan',
+                    'rekap.eselon-golongan-gender',
+                    'rekap.nakes',
+                    'rekap.sd',
+                    'rekap.smp',
+                    'rekap.kecamatan',
+                    'rekap.struktur-golongan',
+                    'rekap.struktur-eselon',
+                    'rekap.jf-tertentu',
+                    'rekap.jf-pelaksana',
+                ] as $rekapKey
+            ) {
+                Cache::forget("{$rekapKey}.{$this->batch->periode}");
+            }
         } catch (\Throwable $e) {
             $this->batch->update([
                 'status' => 'gagal'
