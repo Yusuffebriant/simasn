@@ -301,10 +301,31 @@ function MiniStatCard({ title, total, pria, wanita }) {
     );
 }
 
+// Rentang tahun lahir tiap Generasi — harus selalu sinkron dengan
+// klasifikasi $tahun di RekapService::rekapDashboard().
+function generasiRentangTahun(label) {
+    const rentang = {
+        "Baby Boomer": "1946 - 1964",
+        "Generasi X": "1965 - 1980",
+        "Generasi Y": "1981 - 1996",
+        "Generasi Z": "1997 - 2012",
+    };
+    return rentang[label] || null;
+}
+
 function GenerasiCard({ label, total, pria, wanita }) {
+    const rentangTahun = generasiRentangTahun(label);
+
     return (
         <div className="bg-[#FBF0D9] border border-[#F0DDAE] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-[13px] text-[#8A6100] mb-2 font-medium">{label}</div>
+            <div className="text-[13px] text-[#8A6100] mb-2 font-medium">
+                {label}
+                {rentangTahun && (
+                    <span className="block text-[11px] text-[#A98B3F] font-normal mt-0.5">
+                        {rentangTahun}
+                    </span>
+                )}
+            </div>
             <div className="text-3xl font-bold text-[#172033] mb-3">{total.toLocaleString("id-ID")}</div>
             <div className="flex gap-2">
                 <GenderChip icon="♂" value={pria} />

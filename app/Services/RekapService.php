@@ -487,6 +487,47 @@ class RekapService
             }
 
             if ($row->tanggal_lahir) {
+                // FIX: di Carbon 3 (Laravel 13), diffInYears() sekarang
+                // mengembalikan float presisi tinggi (mis. 25.69), bukan
+                // integer umur genap seperti Carbon 2 (25). Kalau dipakai
+                // langsung di sini, siapa pun yang usianya PERSIS di batas
+                // bucket (25/35/45/55 tahun) akan salah nyasar ke bucket
+                // di atasnya sepanjang tahun setelah ulang tahunnya. Pakai
+                // properti ->age, yang selalu mengembalikan umur genap
+                // (integer) berapa pun versi Carbon-nya.
+                $usiaTahun = $row->tanggal_lahir->age;
+
+                // Sebagian kecil data tanggal_lahir hasil import ternyata
+                // salah entry sehingga usia terhitungnya tidak wajar untuk
+                // pegawai aktif (mis. tanggal_lahir 2023 -> usia hitungan
+                // cuma beberapa tahun). Baris seperti ini SENGAJA tetap
+                // dihitung apa adanya (masuk ke bucket usia sesuai angka
+                // mentahnya) alih-alih dibuang atau dipisah ke bucket
+                // "tidak valid" — supaya total tabel Usia & kartu Generasi
+                // selalu rekonsil satu sama lain dan dengan Total Pegawai.
+                // Konsekuensinya: bucket usia termuda bisa sedikit
+                // terdistorsi kalau ada data tanggal_lahir yang salah
+                // entry seperti ini. Warning tetap dicatat supaya admin
+                // bisa menelusuri & membenahi datanya di sumber import.
+                if ($usiaTahun < self::USIA_MINIMAL_WAJAR) {
+                    Log::warning('RekapDashboard: usia pegawai tidak wajar (kemungkinan tanggal_lahir salah entry), tetap dihitung apa adanya', [
+                        'nip' => $row->nip ?? null,
+                        'nama' => $row->nama ?? null,
+                        'tanggal_lahir' => (string) $row->tanggal_lahir,
+                        'usia_tahun' => $usiaTahun,
+                    ]);
+                }
+
+                $kategoriUsia = match (true) {
+                    $usiaTahun <= 25 => 's.d. 25 Tahun',
+                    $usiaTahun <= 35 => '26 - 35 Tahun',
+                    $usiaTahun <= 45 => '36 - 45 Tahun',
+                    $usiaTahun <= 55 => '46 - 55 Tahun',
+                    default => '56 Tahun atau Lebih',
+                };
+
+                $usia[$kategoriUsia][$isPria ? 'pria' : 'wanita']++;
+
                 $tgl = trim((string) $row->tanggal_lahir);
                 $tahun = null;
 
@@ -509,41 +550,14 @@ class RekapService
                         $generasi[$g][$isPria ? 'pria' : 'wanita']++;
                     }
                 }
-
-                $usiaTahun = $row->tanggal_lahir->diffInYears(now());
-
-                // FIX (bug tabel Usia): sebagian kecil data tanggal_lahir
-                // hasil import ternyata salah entry sehingga usia
-                // terhitungnya tidak wajar untuk pegawai aktif (mis.
-                // tanggal_lahir 2023 -> usia hitungan cuma beberapa tahun).
-                // Baris seperti ini DILEWATKAN dari rekap Usia (bukan
-                // dipaksakan masuk ke bucket "s.d. 25 Tahun") supaya
-                // distribusinya tidak tercemar data yang jelas salah —
-                // sama seperti pendekatan 'tidak_dikenali' di
-                // rekapPendidikan(). Baris tetap dihitung di Total Pegawai
-                // & kartu lain, hanya tidak ikut tabel Usia.
-                if ($usiaTahun < self::USIA_MINIMAL_WAJAR) {
-                    Log::warning('RekapDashboard: usia pegawai tidak wajar, dilewati dari rekap Usia', [
-                        'nip' => $row->nip ?? null,
-                        'nama' => $row->nama ?? null,
-                        'tanggal_lahir' => (string) $row->tanggal_lahir,
-                        'usia_tahun' => $usiaTahun,
-                    ]);
-                } else {
-                    $kategoriUsia = match (true) {
-                        $usiaTahun <= 25 => 's.d. 25 Tahun',
-                        $usiaTahun <= 35 => '26 - 35 Tahun',
-                        $usiaTahun <= 45 => '36 - 45 Tahun',
-                        $usiaTahun <= 55 => '46 - 55 Tahun',
-                        default => '56 Tahun atau Lebih',
-                    };
-
-                    $usia[$kategoriUsia][$isPria ? 'pria' : 'wanita']++;
-                }
             }
 
             if ($row->tmt_pangkat) {
-                $masaKerja = $row->tmt_pangkat->diffInYears(now());
+                // Sama seperti fix usia di atas: pakai ->age (integer),
+                // bukan diffInYears(now()) (float presisi tinggi di
+                // Carbon 3) supaya masa kerja persis di batas bucket
+                // (10/20/30 tahun) tidak salah nyasar ke bucket atasnya.
+                $masaKerja = $row->tmt_pangkat->age;
 
                 $kategoriMk = match (true) {
                     $masaKerja <= 10 => 's.d. 10 Tahun',
@@ -732,11 +746,18 @@ class RekapService
                 ],
                 $usiaKeys
             )),
-            'golongan' => array_map(
-                fn($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
-                array_keys($golonganGroup),
-                array_values($golonganGroup)
-            ),
+            // Grafik Golongan tidak menampilkan kategori "BELUM DIISI"
+            // (konsisten dengan Pendidikan di atas: data tak dikenal
+            // dilewatkan dari grafik, bukan ditumpuk jadi satu batang
+            // tersendiri).
+            'golongan' => array_values(array_filter(
+                array_map(
+                    fn($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
+                    array_keys($golonganGroup),
+                    array_values($golonganGroup)
+                ),
+                fn($row) => $row['label'] !== 'BELUM DIISI'
+            )),
             'pendidikan' => array_map(
                 fn($label) => [
                     'label' => $label,
