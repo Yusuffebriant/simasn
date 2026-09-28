@@ -58,7 +58,7 @@ class RekapController extends Controller
 
         return Excel::download(
             new RekapDashboardExport($data, $periode),
-            "dashboard-simasn-{$periode}.xlsx"
+            "laporan-simasn-{$periode}.xlsx"
         );
     }
 
