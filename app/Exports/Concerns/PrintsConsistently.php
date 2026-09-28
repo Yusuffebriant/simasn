@@ -37,12 +37,14 @@ trait PrintsConsistently
      * @param  string  $range  Rentang isi tabel, mis. "A1:D27".
      * @param  int  $headerRowsToRepeat  Baris terakhir dari judul/header kolom yang harus diulang di tiap halaman (dihitung dari baris 1).
      * @param  string|null  $orientation  'portrait' | 'landscape'. Kalau null, ditebak otomatis dari lebar tabel.
+     * @param  int  $firstRowToRepeat  Baris pertama yang diulang (default 1). Kalau diisi selain 1, hanya baris $firstRowToRepeat s.d. $headerRowsToRepeat yang diulang (mis. satu baris header kolom tabel di tengah sheet).
      */
     protected function applyPrintSetup(
         Worksheet $sheet,
         string $range,
         int $headerRowsToRepeat = 1,
-        ?string $orientation = null
+        ?string $orientation = null,
+        int $firstRowToRepeat = 1
     ): void {
         [$start, $end] = explode(':', $range);
         $endCol = rtrim($end, '0123456789');
@@ -64,7 +66,7 @@ trait PrintsConsistently
         $pageSetup->setPrintArea($range);
 
         if ($headerRowsToRepeat >= 1) {
-            $pageSetup->setRowsToRepeatAtTopByStartAndEnd(1, $headerRowsToRepeat);
+            $pageSetup->setRowsToRepeatAtTopByStartAndEnd($firstRowToRepeat, $headerRowsToRepeat);
         }
 
         $sheet->getPageMargins()

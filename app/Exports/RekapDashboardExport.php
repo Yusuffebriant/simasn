@@ -125,6 +125,7 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $row = 1;
+                $unitKerjaHeaderRow = null;
 
                 /*
                  * Sheet tersembunyi untuk sumber data grafik.
@@ -298,23 +299,17 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                  */
 
                 /*
-                 * Jarak 1-2 baris kosong sebelum judul "E. Pendidikan".
+                 * Jarak 1-2 baris kosong sebelum judul "D. Pendidikan".
                  */
                 $row += 1;
 
                 /*
-                 * Chart Pendidikan cukup tinggi (34 baris), jadi
-                 * kalau dibiarkan Excel sering memotongnya di
-                 * tengah lewat page break otomatis (garis putus-
-                 * putus melintang di tengah chart saat print/
-                 * print preview). Dipaksa mulai di halaman baru
-                 * supaya seluruh section Pendidikan utuh dalam
-                 * satu halaman, tidak terpotong.
+                 * Section Pendidikan TIDAK lagi dipaksa pindah ke
+                 * halaman baru: langsung mengisi sisa ruang di bawah
+                 * Golongan pada lembar 1 supaya bagian bawah lembar 1
+                 * tidak kosong. Tinggi chart dikecilkan (27 baris)
+                 * supaya utuh muat di lembar 1.
                  */
-                $sheet->setBreak(
-                    "A{$row}",
-                    Worksheet::BREAK_ROW
-                );
 
                 $row = $this->drawChartOnlySection(
                     $sheet,
@@ -322,7 +317,7 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                     $dataSheetTitle,
                     $dataRow,
                     $row,
-                    'E. Pendidikan',
+                    'D. Pendidikan',
                     [
                         'Pendidikan',
                         'Pria',
@@ -411,7 +406,7 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                      */
                     chartLeftCol: 'B',
                     chartRightCol: 'G',
-                    chartHeightRows: 34,
+                    chartHeightRows: 27,
                     /*
                      * Tabel di samping chart Pendidikan, berisi
                      * data yang sama persis dengan chart (SD s.d.
@@ -453,14 +448,14 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
 
                 if (!empty($this->data['usia'])) {
                     /*
-                     * Jarak 1-2 baris kosong sebelum judul "F. Usia".
+                     * Jarak 1-2 baris kosong sebelum judul "E. Usia".
                      */
                     $row += 1;
 
                     $row = $this->drawTableSection(
                         $sheet,
                         $row,
-                        'F. Usia',
+                        'E. Usia',
                         [
                             'Usia',
                             'Pria',
@@ -487,14 +482,14 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
 
                 if (!empty($this->data['agama'])) {
                     /*
-                     * Jarak 1-2 baris kosong sebelum judul "G. Agama".
+                     * Jarak 1-2 baris kosong sebelum judul "F. Agama".
                      */
                     $row += 1;
 
                     $row = $this->drawTableSection(
                         $sheet,
                         $row,
-                        'G. Agama',
+                        'F. Agama',
                         [
                             'Agama',
                             'Pria',
@@ -534,15 +529,23 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                     }
 
                     /*
-                     * Jarak 1-2 baris kosong sebelum judul "H. Unit
+                     * Jarak 1-2 baris kosong sebelum judul "G. Unit
                      * Kerja".
                      */
                     $row += 1;
 
+                    /*
+                     * Baris header kolom tabel Unit Kerja (No, Unit
+                     * Kerja, Pria, Wanita, Total) = baris tepat di
+                     * bawah banner judul. Dicatat supaya bisa diulang
+                     * di tiap halaman lanjutan tabel ini.
+                     */
+                    $unitKerjaHeaderRow = $row + 1;
+
                     $row = $this->drawTableSection(
                         $sheet,
                         $row,
-                        'H. Unit Kerja',
+                        'G. Unit Kerja',
                         [
                             'No',
                             'Unit Kerja',
@@ -595,8 +598,9 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                 $this->applyPrintSetup(
                     $sheet,
                     "A1:M{$row}",
-                    7,
-                    'landscape'
+                    $unitKerjaHeaderRow ?? 0,
+                    'landscape',
+                    $unitKerjaHeaderRow ?? 1
                 );
             },
         ];
@@ -781,7 +785,7 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                 $this->periodeLabel()
             ],
             [
-                'Tanggal Cetak Laporan',
+                'Tanggal Penarikan Data',
                 $this->tanggalCetakLabel()
             ],
         ];

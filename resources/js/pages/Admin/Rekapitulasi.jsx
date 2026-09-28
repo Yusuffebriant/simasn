@@ -52,26 +52,30 @@ function Rekapitulasi() {
                 Rekapitulasi ASN
             </h2>
 
-            <div className="flex flex-wrap gap-2 mb-5 border-b">
+            {/* MENU REKAP — gaya sama dengan step bar Import Data ASN,
+                semua menu satu baris (geser ke samping kalau layar sempit) */}
+            <div className="flex flex-nowrap gap-2 mb-6 overflow-x-auto pb-1">
                 {REKAP_TABS.map((tab) => (
                     <button
                         key={tab.key}
                         onClick={() => tab.ready && setActiveTab(tab.key)}
                         disabled={!tab.ready}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        className={`px-3 py-2 text-sm rounded-lg whitespace-nowrap shrink-0 transition-colors ${
                             activeTab === tab.key
-                                ? "border-[#006A4E] text-[#006A4E]"
-                                : "border-transparent text-gray-400"
+                                ? "bg-[#006A4E] text-white"
+                                : "bg-gray-200"
                         } ${
                             tab.ready
-                                ? "hover:text-[#006A4E] cursor-pointer"
-                                : "cursor-not-allowed"
+                                ? "hover:bg-gray-300 cursor-pointer"
+                                : "cursor-not-allowed opacity-60"
+                        } ${
+                            activeTab === tab.key ? "hover:bg-[#006A4E]" : ""
                         }`}
                         title={tab.ready ? undefined : "Segera hadir"}
                     >
                         {tab.label}
                         {!tab.ready && (
-                            <span className="ml-1.5 text-[10px] uppercase text-gray-400">
+                            <span className="ml-1.5 text-[10px] uppercase text-gray-500">
                                 (segera)
                             </span>
                         )}
