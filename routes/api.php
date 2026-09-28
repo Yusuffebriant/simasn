@@ -326,6 +326,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/rekap/struktur-eselon', [RekapController::class, 'strukturEselonJson']);
         Route::get('/rekap/jf-tertentu', [RekapController::class, 'jfTertentuJson']);
         Route::get('/rekap/jf-pelaksana', [RekapController::class, 'jfPelaksanaJson']);
+        Route::get('/rekap/pensiun', [RekapController::class, 'pensiunJson']);
 
         // ---- REKAP EXPORT EXCEL ----
         Route::get('/rekap/all/export', [RekapController::class, 'exportAll']);
@@ -343,6 +344,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/rekap/struktur-eselon/export', [RekapController::class, 'exportStrukturEselon']);
         Route::get('/rekap/jf-tertentu/export', [RekapController::class, 'exportJfTertentu']);
         Route::get('/rekap/jf-pelaksana/export', [RekapController::class, 'exportJfPelaksana']);
+        Route::get('/rekap/pensiun/export', [RekapController::class, 'exportPensiun']);
 
         // ---- SETTINGS (manajemen akun pengguna) ----
         Route::apiResource('users', UserController::class)->except(['show']);

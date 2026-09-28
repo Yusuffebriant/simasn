@@ -15,6 +15,7 @@ use App\Exports\RekapStrukturGolonganExport;
 use App\Exports\RekapStrukturEselonExport;
 use App\Exports\RekapJfTertentuExport;
 use App\Exports\RekapJfPelaksanaExport;
+use App\Exports\RekapPensiunExport;
 
 use App\Services\RekapService;
 use Illuminate\Http\Request;
@@ -366,6 +367,29 @@ class RekapController extends Controller
         return Excel::download(
             new RekapJfPelaksanaExport($periode),
             "rekap-jf-pelaksana-{$periode}.xlsx"
+        );
+    }
+
+    public function pensiunJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.pensiun.{$periode}",
+            now()->addMinutes(10),
+            fn() => (new RekapService())->rekapPensiun($periode)
+        );
+
+        return response()->json($data);
+    }
+
+    public function exportPensiun(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        return Excel::download(
+            new RekapPensiunExport($periode),
+            "rekap-pensiun-{$periode}.xlsx"
         );
     }
 }
