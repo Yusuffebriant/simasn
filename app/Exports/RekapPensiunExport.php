@@ -6,6 +6,7 @@ use App\Exports\Concerns\PrintsConsistently;
 use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -24,10 +25,14 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
  * mati) seperti pada Excel referensi, jadi ikut berubah kalau angka per
  * tahun diedit manual setelah di-download.
  *
+ * WithPreCalculateFormulas: rumus SUM dihitung di server dan hasilnya ikut
+ * disimpan di file, sehingga angka Sub Total/TOTAL langsung tampil di
+ * Protected View Excel, preview browser, dan viewer HP tanpa Enable Editing.
+ *
  * Sumber data: RekapService::rekapPensiun() — sama dengan tabel di halaman
  * Rekapitulasi ASN (tab Pensiun).
  */
-class RekapPensiunExport implements FromArray, WithEvents
+class RekapPensiunExport implements FromArray, WithEvents, WithPreCalculateFormulas
 {
     use PrintsConsistently;
 
