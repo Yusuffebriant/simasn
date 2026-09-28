@@ -3,6 +3,7 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
+    LabelList,
     Legend,
     ResponsiveContainer,
     Tooltip,
@@ -75,7 +76,7 @@ function Home() {
 
                     <ExportExcelButton
                         path="/rekap/dashboard/export"
-                        filename="dashboard-simasn.xlsx"
+                        filename="laporan-simasn.xlsx"
                         errorMessage="Gagal mengekspor data dashboard."
                         disabled={!data || loading}
                         onError={setError}
@@ -183,16 +184,30 @@ function Home() {
                                 title="Golongan"
                                 total={data.golongan.reduce((s, r) => s + r.jumlah, 0)}
                             >
-                                <BarChart data={data.golongan} barCategoryGap="28%">
+                                <BarChart data={data.golongan} barCategoryGap="28%" margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
-                                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#687386" }} axisLine={{ stroke: "#E1E5EA" }} tickLine={false} />
+                                    <XAxis
+                                        dataKey="label"
+                                        tickFormatter={golonganLabel}
+                                        tick={{ fontSize: 12, fill: "#687386" }}
+                                        axisLine={{ stroke: "#E1E5EA" }}
+                                        tickLine={false}
+                                    />
                                     <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#687386" }} axisLine={false} tickLine={false} />
                                     <Tooltip
                                         cursor={{ fill: "#006A4E", opacity: 0.06 }}
+                                        labelFormatter={golonganLabel}
                                         formatter={(value) => [value.toLocaleString("id-ID"), "Jumlah Pegawai"]}
                                         contentStyle={{ borderRadius: 10, border: "1px solid #E1E5EA", boxShadow: "0 4px 12px rgba(23,32,51,0.08)" }}
                                     />
-                                    <Bar dataKey="jumlah" name="Jumlah Pegawai" fill="#006A4E" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                                    <Bar dataKey="jumlah" name="Jumlah Pegawai" fill="#006A4E" radius={[6, 6, 0, 0]} maxBarSize={56}>
+                                        <LabelList
+                                            dataKey="jumlah"
+                                            position="top"
+                                            formatter={(value) => value.toLocaleString("id-ID")}
+                                            style={{ fontSize: 12, fontWeight: 600, fill: "#172033" }}
+                                        />
+                                    </Bar>
                                 </BarChart>
                             </ChartCard>
 
@@ -496,6 +511,11 @@ function UnitKerjaTable({ data }) {
             </div>
         </div>
     );
+}
+
+/** Label kategori golongan, mis. "I" -> "Gol. I". PPPK tanpa awalan. */
+function golonganLabel(label) {
+    return label === "PPPK" ? label : `Gol. ${label}`;
 }
 
 function ChartCardLoading({ title }) {
