@@ -9,6 +9,7 @@ import RekapJfTertentuTable from "../../components/Rekap/RekapJfTertentuTable";
 import RekapJfPelaksanaTable from "../../components/Rekap/RekapJfPelaksanaTable";
 import RekapStrukturGolonganTable from "../../components/Rekap/RekapStrukturGolonganTable";
 import RekapStrukturEselonTable from "../../components/Rekap/RekapStrukturEselonTable";
+import RekapPensiunTable from "../../components/Rekap/RekapPensiunTable";
 
 // Daftar sub-rekap. "ready: false" = belum dibuatkan (nyusul satu per satu).
 const REKAP_TABS = [
@@ -24,6 +25,7 @@ const REKAP_TABS = [
     { key: "jf-pelaksana", label: "JF Pelaksana", ready: true },
     { key: "struktur-golongan", label: "Struktural per Golongan", ready: true },
     { key: "struktur-eselon", label: "Struktural per Eselon", ready: true },
+    { key: "pensiun", label: "Pensiun", ready: true },
 ];
 
 const AGAMA_LIST = ["Islam", "Kristen", "Katholik", "Hindu", "Budha"];
@@ -128,6 +130,8 @@ function Rekapitulasi() {
             {activeTab === "struktur-golongan" && <RekapStrukturGolonganTable />}
 
             {activeTab === "struktur-eselon" && <RekapStrukturEselonTable />}
+
+            {activeTab === "pensiun" && <RekapPensiunTable />}
         </div>
     );
 }

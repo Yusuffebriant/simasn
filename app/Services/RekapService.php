@@ -1605,4 +1605,169 @@ class RekapService
 
         return $hasil;
     }
+
+    /**
+     * Daftar unit kerja pada tabel "Rekapitulasi Pensiun" — urutan & ejaan
+     * sama persis dengan Excel referensi (51 unit, urut abjad) dan dengan
+     * storage/daftar_instansi.txt. Dipakai sebagai kerangka baris supaya
+     * unit yang belum punya calon pensiunan tetap tampil dengan angka 0
+     * (bukan hilang dari tabel seperti rekap lain yang berbasis JOIN).
+     */
+    public const PENSIUN_UNIT_LIST = [
+        'BADAN KEPEGAWAIAN DAN PENGEMBANGAN SUMBER DAYA MANUSIA',
+        'BADAN KESATUAN BANGSA DAN POLITIK',
+        'BADAN PENANGGULANGAN BENCANA DAERAH',
+        'BADAN PENGELOLAAN KEUANGAN DAN ASET DAERAH',
+        'BADAN PERENCANAAN PEMBANGUNAN DAERAH',
+        'BAGIAN ADMINISTRASI DAN KEUANGAN',
+        'BAGIAN ADMINISTRASI PEMBANGUNAN',
+        'BAGIAN HUKUM',
+        'BAGIAN KESEJAHTERAAN RAKYAT',
+        'BAGIAN ORGANISASI',
+        'BAGIAN PENGADAAN BARANG DAN JASA',
+        'BAGIAN PEREKONOMIAN DAN KERJASAMA',
+        'BAGIAN TATA PEMERINTAHAN',
+        'BAGIAN UMUM DAN PROTOKOL',
+        'DINAS KEBUDAYAAN (KUNDHA KABUDAYAN)',
+        'DINAS KEPENDUDUKAN DAN PENCATATAN SIPIL',
+        'DINAS KESEHATAN',
+        'DINAS KOMUNIKASI INFORMATIKA DAN PERSANDIAN',
+        'DINAS LINGKUNGAN HIDUP',
+        'DINAS PARIWISATA',
+        'DINAS PEKERJAAN UMUM PERUMAHAN DAN KAWASAN PERMUKIMAN',
+        'DINAS PEMADAM KEBAKARAN DAN PENYELAMATAN',
+        'DINAS PEMBERDAYAAN PEREMPUAN PERLINDUNGAN ANAK DAN PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA',
+        'DINAS PENANAMAN MODAL DAN PELAYANAN TERPADU SATU PINTU',
+        'DINAS PENDIDIKAN PEMUDA DAN OLAHRAGA',
+        'DINAS PERDAGANGAN',
+        'DINAS PERHUBUNGAN',
+        'DINAS PERINDUSTRIAN KOPERASI USAHA KECIL DAN MENENGAH',
+        'DINAS PERPUSTAKAAN DAN KEARSIPAN',
+        'DINAS PERTANAHAN DAN TATA RUANG (KUNDHA NITI MANDALA SARTA TATA SASANA)',
+        'DINAS PERTANIAN DAN PANGAN',
+        'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
+        'INSPEKTORAT',
+        'KEMANTREN DANUREJAN',
+        'KEMANTREN GEDONGTENGEN',
+        'KEMANTREN GONDOKUSUMAN',
+        'KEMANTREN GONDOMANAN',
+        'KEMANTREN JETIS',
+        'KEMANTREN KOTAGEDE',
+        'KEMANTREN KRATON',
+        'KEMANTREN MANTRIJERON',
+        'KEMANTREN MERGANGSAN',
+        'KEMANTREN NGAMPILAN',
+        'KEMANTREN PAKUALAMAN',
+        'KEMANTREN TEGALREJO',
+        'KEMANTREN UMBULHARJO',
+        'KEMANTREN WIROBRAJAN',
+        'RUMAH SAKIT UMUM DAERAH KOTA YOGYAKARTA',
+        'SATUAN POLISI PAMONG PRAJA',
+        'SEKRETARIAT DAERAH',
+        'SEKRETARIAT DPRD',
+    ];
+
+    /** Jumlah tahun proyeksi pada Rekapitulasi Pensiun (2026–2035 = 10). */
+    public const PENSIUN_JUMLAH_TAHUN = 10;
+
+    /**
+     * Rekapitulasi Pensiun: jumlah PNS yang memasuki masa pensiun per
+     * Unit x Tahun untuk 10 tahun ke depan, dihitung mulai dari tahun
+     * pada $periode (mis. periode 2026-09 -> kolom 2026 s/d 2035).
+     *
+     * Definisi "pensiun" SAMA dengan StatistikService::statistikPensiunanPNS()
+     * dan statistikPensiunanDinas(), supaya angkanya konsisten dengan halaman
+     * Statistik: hanya PNS (status_kepegawaian = 'PNS') dengan
+     * pegawai.tanggal_pensiun terisi dan jatuh pada tahun bersangkutan —
+     * bukan berdasarkan status_aktif.
+     *
+     * Agregasi dilakukan di database dengan SUM(CASE WHEN ...) per tahun
+     * (bukan fungsi YEAR()) supaya portabel MySQL/SQLite dan index pada
+     * tanggal_pensiun tetap terpakai lewat filter rentang di WHERE.
+     *
+     * Baris mengikuti PENSIUN_UNIT_LIST. Instansi di luar daftar tersebut
+     * yang ternyata punya calon pensiunan ditambahkan di bawahnya (urut
+     * abjad) agar total tidak lebih kecil dari data sebenarnya.
+     *
+     * @return array{
+     *   tahun_awal:int, tahun_list:int[],
+     *   rows:array<int, array{instansi:string, per_tahun:array<int,int>, sub_total:int}>,
+     *   total:array{per_tahun:array<int,int>, sub_total:int}
+     * }
+     */
+    public function rekapPensiun(?string $periode = null): array
+    {
+        $tahunAwal = (int) substr($periode ?: now()->format('Y-m'), 0, 4);
+        $tahunList = range($tahunAwal, $tahunAwal + self::PENSIUN_JUMLAH_TAHUN - 1);
+
+        $select = ['instansi.nama as instansi_nama'];
+        $bindings = [];
+
+        foreach ($tahunList as $i => $tahun) {
+            $select[] = "SUM(CASE WHEN pegawai.tanggal_pensiun >= ? AND pegawai.tanggal_pensiun < ? THEN 1 ELSE 0 END) as t{$i}";
+            $bindings[] = sprintf('%04d-01-01', $tahun);
+            $bindings[] = sprintf('%04d-01-01', $tahun + 1);
+        }
+
+        $rows = Pegawai::query()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->selectRaw(implode(', ', $select), $bindings)
+            ->where('pegawai.status_kepegawaian', 'PNS')
+            ->whereNotNull('pegawai.tanggal_pensiun')
+            ->where('pegawai.tanggal_pensiun', '>=', sprintf('%04d-01-01', $tahunAwal))
+            ->where('pegawai.tanggal_pensiun', '<', sprintf('%04d-01-01', $tahunAwal + self::PENSIUN_JUMLAH_TAHUN))
+            ->groupBy('instansi.nama')
+            ->get();
+
+        $kosong = array_fill_keys($tahunList, 0);
+
+        $perUnit = [];
+        foreach (self::PENSIUN_UNIT_LIST as $unit) {
+            $perUnit[$unit] = $kosong;
+        }
+
+        $tambahan = [];
+        foreach ($rows as $row) {
+            $nama = trim((string) $row->instansi_nama);
+
+            $angka = [];
+            foreach ($tahunList as $i => $tahun) {
+                $angka[$tahun] = (int) $row->{"t{$i}"};
+            }
+
+            if (isset($perUnit[$nama])) {
+                $perUnit[$nama] = $angka;
+            } else {
+                $tambahan[$nama] = $angka;
+            }
+        }
+
+        ksort($tambahan);
+        $perUnit += $tambahan;
+
+        $hasil = [];
+        $totalPerTahun = $kosong;
+
+        foreach ($perUnit as $unit => $angka) {
+            foreach ($angka as $tahun => $jumlah) {
+                $totalPerTahun[$tahun] += $jumlah;
+            }
+
+            $hasil[] = [
+                'instansi' => $unit,
+                'per_tahun' => $angka,
+                'sub_total' => array_sum($angka),
+            ];
+        }
+
+        return [
+            'tahun_awal' => $tahunAwal,
+            'tahun_list' => $tahunList,
+            'rows' => $hasil,
+            'total' => [
+                'per_tahun' => $totalPerTahun,
+                'sub_total' => array_sum($totalPerTahun),
+            ],
+        ];
+    }
 }

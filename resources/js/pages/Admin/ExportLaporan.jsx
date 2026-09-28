@@ -27,6 +27,7 @@ const REKAP_LIST = [
     "Rekap JF Pelaksana",
     "Struktural per Golongan",
     "Struktural per Eselon",
+    "Rekap Pensiun",
 ];
 
 function ExportLaporan() {
@@ -98,8 +99,8 @@ function ExportLaporan() {
                     Mengunduh 1 file Excel berisi seluruh rekapitulasi
                     (agama, pendidikan, golongan ruang, jabatan, eselon,
                     nakes, SD, SMP, kecamatan/kelurahan, JF tertentu,
-                    JF pelaksana, struktural per golongan, dan struktural
-                    per eselon) untuk periode yang dipilih — masing-masing
+                    JF pelaksana, struktural per golongan, struktural
+                    per eselon, dan pensiun) untuk periode yang dipilih — masing-masing
                     rekap pada sheet-nya sendiri.
                 </p>
 
