@@ -1,58 +1,117 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIMASN — Rekapitulasi Data Kepegawaian
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi web untuk rekapitulasi data kepegawaian (dashboard, statistik, import data pegawai, dan pengelolaan akun).
+Dibangun dengan Laravel (backend) dan React (tampilan).
 
-## About Laravel
+Panduan ini ditulis untuk admin. Cukup ikuti langkahnya satu per satu.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 1. Menjalankan aplikasi sehari-hari
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Sebelum mulai, pastikan **MySQL sudah menyala** (database bernama `simasn`).
 
-## Learning Laravel
+Buka **Terminal / Command Prompt di folder proyek ini**, lalu jalankan perintah berikut.
+Setiap perintah dijalankan di **jendela terminal sendiri** dan **dibiarkan terbuka** selama aplikasi dipakai.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+| Terminal | Perintah                 | Fungsi                                                     |
+| -------- | ------------------------ | ---------------------------------------------------------- |
+| 1        | `php artisan serve`      | Menyalakan server aplikasi (alamat: http://localhost:8000) |
+| 2        | `npm run dev`            | Menyalakan tampilan (React)                                |
+| 3        | `php artisan queue:work` | Memproses import data pegawai di latar belakang            |
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Setelah ketiganya berjalan, buka **http://localhost:8000** di browser.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+Penting:
 
-## Agentic Development
+- Kalau terminal 3 (`queue:work`) tidak berjalan, **import data pegawai akan berhenti di status menunggu** dan tidak pernah selesai.
+- Untuk menghentikan, tekan `Ctrl + C` di masing-masing terminal.
+- Kalau ada perubahan pengaturan di file `.env`, hentikan `queue:work` lalu jalankan lagi.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+---
 
-```bash
-composer require laravel/boost --dev
+## 2. Lupa kata sandi
 
-php artisan boost:install
+Aplikasi ini belum punya fitur "reset kata sandi" lewat email. Kata sandi diatur ulang lewat terminal.
+
+### Cara A — Lewat akun admin lain (kalau ada)
+
+Login dengan akun admin lain, buka halaman **Settings**, lalu ubah kata sandi akun yang lupa.
+
+### Cara B — Lewat terminal (kalau hanya ada satu admin)
+
+1. Pastikan MySQL menyala.
+2. Buka terminal di folder proyek, lalu jalankan:
+
+    ```bash
+    php artisan tinker
+    ```
+
+3. Kalau lupa alamat email akunnya, lihat daftar email dulu:
+
+    ```php
+    App\Models\User::pluck('email');
+    ```
+
+4. Ganti kata sandi (ubah email dan kata sandi barunya, **tanda kutip tetap dipakai**):
+
+    ```php
+    $u = App\Models\User::where('email', 'email-admin@contoh.go.id')->first();
+    $u->password = 'KataSandiBaru123';
+    $u->save();
+    ```
+
+    - Kata sandi minimal **8 karakter**.
+    - Ditulis apa adanya, tidak perlu di-hash. Sistem yang mengamankannya.
+    - Kalau setelah baris pertama muncul `null`, artinya email salah atau tidak ditemukan. Periksa lagi ejaannya.
+
+5. Keluar dari tinker:
+
+    ```php
+    exit
+    ```
+
+6. Login di aplikasi dengan kata sandi baru, lalu ganti sesuai keinginan lewat halaman **Settings**.
+
+---
+
+## 3. Masa berlaku login
+
+Setelah login, admin otomatis keluar (logout) setelah **120 menit**. Ini diatur di file `.env`:
+
+```
+SANCTUM_EXPIRATION=120
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Angkanya dalam **menit**. Contoh: `240` untuk 4 jam, `480` untuk 8 jam.
+Setelah mengubahnya, jalankan:
 
-## Contributing
+```bash
+php artisan config:clear
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## 4. Masalah yang sering terjadi
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Masalah                                            | Penyebab dan solusi                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| Halaman tidak bisa dibuka / error koneksi database | MySQL belum menyala. Nyalakan MySQL, lalu muat ulang halaman.        |
+| Tampilan kosong atau tidak berubah                 | Terminal 2 (`npm run dev`) belum berjalan. Jalankan lagi.            |
+| Import data pegawai menunggu terus                 | Terminal 3 (`php artisan queue:work`) belum berjalan. Jalankan lagi. |
+| Tiba-tiba diminta login lagi                       | Masa berlaku login habis (lihat bagian 3). Login ulang.              |
+| Perubahan di `.env` tidak berpengaruh              | Jalankan `php artisan config:clear`, lalu restart `queue:work`.      |
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 5. Pemasangan pertama kali (untuk developer / komputer baru)
 
-## License
+Butuh PHP, Composer, Node.js, dan MySQL.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+composer run setup        # install dependensi, buat .env, generate key, migrasi, build
+php artisan db:seed       # isi data master (role, golongan, pendidikan, wilayah, dll.)
+```
+
+Lalu sesuaikan koneksi database di `.env` (`DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
+Setelah itu jalankan aplikasi seperti pada bagian 1.
