@@ -6,7 +6,9 @@ use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapJabatanExport implements FromArray, WithEvents
 {
@@ -22,6 +24,12 @@ class RekapJabatanExport implements FromArray, WithEvents
     ];
 
     protected int $headerRows = 6;
+
+    // Warna disamakan dengan sheet "jab" di file data pegawai
+    protected string $warnaAqua = 'B7DEE8';       // header ESELON & kolom JML (eselon)
+    protected string $warnaBiru = 'B8CCE4';       // Fungsional Umum/ Jab. Pelaksana
+    protected string $warnaOranye = 'FAC090';     // kolom JML TOTAL
+    protected string $warnaOranyeMuda = 'FCD5B5'; // baris TOTAL
 
     public function __construct(protected string $periode)
     {
@@ -152,33 +160,86 @@ class RekapJabatanExport implements FromArray, WithEvents
                     );
                 }
 
-                $sheet
-                    ->getStyle("A{$totalRow}:L{$totalRow}")
-                    ->getFont()
-                    ->setBold(true);
+                // ===== Styling (mengikuti sheet "jab" di file data pegawai) =====
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
+                $firstDataRow = $this->headerRows + 1;
 
-                $sheet
-                    ->getStyle('A1:A3')
-                    ->getFont()
-                    ->setBold(true);
+                $warnai = function (string $range, string $rgb) use ($sheet) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($rgb);
+                };
 
-                $sheet
-                    ->getStyle('A5:L6')
-                    ->getFont()
-                    ->setBold(true);
+                // Judul: bold & rata tengah
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                }
 
-                $sheet
-                    ->getStyle('A5:L6')
-                    ->getAlignment()
-                    ->setHorizontal('center')
-                    ->setVertical('center')
+                // Header baris 5-6: bold, rata tengah, border tipis
+                $sheet->getStyle('A5:L6')->getFont()->setBold(true);
+                $sheet->getStyle('A5:L6')->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
                     ->setWrapText(true);
+                $sheet->getStyle('A5:L6')->getBorders()->getAllBorders()->setBorderStyle($thin);
 
-                $sheet
-                    ->getStyle("A5:L{$totalRow}")
-                    ->getBorders()
-                    ->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
+                // Warna header: ESELON aqua, Fungsional Umum biru, JML TOTAL oranye
+                $warnai('C5:H5', $this->warnaAqua);
+                $warnai('J5:J6', $this->warnaBiru);
+                $warnai('L5:L6', $this->warnaOranye);
+
+                // Baris data: garis kotak per baris (kiri/kanan tipis, atas/bawah halus)
+                for ($r = $firstDataRow; $r <= $lastDataRow; $r++) {
+                    $top = $r === $firstDataRow ? $thin : $hair;
+                    $bottom = $r === $lastDataRow ? $thin : $hair;
+                    $borders = $sheet->getStyle("A{$r}:L{$r}")->getBorders();
+                    $borders->getLeft()->setBorderStyle($thin);
+                    $borders->getRight()->setBorderStyle($thin);
+                    $borders->getVertical()->setBorderStyle($thin);
+                    $borders->getTop()->setBorderStyle($top);
+                    $borders->getBottom()->setBorderStyle($bottom);
+                }
+
+                // Angka & nomor rata tengah
+                $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("C{$firstDataRow}:L{$totalRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                // Kolom JML (I) aqua, Fungsional Umum (J) biru, JML TOTAL (L) oranye
+                $warnai("I{$firstDataRow}:I{$lastDataRow}", $this->warnaAqua);
+                $warnai("J{$firstDataRow}:J{$lastDataRow}", $this->warnaBiru);
+                $warnai("L{$firstDataRow}:L{$lastDataRow}", $this->warnaOranye);
+
+                // Baris TOTAL: bold ukuran 13, border tipis, oranye muda (JML TOTAL oranye lebih tua)
+                $sheet->getStyle("A{$totalRow}:L{$totalRow}")->getFont()
+                    ->setBold(true)
+                    ->setSize(13);
+                $sheet->getStyle("A{$totalRow}:L{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("A{$totalRow}:L{$totalRow}")->getAlignment()
+                    ->setVertical(Alignment::VERTICAL_CENTER);
+                $warnai("A{$totalRow}:K{$totalRow}", $this->warnaOranyeMuda);
+                $warnai("L{$totalRow}", $this->warnaOranye);
+                $sheet->getRowDimension($totalRow)->setRowHeight(17.4);
+
+                // Lebar kolom: INSTANSI menyesuaikan nama terpanjang supaya tidak terpotong
+                $terpanjang = 0;
+                foreach ($this->data as $d) {
+                    $terpanjang = max($terpanjang, mb_strlen((string) $d['instansi']));
+                }
+                $sheet->getColumnDimension('A')->setWidth(4.5);
+                $sheet->getColumnDimension('B')->setWidth(min(113, max(40, $terpanjang * 1.1)));
+                foreach (range('C', 'H') as $col) {
+                    $sheet->getColumnDimension($col)->setWidth(7);
+                }
+                $sheet->getColumnDimension('I')->setWidth(11.66);
+                $sheet->getColumnDimension('J')->setWidth(23.44);
+                $sheet->getColumnDimension('K')->setWidth(18.66);
+                $sheet->getColumnDimension('L')->setWidth(11);
             },
         ];
     }

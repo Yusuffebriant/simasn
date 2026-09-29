@@ -6,13 +6,19 @@ use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapAgamaExport implements FromArray, WithEvents
 {
     protected array $data;
     protected array $agamaList = ['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha'];
     protected int $headerRows = 7;
+
+    // Warna disamakan dengan sheet "agama" di file data pegawai
+    protected string $warnaBiru = 'DCE6F2';   // nama agama & kolom JML
+    protected string $warnaOranye = 'FCD5B5'; // baris TOTAL
 
     public function __construct(protected string $periode)
     {
@@ -78,7 +84,8 @@ class RekapAgamaExport implements FromArray, WithEvents
                 $sheet->setCellValue('I5', 'WANITA');
                 $sheet->setCellValue('N5', 'JML');
                 $sheet->setCellValue('O5', 'JML TOTAL');
-                $sheet->setCellValue('Q5', 'Total'); // header blok tambahan, tidak di-merge (sesuai aslinya)
+                $sheet->setCellValue('P5', 'INSTANSI'); // header blok tambahan (nama instansi diulang)
+                $sheet->setCellValue('Q5', 'Total');    // label blok total per agama
 
                 $sheet->mergeCells('A5:A7');
                 $sheet->mergeCells('B5:B7');
@@ -87,6 +94,8 @@ class RekapAgamaExport implements FromArray, WithEvents
                 $sheet->mergeCells('I5:M5');
                 $sheet->mergeCells('N5:N7');
                 $sheet->mergeCells('O5:O7');
+                $sheet->mergeCells('P5:P7');
+                $sheet->mergeCells('Q5:U6');
 
                 $kolomPria = ['C', 'D', 'E', 'F', 'G'];
                 $kolomWanita = ['I', 'J', 'K', 'L', 'M'];
@@ -119,13 +128,91 @@ class RekapAgamaExport implements FromArray, WithEvents
                     $sheet->setCellValue($col . $totalRow, $sum);
                 }
 
-                // Styling
-                $sheet->getStyle('A1:A3')->getFont()->setBold(true);
-                $sheet->getStyle('A5:U7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:U7')->getAlignment()->setHorizontal('center')->setVertical('center');
-                $sheet->getStyle("A5:U{$totalRow}")->getBorders()->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle("A{$totalRow}:U{$totalRow}")->getFont()->setBold(true);
+                // ===== Styling (mengikuti sheet "agama" di file data pegawai) =====
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
+                $firstDataRow = $this->headerRows + 1;
+
+                // Judul: bold & rata tengah (merge A:O)
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                }
+
+                // Header baris 5-7: bold, tengah, border tipis
+                $sheet->getStyle('A5:O7')->getFont()->setBold(true);
+                $sheet->getStyle('A5:O7')->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+                $sheet->getStyle('A5:O7')->getBorders()->getAllBorders()->setBorderStyle($thin);
+
+                // Blok tambahan P-U (nama instansi + total per agama): header sama seperti tabel utama
+                $sheet->getStyle('P5:U7')->getFont()->setBold(true);
+                $sheet->getStyle('P5:U7')->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+                $sheet->getStyle('P5:U7')->getBorders()->getAllBorders()->setBorderStyle($thin);
+
+                // Nama agama (baris 7) berwarna biru muda
+                foreach (['C7:G7', 'I7:M7', 'Q7:U7'] as $range) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaBiru);
+                }
+
+                // Baris data: garis kiri/kanan tipis, garis antar-baris tipis-halus (hair)
+                for ($r = $firstDataRow; $r <= $lastDataRow; $r++) {
+                    $borders = $sheet->getStyle("A{$r}:O{$r}")->getBorders();
+                    $borders->getLeft()->setBorderStyle($thin);
+                    $borders->getRight()->setBorderStyle($thin);
+                    $borders->getVertical()->setBorderStyle($thin);
+                    $borders->getTop()->setBorderStyle($r === $firstDataRow ? $thin : $hair);
+                    $borders->getBottom()->setBorderStyle($r === $lastDataRow ? $thin : $hair);
+                }
+
+                // Blok P-U: nama instansi (P) dan total per agama (Q-U) ikut bergaris
+                $sheet->getStyle("P{$firstDataRow}:U{$lastDataRow}")->applyFromArray(['borders' => [
+                    'outline' => ['borderStyle' => $thin],
+                    'vertical' => ['borderStyle' => $thin],
+                    'horizontal' => ['borderStyle' => $hair],
+                ]]);
+                $sheet->getStyle("Q{$firstDataRow}:U{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+                // Kolom JML pria (H), JML wanita (N), JML total (O): biru muda + bold
+                foreach (['H', 'N', 'O'] as $col) {
+                    $range = "{$col}{$firstDataRow}:{$col}{$lastDataRow}";
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaBiru);
+                    $sheet->getStyle($range)->getFont()->setBold(true);
+                }
+
+                // Baris TOTAL: bold, border tipis, angka berwarna oranye muda
+                $sheet->getStyle("A{$totalRow}:O{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$totalRow}:O{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->setCellValue("P{$totalRow}", 'TOTAL');
+                $sheet->getStyle("P{$totalRow}:U{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("P{$totalRow}:U{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                foreach (["C{$totalRow}:O{$totalRow}", "Q{$totalRow}:U{$totalRow}"] as $range) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaOranye);
+                }
+
+                // Lebar kolom
+                $lebar = [
+                    'A' => 3.44, 'B' => 113.11, 'C' => 7, 'D' => 9.33, 'E' => 10.55, 'F' => 7, 'G' => 7,
+                    'H' => 11.66, 'I' => 7, 'J' => 9.33, 'K' => 10.55, 'L' => 7, 'M' => 7, 'N' => 11.66,
+                    'O' => 11, 'P' => 113.11, 'Q' => 10.5, 'R' => 10.5, 'S' => 10.5, 'T' => 10.5, 'U' => 10.5,
+                ];
+                foreach ($lebar as $col => $w) {
+                    $sheet->getColumnDimension($col)->setWidth($w);
+                }
             },
         ];
     }

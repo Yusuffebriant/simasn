@@ -7,12 +7,18 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapNakesExport implements FromArray, WithEvents, WithTitle
 {
     protected array $data;
-    protected int $headerRows = 2;
+    protected int $headerRows = 5; // baris 1-3 judul, 4 kosong, 5 header kolom
+
+    // Warna disamakan dengan sheet rekap lain (agama, pend, jab, dst) di file data pegawai
+    protected string $warnaBiru = 'DCE6F2';   // header tabel & kolom Jumlah
+    protected string $warnaOranye = 'FCD5B5'; // baris TOTAL
 
     public function __construct(protected string $periode)
     {
@@ -61,18 +67,33 @@ class RekapNakesExport implements FromArray, WithEvents, WithTitle
                 $sheet = $event->sheet->getDelegate();
                 $sheet->insertNewRowBefore(1, $this->headerRows);
 
+                // Judul 3 baris rata tengah (gaya sama seperti sheet rekap lain di file data pegawai)
                 $sheet->setCellValue(
                     'A1',
-                    'Data Pejabat Fungsional Nakes ' . $this->formatPeriode($this->periode)
+                    'REKAPITULASI ASN PEMERINTAH DAERAH KAB/KOTA PEMERINTAH KOTA YOGYAKARTA'
                 );
-                $sheet->mergeCells('A1:F1');
+                $sheet->setCellValue(
+                    'A2',
+                    'DATA PEJABAT FUNGSIONAL NAKES, DIPERINCI MENURUT FASILITAS KESEHATAN DAN JENIS KELAMIN'
+                );
+                $sheet->setCellValue(
+                    'A3',
+                    'KEADAAN : ' . mb_strtoupper($this->formatPeriode($this->periode))
+                );
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->mergeCells("A{$r}:F{$r}");
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal('center')
+                        ->setVertical('center');
+                }
 
-                $sheet->setCellValue('A2', 'No.');
-                $sheet->setCellValue('B2', 'Fasilitas Kesehatan');
-                $sheet->setCellValue('C2', 'Pria');
-                $sheet->setCellValue('D2', 'Wanita');
-                $sheet->setCellValue('E2', 'Jumlah');
-                $sheet->setCellValue('F2', 'Alamat');
+                $sheet->setCellValue('A5', 'No.');
+                $sheet->setCellValue('B5', 'Fasilitas Kesehatan');
+                $sheet->setCellValue('C5', 'Pria');
+                $sheet->setCellValue('D5', 'Wanita');
+                $sheet->setCellValue('E5', 'Jumlah');
+                $sheet->setCellValue('F5', 'Alamat');
 
                 $lastDataRow = $this->headerRows + count($this->data);
                 $totalRow = $lastDataRow + 1;
@@ -88,16 +109,51 @@ class RekapNakesExport implements FromArray, WithEvents, WithTitle
                     $sheet->setCellValue($col . $totalRow, $sum);
                 }
 
-                // Judul: ukuran & perataan sama seperti template excel yang dikirim user.
-                $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-                $sheet->getStyle('A1')->getAlignment()->setHorizontal('left')->setVertical('top');
-                $sheet->getRowDimension(1)->setRowHeight(32);
+                $sheet->getStyle('A5:F5')->getFont()->setBold(true)->setSize(12);
+                $sheet->getStyle('A5:F5')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
 
-                $sheet->getStyle('A2:F2')->getFont()->setBold(true)->setSize(12);
-                $sheet->getStyle('A2:F2')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
+                // ===== Styling (mengikuti gaya sheet rekap di file data pegawai) =====
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
+                $firstDataRow = $this->headerRows + 1;
 
-                $sheet->getStyle("A2:F{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle("B{$totalRow}:E{$totalRow}")->getFont()->setBold(true);
+                $warnai = function (string $range, string $rgb) use ($sheet) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($rgb);
+                };
+
+                // Header tabel: border tipis + biru muda
+                $sheet->getStyle('A5:F5')->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $warnai('A5:F5', $this->warnaBiru);
+
+                // Baris data: garis kotak per baris (kiri/kanan tipis, atas/bawah halus)
+                for ($r = $firstDataRow; $r <= $lastDataRow; $r++) {
+                    $top = $r === $firstDataRow ? $thin : $hair;
+                    $bottom = $r === $lastDataRow ? $thin : $hair;
+                    $borders = $sheet->getStyle("A{$r}:F{$r}")->getBorders();
+                    $borders->getLeft()->setBorderStyle($thin);
+                    $borders->getRight()->setBorderStyle($thin);
+                    $borders->getVertical()->setBorderStyle($thin);
+                    $borders->getTop()->setBorderStyle($top);
+                    $borders->getBottom()->setBorderStyle($bottom);
+                }
+
+                // Nomor rata tengah
+                $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_TOP);
+
+                // Kolom Jumlah (E): biru muda + bold
+                $warnai("E{$firstDataRow}:E{$lastDataRow}", $this->warnaBiru);
+                $sheet->getStyle("E{$firstDataRow}:E{$lastDataRow}")->getFont()->setBold(true);
+
+                // Baris TOTAL: bold, border tipis, oranye muda, angka rata tengah
+                $sheet->getStyle("A{$totalRow}:F{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("A{$totalRow}:F{$totalRow}")->getFont()->setBold(true);
+                $warnai("A{$totalRow}:F{$totalRow}", $this->warnaOranye);
+                $sheet->getStyle("C{$totalRow}:E{$totalRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Lebar kolom sama seperti template excel yang dikirim user.
                 $sheet->getColumnDimension('A')->setWidth(8);
@@ -107,9 +163,9 @@ class RekapNakesExport implements FromArray, WithEvents, WithTitle
                 $sheet->getColumnDimension('E')->setWidth(10.5);
                 $sheet->getColumnDimension('F')->setWidth(54.7);
 
-                $sheet->getStyle('B3:B' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
-                $sheet->getStyle('F3:F' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
-                $sheet->getStyle("C3:E{$lastDataRow}")->getAlignment()->setHorizontal('center');
+                $sheet->getStyle('B' . $firstDataRow . ':B' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
+                $sheet->getStyle('F' . $firstDataRow . ':F' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
+                $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()->setHorizontal('center');
             },
         ];
     }

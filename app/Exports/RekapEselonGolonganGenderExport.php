@@ -6,7 +6,9 @@ use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapEselonGolonganGenderExport implements FromArray, WithEvents
 {
@@ -18,6 +20,10 @@ class RekapEselonGolonganGenderExport implements FromArray, WithEvents
     ];
 
     protected int $headerRows = 7;
+
+    // Warna disamakan dengan sheet "es gol gender" di file data pegawai
+    protected string $warnaBiru = 'DCE6F2';   // header golongan & kolom ESELON
+    protected string $warnaOranye = 'FCD5B5'; // kolom JML TOTAL & baris TOTAL
 
     public function __construct(protected string $periode)
     {
@@ -105,11 +111,70 @@ class RekapEselonGolonganGenderExport implements FromArray, WithEvents
                     $sheet->setCellValue($column . $totalRow, $sum);
                 }
 
-                $sheet->getStyle('A1:A3')->getFont()->setBold(true);
+                // ===== Styling (mengikuti sheet "es gol gender" di file data pegawai) =====
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
+                $firstDataRow = $this->headerRows + 1;
+
+                $warnai = function (string $range, string $rgb) use ($sheet) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($rgb);
+                };
+
+                // Judul: bold & rata tengah
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                }
+
+                // Header baris 5-7: bold, rata tengah, border tipis
                 $sheet->getStyle('A5:W7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:W7')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
-                $sheet->getStyle("A5:W{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle('A5:W7')->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+                $sheet->getStyle('A5:W7')->getBorders()->getAllBorders()->setBorderStyle($thin);
+
+                // Nama golongan (baris 7, blok pria C:K & wanita M:U): biru muda
+                $warnai('C7:K7', $this->warnaBiru);
+                $warnai('M7:U7', $this->warnaBiru);
+
+                // Baris data: garis kotak per baris (kiri/kanan tipis, atas/bawah halus)
+                for ($r = $firstDataRow; $r <= $lastDataRow; $r++) {
+                    $top = $r === $firstDataRow ? $thin : $hair;
+                    $bottom = $r === $lastDataRow ? $thin : $hair;
+                    $borders = $sheet->getStyle("A{$r}:W{$r}")->getBorders();
+                    $borders->getLeft()->setBorderStyle($thin);
+                    $borders->getRight()->setBorderStyle($thin);
+                    $borders->getVertical()->setBorderStyle($thin);
+                    $borders->getTop()->setBorderStyle($top);
+                    $borders->getBottom()->setBorderStyle($bottom);
+                }
+
+                // Kolom ESELON (B) tiap baris data: biru muda
+                $warnai("B{$firstDataRow}:B{$lastDataRow}", $this->warnaBiru);
+
+                // Kolom JML TOTAL (W) tiap baris data: oranye muda + bold
+                $warnai("W{$firstDataRow}:W{$lastDataRow}", $this->warnaOranye);
+                $sheet->getStyle("W{$firstDataRow}:W{$lastDataRow}")->getFont()->setBold(true);
+
+                // Baris TOTAL: bold, border tipis, angka (C:W) berwarna oranye muda
                 $sheet->getStyle("A{$totalRow}:W{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$totalRow}:W{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $warnai("C{$totalRow}:W{$totalRow}", $this->warnaOranye);
+
+                // Lebar kolom
+                $sheet->getColumnDimension('A')->setWidth(3.44);
+                $sheet->getColumnDimension('B')->setWidth(10);
+                foreach (array_merge(range('C', 'K'), range('M', 'U')) as $col) {
+                    $sheet->getColumnDimension($col)->setWidth(7);
+                }
+                $sheet->getColumnDimension('L')->setWidth(10);
+                $sheet->getColumnDimension('V')->setWidth(10);
+                $sheet->getColumnDimension('W')->setWidth(11);
             },
         ];
     }
