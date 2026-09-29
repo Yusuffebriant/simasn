@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapKecamatanExport implements FromArray, WithEvents
 {
@@ -114,6 +115,17 @@ class RekapKecamatanExport implements FromArray, WithEvents
 
                 /*
                 |--------------------------------------------------------------------------
+                | Palet warna (senada dengan file rekap data pegawai)
+                |--------------------------------------------------------------------------
+                */
+                $navy = '1F4E78';
+                $headerFill = 'D9E2F3';
+                $totalKolomFill = 'EAF1FB';
+                $bandFill = 'F2F6FC';
+                $grandTotalFill = 'FCE4D6';
+
+                /*
+                |--------------------------------------------------------------------------
                 | Tambahkan baris untuk title (3 baris) dan header tabel (3 baris)
                 |--------------------------------------------------------------------------
                 */
@@ -144,7 +156,8 @@ class RekapKecamatanExport implements FromArray, WithEvents
                     ->getFont()
                     ->setName('Calibri')
                     ->setBold(true)
-                    ->setSize(16);
+                    ->setSize(16)
+                    ->getColor()->setRGB($navy);
 
                 // Baris 2-3: "di Kota Yogyakarta" & bulan-tahun, 1 ukuran lebih kecil.
                 $sheet->getStyle('A2:R3')
@@ -210,13 +223,19 @@ class RekapKecamatanExport implements FromArray, WithEvents
                 */
                 $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
                     ->getFont()
-                    ->setBold(true);
+                    ->setBold(true)
+                    ->getColor()->setRGB($navy);
 
                 $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
                     ->getAlignment()
                     ->setHorizontal('center')
                     ->setVertical('center')
                     ->setWrapText(true);
+
+                $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
+                    ->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB($headerFill);
 
                 /*
                 |--------------------------------------------------------------------------
@@ -240,12 +259,24 @@ class RekapKecamatanExport implements FromArray, WithEvents
                 $lineHeightPt = 16;
                 $minRowHeight = 24;
 
+                // Selang-seling warna per kelompok Kemantren (bukan per baris),
+                // supaya batas antar Kemantren mudah terlihat.
+                $bandToggle = false;
+
                 foreach ($this->data as $d) {
 
                     if ($d['jumlah_baris_kemantren'] !== null) {
 
                         $span = $d['jumlah_baris_kemantren'];
                         $endRow = $row + $span - 1;
+                        $bandToggle = !$bandToggle;
+
+                        if ($bandToggle) {
+                            $sheet->getStyle("A{$row}:R{$endRow}")
+                                ->getFill()
+                                ->setFillType(Fill::FILL_SOLID)
+                                ->getStartColor()->setRGB($bandFill);
+                        }
 
                         foreach (
                             [
@@ -306,6 +337,20 @@ class RekapKecamatanExport implements FromArray, WithEvents
                     ->getBorders()
                     ->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
+
+                /*
+                |--------------------------------------------------------------------------
+                | WARNA KOLOM TOTAL — "Total Kecamatan" (J:K) & "Total Kelurahan"
+                | (Q:R) diberi tint biar menonjol dari kolom rincian lain,
+                | sekaligus di header supaya konsisten dari atas ke bawah.
+                |--------------------------------------------------------------------------
+                */
+                foreach (["J{$headerRow1}:K{$lastDataRow}", "Q{$headerRow1}:R{$lastDataRow}"] as $range) {
+                    $sheet->getStyle($range)
+                        ->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($totalKolomFill);
+                }
 
                 /*
                 |--------------------------------------------------------------------------
@@ -460,6 +505,13 @@ class RekapKecamatanExport implements FromArray, WithEvents
                     ->getAlignment()
                     ->setHorizontal('center')
                     ->setVertical('center');
+
+                $sheet->getStyle(
+                    "B{$sumRow}:C" . ($sumRow + 1)
+                )
+                    ->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB($grandTotalFill);
 
                 /*
                 |--------------------------------------------------------------------------

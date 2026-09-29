@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapJfPelaksanaExport implements FromArray, WithEvents
 {
@@ -46,7 +47,7 @@ class RekapJfPelaksanaExport implements FromArray, WithEvents
                 $wanita,
                 [$d['jml_wanita']],
                 [$d['jml_total']],
-                [''],
+                [$d['instansi']],
                 array_values($d['pns_agg']),
                 [$d['pns_total']],
                 array_values($d['pppk']),
@@ -76,8 +77,19 @@ class RekapJfPelaksanaExport implements FromArray, WithEvents
                 $sheet = $event->sheet->getDelegate();
                 $L = fn (int $i) => Coordinate::stringFromColumnIndex($i);
 
+                // Palet warna (mengikuti sheet "jf tertentu" di file data pegawai)
+                $pink = 'E6B8B7';       // kolom JML pria & JML total
+                $pinkMuda = 'F2DCDB';   // kolom JML wanita
+                $biruTua = 'B7DEE8';    // kolom JML / Total
+                $biruMuda = 'DAEEF3';   // JML wanita & sub-header PNS/PPPK
+                $navy = '002060';       // header PNS
+                $ungu = '7030A0';       // header PPPK
+                $putih = 'FFFFFF';
+
                 $n = count($this->displayOrder);
 
+                $colNo = 1;
+                $colInstansi = 2;
                 $colPriaStart = 3;
                 $colPriaEnd = $colPriaStart + $n - 1;
                 $colJmlPria = $colPriaEnd + 1;
@@ -98,9 +110,10 @@ class RekapJfPelaksanaExport implements FromArray, WithEvents
                 $sheet->setCellValue('A1', 'REKAPITULASI JUMLAH ASN FUNGSIONAL UMUM ATAU PELAKSANA PEMERINTAH DAERAH/KABUPATEN/KOTA PEMERINTAH KOTA YOGYAKARTA');
                 $sheet->setCellValue('A2', 'DIPERINCI MENURUT INSTANSI, GOLONGAN RUANG DAN JENIS KELAMIN');
                 $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
-                $sheet->mergeCells('A1:' . $L($lastCol) . '1');
-                $sheet->mergeCells('A2:' . $L($lastCol) . '2');
-                $sheet->mergeCells('A3:' . $L($lastCol) . '3');
+                // Judul di-merge A s/d JML TOTAL supaya tepat di tengah tabel utama
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->mergeCells("A{$r}:" . $L($colJmlTotal) . $r);
+                }
 
                 $sheet->setCellValue('A5', 'NO');
                 $sheet->setCellValue('B5', 'INSTANSI');
@@ -157,10 +170,75 @@ class RekapJfPelaksanaExport implements FromArray, WithEvents
                 }
                 $sheet->getStyle("A{$totalRow}:" . $L($lastCol) . "{$totalRow}")->getFont()->setBold(true);
 
-                $sheet->getStyle('A1:A3')->getFont()->setBold(true);
-                $sheet->getStyle('A5:' . $L($lastCol) . '7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:' . $L($lastCol) . '7')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
-                $sheet->getStyle('A5:' . $L($lastCol) . "{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $fill = function (string $range, string $rgb) use ($sheet) {
+                    $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($rgb);
+                };
+                $lastL = $L($lastCol);
+                $lastMain = $L($colJmlTotal);
+
+                // Header spacer -> kolom nama instansi untuk tabel PNS/PPPK
+                $sheet->setCellValue($L($colSpacer) . '5', 'INSTANSI');
+                $sheet->mergeCells($L($colSpacer) . '5:' . $L($colSpacer) . '7');
+                $sheet->setCellValue($L($colSpacer) . $totalRow, 'TOTAL');
+
+                // Judul rata tengah
+                $sheet->getStyle("A1:{$lastMain}3")->getFont()->setBold(true)->getColor()->setRGB('000000');
+                $sheet->getStyle("A1:{$lastMain}3")->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getRowDimension(1)->setRowHeight(20);
+                $sheet->getStyle('A1')->getFont()->setSize(13);
+
+                // Semua sel tabel: border, rata tengah angka
+                $sheet->getStyle("A5:{$lastL}{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("C8:{$lastL}{$totalRow}")->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getStyle("A8:B{$totalRow}")->getAlignment()->setVertical('center');
+                $sheet->getStyle("A8:A{$lastDataRow}")->getAlignment()->setHorizontal('center');
+                $sheet->getStyle($L($colSpacer) . "8:" . $L($colSpacer) . $totalRow)->getAlignment()->setHorizontal('left');
+
+                // Header
+                $sheet->getStyle("A5:{$lastMain}7")->getFont()->setBold(true);
+                $sheet->getStyle("A5:{$lastL}7")->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
+                $sheet->getRowDimension(7)->setRowHeight(29.4);
+
+                // Header (atas) biru
+                $fill("A5:{$lastMain}7", $biruTua);
+
+                // Kolom JML pria / JML wanita / JML TOTAL (pink, hanya isi data)
+                $fill($L($colJmlPria) . "8:" . $L($colJmlPria) . $totalRow, $pink);
+                $fill($L($colJmlWanita) . "8:" . $L($colJmlWanita) . $totalRow, $pinkMuda);
+                $fill($L($colJmlTotal) . "8:" . $L($colJmlTotal) . $totalRow, $pink);
+
+                // Baris TOTAL (bawah) pink
+                $fill("A{$totalRow}:{$lastMain}{$totalRow}", $pink);
+                $sheet->getStyle($L($colJmlTotal) . "8:" . $L($colJmlTotal) . $totalRow)->getFont()->setBold(true);
+
+                // Tabel PNS (header navy) & PPPK (header ungu), teks putih
+                $fill($L($colPnsStart) . '5:' . $L($colPnsEnd) . '6', $navy);
+                $fill($L($colPppkStart) . '5:' . $L($colPppkEnd) . '6', $ungu);
+                $sheet->getStyle($L($colPnsStart) . '5:' . $L($colPppkEnd) . '6')->getFont()->getColor()->setRGB($putih);
+                $fill($L($colPnsStart) . '7:' . $L($colPppkEnd) . '7', $biruMuda);
+                foreach ([$colPnsEnd, $colPppkEnd] as $ci) {
+                    $fill($L($ci) . "8:" . $L($ci) . $totalRow, $biruTua);
+                    $sheet->getStyle($L($ci) . "8:" . $L($ci) . $totalRow)->getFont()->setBold(true);
+                }
+                $fill($L($colPnsStart) . "{$totalRow}:" . $L($colPnsEnd) . $totalRow, $biruMuda);
+                $fill($L($colPppkStart) . "{$totalRow}:" . $L($colPppkEnd) . $totalRow, $biruMuda);
+                $fill($L($colPnsEnd) . $totalRow, $biruTua);
+                $fill($L($colPppkEnd) . $totalRow, $biruTua);
+
+                // Baris TOTAL: tebal
+                $sheet->getStyle("A{$totalRow}:{$lastL}{$totalRow}")->getFont()->setBold(true);
+
+                // Lebar kolom
+                $sheet->getColumnDimension('A')->setWidth(5);
+                $sheet->getColumnDimension('B')->setWidth(62);
+                foreach (array_merge(range($colPriaStart, $colJmlTotal), range($colPnsStart, $colPppkEnd)) as $ci) {
+                    $sheet->getColumnDimension($L($ci))->setWidth(7);
+                }
+                $sheet->getColumnDimension($L($colJmlTotal))->setWidth(11);
+                $sheet->getColumnDimension($L($colSpacer))->setWidth(62);
+
+                // Bekukan hanya baris header (judul di tengah tidak terpotong kolom beku)
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }
