@@ -3203,17 +3203,18 @@ public function statistikPppkKelurahan(?string $periode = null): array
         $hasilKemantren[$namaKemantren][$kelurahanDitemukan][$gender] += $jumlah;
     }
 
-    $hasil = ['jumlah_pppk_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
+        $hasil = ['jumlah_pppk_kelurahan' => 0, 'kemantren' => [], 'tidak_dikenali' => $tidakDikenali];
 
     foreach ($hasilKemantren as $kemantren => $kelurahanData) {
+        $kelurahanTotal = [];   // angka polos, dibaca tabel & export
+        $kelurahanGender = [];  // rincian L/P, dibaca tabel & export
         $totalKemantren = 0;
 
-        $kelurahanHasil = [];
         foreach ($kelurahanData as $kelurahan => $gender) {
             $totalKelurahan = $gender['laki_laki'] + $gender['perempuan'];
 
-            $kelurahanHasil[$kelurahan] = [
-                'total' => $totalKelurahan,
+            $kelurahanTotal[$kelurahan] = $totalKelurahan;
+            $kelurahanGender[$kelurahan] = [
                 'laki_laki' => $gender['laki_laki'],
                 'perempuan' => $gender['perempuan'],
             ];
@@ -3223,7 +3224,8 @@ public function statistikPppkKelurahan(?string $periode = null): array
 
         $hasil['kemantren'][$kemantren] = [
             'total' => $totalKemantren,
-            'kelurahan' => $kelurahanHasil,
+            'kelurahan' => $kelurahanTotal,
+            'kelurahan_gender' => $kelurahanGender,
         ];
 
         $hasil['jumlah_pppk_kelurahan'] += $totalKemantren;
