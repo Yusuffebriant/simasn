@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class RekapStrukturGolonganExport implements FromArray, WithEvents
 {
@@ -105,11 +106,52 @@ class RekapStrukturGolonganExport implements FromArray, WithEvents
                     $sheet->setCellValue($column . $totalRow, $sum);
                 }
 
-                $sheet->getStyle('A1:A3')->getFont()->setBold(true);
+                // Palet warna (sama dengan rekap JF Tertentu / JF Pelaksana)
+                $pink = 'E6B8B7';       // kolom JML pria & JML total, baris TOTAL
+                $pinkMuda = 'F2DCDB';   // kolom JML wanita
+                $biru = 'B7DEE8';       // header
+
+                $fill = function (string $range, string $rgb) use ($sheet) {
+                    $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($rgb);
+                };
+
+                // Judul rata tengah (A s/d U)
+                $sheet->getStyle('A1:U3')->getFont()->setBold(true);
+                $sheet->getStyle('A1:U3')->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getRowDimension(1)->setRowHeight(20);
+                $sheet->getStyle('A1')->getFont()->setSize(13);
+
+                // Header biru
                 $sheet->getStyle('A5:U7')->getFont()->setBold(true);
                 $sheet->getStyle('A5:U7')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
+                $fill('A5:U7', $biru);
+
+                // Border & rata tengah isi tabel
                 $sheet->getStyle("A5:U{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("C8:U{$totalRow}")->getAlignment()->setHorizontal('center')->setVertical('center');
+                $sheet->getStyle("A8:A{$lastDataRow}")->getAlignment()->setHorizontal('center');
+                $sheet->getStyle("A8:B{$totalRow}")->getAlignment()->setVertical('center');
+
+                // Kolom JML pria / JML wanita / JML TOTAL (pink, isi data)
+                $fill("K8:K{$totalRow}", $pink);
+                $fill("T8:T{$totalRow}", $pinkMuda);
+                $fill("U8:U{$totalRow}", $pink);
+                $sheet->getStyle("U8:U{$totalRow}")->getFont()->setBold(true);
+
+                // Baris TOTAL pink & tebal
+                $fill("A{$totalRow}:U{$totalRow}", $pink);
                 $sheet->getStyle("A{$totalRow}:U{$totalRow}")->getFont()->setBold(true);
+
+                // Lebar kolom
+                $sheet->getColumnDimension('A')->setWidth(5);
+                $sheet->getColumnDimension('B')->setWidth(62);
+                foreach (range('C', 'T') as $column) {
+                    $sheet->getColumnDimension($column)->setWidth(7);
+                }
+                $sheet->getColumnDimension('U')->setWidth(11);
+
+                // Bekukan baris header
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }
