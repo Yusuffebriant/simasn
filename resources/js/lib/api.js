@@ -58,6 +58,36 @@ export function clearAuth() {
     localStorage.removeItem(USER_KEY);
 }
 
+// Cek ke server apakah token di browser masih berlaku. Dipanggil sekali
+// saat aplikasi dibuka. Token kedaluwarsa/dicabut -> hapus data login lokal
+// dan return false. Error jaringan TIDAK dianggap logout (return true).
+export async function verifySession() {
+    const token = getToken();
+    if (!token) return true;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/me`, {
+            headers: {
+                Accept: "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (res.status === 401) {
+            clearAuth();
+            return false;
+        }
+
+        if (res.ok) {
+            // Segarkan data user (nama/role) supaya sidebar tidak basi.
+            setUser(await res.json());
+        }
+        return true;
+    } catch {
+        return true;
+    }
+}
+
 // Wrapper fetch yang otomatis menambahkan header Authorization.
 // Untuk request dengan body FormData (upload file), JANGAN set
 // Content-Type manual — biarkan browser yang menentukan boundary-nya.

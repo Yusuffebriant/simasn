@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { setToken, setUser } from "../../lib/api";
 
@@ -24,10 +24,28 @@ const NAMA_INSTANSI_LENGKAP =
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [showForgotInfo, setShowForgotInfo] = useState(false);
+  const forgotRef = useRef(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Keterangan "Lupa kata sandi?" ditutup otomatis saat user klik atau
+  // fokus ke elemen lain (mis. input email/password) di luar area keterangan.
+  useEffect(() => {
+    if (!showForgotInfo) return;
+    function closeIfOutside(e) {
+      if (forgotRef.current && !forgotRef.current.contains(e.target)) {
+        setShowForgotInfo(false);
+      }
+    }
+    document.addEventListener("mousedown", closeIfOutside);
+    document.addEventListener("focusin", closeIfOutside);
+    return () => {
+      document.removeEventListener("mousedown", closeIfOutside);
+      document.removeEventListener("focusin", closeIfOutside);
+    };
+  }, [showForgotInfo]);
 
   function validate() {
     const next = {};
@@ -271,19 +289,25 @@ export default function LoginPage() {
             <p style={{ color: "#B1362A", fontSize: 12.5, margin: "0 0 12px" }}>{errors.password}</p>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "6px 0 22px" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#4A4F58", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                style={{ accentColor: "#006A4E", width: 15, height: 15 }}
-              />
-              Ingat saya
-            </label>
-            <a href="/forgot-password" style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 600, textDecoration: "none" }}>
-              Lupa kata sandi?
-            </a>
+          <div ref={forgotRef} style={{ margin: "6px 0 22px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowForgotInfo((v) => !v)}
+                aria-expanded={showForgotInfo}
+                style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+              >
+                Lupa kata sandi?
+              </button>
+            </div>
+            {showForgotInfo && (
+              <div
+                role="status"
+                style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, background: "#F1F7F4", border: "1px solid #CFE3DA", color: "#33423B", fontSize: 13, lineHeight: 1.5 }}
+              >
+                Untuk mengatur ulang kata sandi, silakan hubungi admin {NAMA_INSTANSI}. Akun dikelola oleh admin.
+              </div>
+            )}
           </div>
 
           <button

@@ -36,7 +36,11 @@ function Sidebar() {
             label: "Admin",
             show: hasRole("super-admin", "admin-instansi"),
         },
-        { href: "/statistik", label: "Statistik", show: loggedIn },
+        {
+            href: "/statistik",
+            label: "Statistik",
+            show: hasRole("super-admin", "admin-instansi"),
+        },
         {
             href: "/setting",
             label: "Settings",
