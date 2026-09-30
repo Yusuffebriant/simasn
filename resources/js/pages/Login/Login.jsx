@@ -129,7 +129,8 @@ export default function LoginPage() {
     <div
       style={{
         fontFamily: "'Inter', sans-serif",
-        minHeight: "640px",
+        minHeight: "100vh",
+        boxSizing: "border-box",
         background: "#F5F7FA",
         display: "flex",
         flexDirection: "column",
@@ -141,6 +142,7 @@ export default function LoginPage() {
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+        body { background: #F5F7FA; }
         .bkpsdm-root { --navy:#006A4E; --navy-dark:#00543E; --red:#D4A017; --ink:#1F2937; --line:#DDE1E6; }
         .bkpsdm-input:focus { outline: none; border-color: var(--navy) !important; box-shadow: 0 0 0 3px rgba(0,106,78,0.14); }
         .bkpsdm-btn:hover:not(:disabled) { background: var(--navy-dark) !important; }
