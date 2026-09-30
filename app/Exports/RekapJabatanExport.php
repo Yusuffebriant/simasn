@@ -240,6 +240,9 @@ class RekapJabatanExport implements FromArray, WithEvents
                 $sheet->getColumnDimension('J')->setWidth(23.44);
                 $sheet->getColumnDimension('K')->setWidth(18.66);
                 $sheet->getColumnDimension('L')->setWidth(11);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }

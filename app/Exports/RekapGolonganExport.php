@@ -299,7 +299,10 @@ class RekapGolonganExport implements FromArray, WithEvents
                     $sheet->getColumnDimension($L($c))->setWidth(8);      // PPPK detail
                 }
                 $sheet->getColumnDimension('BP')->setWidth(8);            // Total PPPK
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }
-} 
+}

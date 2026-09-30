@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\PrintsConsistently;
 use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -10,10 +11,25 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
+/**
+ * Rekap Guru Fungsional per SD Negeri.
+ *
+ * Tampilan disamakan dengan sheet-sheet di file "data pegawai" dan dengan
+ * RekapAgamaExport: judul kapital bold rata tengah, header bergaris tipis,
+ * kolom JUMLAH biru muda, baris TOTAL oranye muda, garis antar-baris "hair".
+ */
 class RekapSdExport implements FromArray, WithEvents
 {
+    use PrintsConsistently;
+
     protected array $data;
-    protected int $headerRows = 3; // 1: judul, 2: keadaan/periode, 3: header kolom
+
+    /** 1: judul, 2: keadaan, 3: kosong, 4: header kolom. Data mulai baris 5. */
+    protected int $headerRows = 4;
+
+    // Warna disamakan dengan RekapAgamaExport / sheet "agama" di file data pegawai
+    protected string $warnaBiru = 'DCE6F2';   // kolom JUMLAH
+    protected string $warnaOranye = 'FCD5B5'; // baris TOTAL
 
     public function __construct(protected string $periode)
     {
@@ -46,98 +62,121 @@ class RekapSdExport implements FromArray, WithEvents
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
+
                 $sheet->insertNewRowBefore(1, $this->headerRows);
 
-                // === Judul & periode ===
+                $headerRow = $this->headerRows;                       // 4
+                $firstDataRow = $this->headerRows + 1;                // 5
+                $lastDataRow = $this->headerRows + count($this->data);
+                $totalRow = $lastDataRow + 1;
+
+                /*
+                |--------------------------------------------------------------
+                | JUDUL (baris 1-2): bold, kapital, rata tengah
+                |--------------------------------------------------------------
+                */
                 $sheet->setCellValue('A1', 'REKAP DATA FUNGSIONAL SD');
                 $sheet->setCellValue('A2', 'KEADAAN : ' . $this->formatPeriode($this->periode));
-                $sheet->mergeCells('A1:E1');
-                $sheet->mergeCells('A2:E2');
+                foreach ([1, 2] as $r) {
+                    $sheet->mergeCells("A{$r}:E{$r}");
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                }
 
-                // === Header kolom tabel ===
-                $headerRow = 3;
+                /*
+                |--------------------------------------------------------------
+                | HEADER KOLOM (baris 4): bold, tengah, border tipis
+                |--------------------------------------------------------------
+                */
                 $sheet->setCellValue("A{$headerRow}", 'NO');
                 $sheet->setCellValue("B{$headerRow}", 'SD');
                 $sheet->setCellValue("C{$headerRow}", 'PRIA');
                 $sheet->setCellValue("D{$headerRow}", 'WANITA');
                 $sheet->setCellValue("E{$headerRow}", 'JUMLAH');
 
-                $lastDataRow = $this->headerRows + count($this->data);
-                $totalRow = $lastDataRow + 1;
-                $sheet->setCellValue("B{$totalRow}", 'TOTAL');
-                $sheet->mergeCells("A{$totalRow}:B{$totalRow}");
-
-                foreach (['C', 'D', 'E'] as $col) {
-                    $sum = 0;
-                    for ($r = $this->headerRows + 1; $r <= $lastDataRow; $r++) {
-                        $sum += (float) $sheet->getCell($col . $r)->getValue();
-                    }
-                    $sheet->setCellValue($col . $totalRow, $sum);
-                }
-
-                // === Palet warna (senada dengan file rekap data pegawai) ===
-                $navy = '1F4E78';
-                $headerFill = 'D9E2F3';
-                $totalFill = 'FCE4D6';
-                $bandFill = 'F2F6FC';
-
-                // Judul: bold, rata tengah
-                $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB($navy);
-                $sheet->getStyle('A1')->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                    ->setVertical(Alignment::VERTICAL_CENTER);
-                $sheet->getRowDimension(1)->setRowHeight(24);
-
-                // Sub-judul (periode): bold miring, rata tengah
-                $sheet->getStyle('A2')->getFont()->setBold(true)->setItalic(true)->setSize(11);
-                $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getRowDimension(2)->setRowHeight(18);
-
-                // Header tabel: bold, rata tengah, latar biru muda
-                $sheet->getStyle("A{$headerRow}:E{$headerRow}")->getFont()->setBold(true)->getColor()->setRGB($navy);
+                $sheet->getStyle("A{$headerRow}:E{$headerRow}")->getFont()->setBold(true);
                 $sheet->getStyle("A{$headerRow}:E{$headerRow}")->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                    ->setVertical(Alignment::VERTICAL_CENTER);
-                $sheet->getStyle("A{$headerRow}:E{$headerRow}")->getFill()
-                    ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($headerFill);
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+                $sheet->getStyle("A{$headerRow}:E{$headerRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("E{$headerRow}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB($this->warnaBiru);
                 $sheet->getRowDimension($headerRow)->setRowHeight(20);
 
-                // Garis tepi tipis untuk seluruh tabel (header s/d total)
-                $sheet->getStyle("A{$headerRow}:E{$totalRow}")->getBorders()->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
-
-                // Baris data: selang-seling agar mudah dibaca
-                for ($r = $this->headerRows + 1; $r <= $lastDataRow; $r++) {
-                    if ((($r - $this->headerRows) % 2) === 0) {
-                        $sheet->getStyle("A{$r}:E{$r}")->getFill()
-                            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($bandFill);
+                /*
+                |--------------------------------------------------------------
+                | BARIS DATA: garis kiri/kanan tipis, antar-baris "hair"
+                | (dilewati bila belum ada sekolah supaya range tidak terbalik)
+                |--------------------------------------------------------------
+                */
+                if (count($this->data) > 0) {
+                    for ($r = $firstDataRow; $r <= $lastDataRow; $r++) {
+                        $borders = $sheet->getStyle("A{$r}:E{$r}")->getBorders();
+                        $borders->getLeft()->setBorderStyle($thin);
+                        $borders->getRight()->setBorderStyle($thin);
+                        $borders->getVertical()->setBorderStyle($thin);
+                        $borders->getTop()->setBorderStyle($r === $firstDataRow ? $thin : $hair);
+                        $borders->getBottom()->setBorderStyle($r === $lastDataRow ? $thin : $hair);
                     }
+
+                    $sheet->getStyle("A{$firstDataRow}:E{$lastDataRow}")->getAlignment()
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                    $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle("B{$firstDataRow}:B{$lastDataRow}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                    // Kolom JUMLAH: biru muda + bold
+                    $sheet->getStyle("E{$firstDataRow}:E{$lastDataRow}")->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaBiru);
+                    $sheet->getStyle("E{$firstDataRow}:E{$lastDataRow}")->getFont()->setBold(true);
                 }
 
-                // Perataan isi data
-                $firstDataRow = $this->headerRows + 1;
-                $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("B{$firstDataRow}:B{$lastDataRow}")->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
-                $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                /*
+                |--------------------------------------------------------------
+                | BARIS TOTAL: bold, border tipis, angka oranye muda
+                |--------------------------------------------------------------
+                */
+                $sheet->setCellValue("A{$totalRow}", 'TOTAL');
+                $sheet->mergeCells("A{$totalRow}:B{$totalRow}");
+                $sheet->setCellValue("C{$totalRow}", (int) array_sum(array_column($this->data, 'pria')));
+                $sheet->setCellValue("D{$totalRow}", (int) array_sum(array_column($this->data, 'wanita')));
+                $sheet->setCellValue("E{$totalRow}", (int) array_sum(array_column($this->data, 'jumlah')));
 
-                // Baris TOTAL: bold, latar menonjol
                 $sheet->getStyle("A{$totalRow}:E{$totalRow}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$totalRow}:E{$totalRow}")->getFill()
-                    ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($totalFill);
-                $sheet->getStyle("B{$totalRow}:E{$totalRow}")->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("A{$totalRow}:E{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("A{$totalRow}:E{$totalRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER);
+                $sheet->getStyle("C{$totalRow}:E{$totalRow}")->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB($this->warnaOranye);
 
-                // Lebar kolom
+                /*
+                |--------------------------------------------------------------
+                | LEBAR KOLOM & TAMPILAN
+                |--------------------------------------------------------------
+                */
                 $sheet->getColumnDimension('A')->setWidth(6);
-                $sheet->getColumnDimension('B')->setWidth(40);
+                $sheet->getColumnDimension('B')->setWidth(45);
                 $sheet->getColumnDimension('C')->setWidth(12);
                 $sheet->getColumnDimension('D')->setWidth(12);
                 $sheet->getColumnDimension('E')->setWidth(12);
 
-                $sheet->freezePane('A' . ($headerRow + 1));
+                $sheet->setShowGridLines(true);
+                $sheet->freezePane('A' . $firstDataRow);
+
+                // Cetak: A4 portrait, muat 1 halaman lebar, header kolom (baris 4) diulang
+                $this->applyPrintSetup($sheet, "A1:E{$totalRow}", $headerRow, 'portrait', $headerRow);
             },
         ];
     }
