@@ -42,7 +42,7 @@ function Sidebar() {
             show: hasRole("super-admin", "admin-instansi"),
         },
         {
-            href: "/setting",
+            href: "/settings",
             label: "Settings",
             show: hasRole("super-admin", "admin-instansi"),
         },

@@ -50,17 +50,18 @@ function Rekapitulasi() {
 
     return (
         <div>
-            {/* Ikut freeze tepat di bawah judul "Admin" + tab (offset 109px,
+            {/* Ukuran & posisi sama seperti judul tab lain (text-2xl, jarak 24px
+                ke bawah). Ikut freeze tepat di bawah baris tab (offset 69px,
                 lihat Admin.jsx). */}
-            <h2 className="sticky top-[109px] z-20 bg-gray-100 -mx-8 px-8 py-2 mb-2 text-xl font-bold">
+            <h2 className="sticky top-[69px] z-20 bg-gray-100 pb-6 text-2xl font-bold">
                 Rekapitulasi ASN
             </h2>
 
             {/* Layout dua kolom ala halaman Statistik: menu kategori di
                 kiri (kartu sticky, bisa di-scroll), tabel rekap di kanan. */}
             <div className="flex items-start gap-6">
-                <aside className="w-56 shrink-0 self-start sticky top-[176px]">
-                    <div className="max-h-[calc(100vh-196px)] flex flex-col overflow-hidden bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-4">
+                <aside className="w-56 shrink-0 self-start sticky top-[125px]">
+                    <div className="max-h-[calc(100vh-145px)] flex flex-col overflow-hidden bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-4">
                         <h3 className="shrink-0 px-5 text-[11px] font-semibold uppercase tracking-wide text-[#8A93A0] mb-2">
                             Rekapitulasi
                         </h3>
@@ -103,58 +104,58 @@ function Rekapitulasi() {
                     bergeser. Semua wrapper ".overflow-x-auto" milik tabel-tabel rekap
                     dijadikan scroller dua arah setinggi sisa layar, jadi scrollbar
                     horizontalnya selalu kelihatan di bawah layar. */}
-                <div className="flex-1 min-w-0 [&_.overflow-x-auto]:overflow-auto [&_.overflow-x-auto]:max-h-[calc(100vh-170px)] [&_.overflow-x-auto]:min-h-[32rem]">
-            {activeTab === "agama" && (
-                <RekapKategoriTable
-                    title="Rekapitulasi Berdasarkan Agama"
-                    jsonPath="/rekap/agama"
-                    exportPath="/rekap/agama/export"
-                    categories={AGAMA_LIST}
-                    filenamePrefix="rekap-agama"
-                />
-            )}
+                <div className="flex-1 min-w-0 [&_.overflow-x-auto]:overflow-auto [&_.overflow-x-auto]:max-h-[calc(100vh-119px)] [&_.overflow-x-auto]:min-h-[32rem]">
+                    {activeTab === "agama" && (
+                        <RekapKategoriTable
+                            title="Rekapitulasi Berdasarkan Agama"
+                            jsonPath="/rekap/agama"
+                            exportPath="/rekap/agama/export"
+                            categories={AGAMA_LIST}
+                            filenamePrefix="rekap-agama"
+                        />
+                    )}
 
-            {activeTab === "golongan" && <RekapGolonganTable />}
+                    {activeTab === "golongan" && <RekapGolonganTable />}
 
-            {activeTab === "eselon" && (
-                <RekapKategoriTable
-                    title="Rekapitulasi Berdasarkan Eselon & Golongan Ruang"
-                    jsonPath="/rekap/eselon-golongan-gender"
-                    exportPath="/rekap/eselon-golongan-gender/export"
-                    categories={ESELON_GOLONGAN_LIST}
-                    filenamePrefix="rekap-eselon-golongan-gender"
-                    rowField="eselon"
-                    rowHeaderLabel="Eselon"
-                />
-            )}
+                    {activeTab === "eselon" && (
+                        <RekapKategoriTable
+                            title="Rekapitulasi Berdasarkan Eselon & Golongan Ruang"
+                            jsonPath="/rekap/eselon-golongan-gender"
+                            exportPath="/rekap/eselon-golongan-gender/export"
+                            categories={ESELON_GOLONGAN_LIST}
+                            filenamePrefix="rekap-eselon-golongan-gender"
+                            rowField="eselon"
+                            rowHeaderLabel="Eselon"
+                        />
+                    )}
 
-            {activeTab === "pendidikan" && (
-                <RekapKategoriTable
-                    title="Rekapitulasi Berdasarkan Pendidikan"
-                    jsonPath="/rekap/pendidikan"
-                    exportPath="/rekap/pendidikan/export"
-                    categories={PENDIDIKAN_LIST}
-                    filenamePrefix="rekap-pendidikan"
-                />
-            )}
+                    {activeTab === "pendidikan" && (
+                        <RekapKategoriTable
+                            title="Rekapitulasi Berdasarkan Pendidikan"
+                            jsonPath="/rekap/pendidikan"
+                            exportPath="/rekap/pendidikan/export"
+                            categories={PENDIDIKAN_LIST}
+                            filenamePrefix="rekap-pendidikan"
+                        />
+                    )}
 
-            {activeTab === "jabatan" && <RekapJabatanTable />}
+                    {activeTab === "jabatan" && <RekapJabatanTable />}
 
-            {activeTab === "nakes" && <RekapNakesTable />}
+                    {activeTab === "nakes" && <RekapNakesTable />}
 
-            {activeTab === "sd-smp" && <RekapSdSmpTable />}
+                    {activeTab === "sd-smp" && <RekapSdSmpTable />}
 
-            {activeTab === "kecamatan" && <RekapKecamatanTable />}
+                    {activeTab === "kecamatan" && <RekapKecamatanTable />}
 
-            {activeTab === "jf-tertentu" && <RekapJfTertentuTable />}
+                    {activeTab === "jf-tertentu" && <RekapJfTertentuTable />}
 
-            {activeTab === "jf-pelaksana" && <RekapJfPelaksanaTable />}
+                    {activeTab === "jf-pelaksana" && <RekapJfPelaksanaTable />}
 
-            {activeTab === "struktur-golongan" && <RekapStrukturGolonganTable />}
+                    {activeTab === "struktur-golongan" && <RekapStrukturGolonganTable />}
 
-            {activeTab === "struktur-eselon" && <RekapStrukturEselonTable />}
+                    {activeTab === "struktur-eselon" && <RekapStrukturEselonTable />}
 
-            {activeTab === "pensiun" && <RekapPensiunTable />}
+                    {activeTab === "pensiun" && <RekapPensiunTable />}
                 </div>
             </div>
         </div>

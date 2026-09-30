@@ -6,6 +6,7 @@ import Home from './pages/home/home';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
 import Statistik from './pages/Statistik/Statistik';
+import NotFound from './pages/NotFound/NotFound';
 
 import { isLoggedIn, hasRole, getUserRole } from './lib/api';
 import Setting from './pages/Setting/Setting';
@@ -76,7 +77,7 @@ function App() {
     }
 
     // "/setting" — boleh diakses role admin, super-admin, admin-instansi.
-    if (path === '/setting') {
+    if (path === '/settings') {
         if (!isLoggedIn()) {
             window.location.replace(withRedirectTo('/setting'));
             return null;
@@ -88,8 +89,8 @@ function App() {
         return <Setting />;
     }
 
-    // Default: path tidak dikenal -> ke halaman utama, BUKAN Admin
-    return <Home />;
+    // Default: path tidak dikenal -> halaman 404
+return <NotFound />;
 }
 
 createRoot(document.getElementById('app')).render(
