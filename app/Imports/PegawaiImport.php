@@ -11,9 +11,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Events\BeforeImport;
 
-class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
+class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, WithEvents
 {
     protected PegawaiNormalizer $normalizer;
     protected int $barisKe = 1;
@@ -21,6 +23,24 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
     public function __construct(protected ImportBatch $batch)
     {
         $this->normalizer = new PegawaiNormalizer();
+    }
+
+    /**
+     * Simpan total baris di awal supaya frontend bisa menghitung persen progres.
+     */
+    public function registerEvents(): array
+    {
+        return [
+            BeforeImport::class => function (BeforeImport $event) {
+                $totals = $event->getReader()->getTotalRows();
+                $totalSheet = (int) (reset($totals) ?: 0);
+                $total = max(0, $totalSheet - 1); // dikurangi baris heading
+
+                DB::table('import_batches')
+                    ->where('id', $this->batch->id)
+                    ->update(['total_baris' => $total]);
+            },
+        ];
     }
 
     /**

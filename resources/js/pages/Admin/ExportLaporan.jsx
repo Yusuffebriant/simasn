@@ -100,7 +100,7 @@ function ExportLaporan() {
                     (agama, pendidikan, golongan ruang, jabatan, eselon,
                     nakes, SD, SMP, kecamatan/kelurahan, JF tertentu,
                     JF pelaksana, struktural per golongan, struktural
-                    per eselon, dan pensiun) untuk periode yang dipilih — masing-masing
+                    per eselon, dan pensiun) untuk periode yang dipilih. Masing-masing
                     rekap pada sheet-nya sendiri.
                 </p>
 
