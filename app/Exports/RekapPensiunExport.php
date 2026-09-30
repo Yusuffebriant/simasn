@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 /**
  * Export tabel "Rekapitulasi Pensiun" (Unit x Tahun + Sub Total).
@@ -129,6 +130,16 @@ class RekapPensiunExport implements FromArray, WithEvents, WithPreCalculateFormu
                 $sheet->getStyle("A3:A{$lastDataRow}")->getAlignment()->setHorizontal('center');
                 $sheet->getStyle("{$firstYear}3:{$subTotal}{$lastDataRow}")->getAlignment()->setHorizontal('center');
                 $sheet->getStyle("{$subTotal}3:{$subTotal}{$lastDataRow}")->getFont()->setBold(true);
+
+                // Warna: hanya bagian penting.
+                $warnai = function (string $rangeWarna, string $rgb) use ($sheet) {
+                    $sheet->getStyle($rangeWarna)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($rgb);
+                };
+                $warnai("A1:{$subTotal}2", 'DCE6F2');                                // judul kolom
+                $warnai("{$subTotal}3:{$subTotal}{$lastDataRow}", 'E6E0EC');         // kolom Sub Total
+                $warnai("A{$totalRow}:{$subTotal}{$totalRow}", 'E6B9B8');            // baris TOTAL (merah)
 
                 $sheet->getColumnDimension('A')->setWidth(5);
                 $sheet->getColumnDimension('B')->setWidth(100);

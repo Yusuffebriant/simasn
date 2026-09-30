@@ -2,24 +2,58 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\PrintsConsistently;
 use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
+/**
+ * Rekap ASN yang bekerja di Kecamatan (Kemantren) / Kelurahan.
+ *
+ * Tampilan disamakan dengan sheet-sheet di file "data pegawai" dan dengan
+ * RekapAgamaExport: judul kapital bold rata tengah, blok header 3 baris
+ * (baris 5-7) dengan border tipis, kolom total berwarna biru muda,
+ * baris TOTAL berwarna oranye muda, garis antar-baris "hair".
+ *
+ * Kolom (A-R):
+ *   A No | B Kemantren | C Alamat | D-K Kecamatan (Fungsional, Struktural,
+ *   Pelaksana, Total; masing-masing L/P) | L Kelurahan | M-R Kelurahan
+ *   (Struktural, Pelaksana, Total; masing-masing L/P)
+ */
 class RekapKecamatanExport implements FromArray, WithEvents
 {
+    use PrintsConsistently;
+
     protected array $data;
 
-    /**
-     * 3 baris judul (Jumlah ASN.../di Kota Yogyakarta/bulan-tahun)
-     * + 3 baris header tabel (kategori/"Jumlah PNS..."/Laki-Laki-Perempuan).
-     */
-    protected int $titleRows = 3;
-    protected int $tableHeaderRows = 3;
-    protected int $headerRows = 6;
+    /** 3 baris judul + 1 baris kosong + 3 baris header tabel (baris 5-7). */
+    protected int $headerRows = 7;
+
+    // Warna disamakan dengan RekapAgamaExport / sheet "agama" di file data pegawai
+    protected string $warnaBiru = 'DCE6F2';   // kolom total & sub-header total
+    protected string $warnaOranye = 'FCD5B5'; // baris TOTAL
+
+    /** Kolom angka => key di hasil RekapService::rekapKecamatanKelurahan(). */
+    protected array $kolomAngka = [
+        'D' => 'fungsional_l',
+        'E' => 'fungsional_p',
+        'F' => 'struktural_l',
+        'G' => 'struktural_p',
+        'H' => 'pelaksana_l',
+        'I' => 'pelaksana_p',
+        'J' => 'kecamatan_total_l',
+        'K' => 'kecamatan_total_p',
+        'M' => 'kel_struktural_l',
+        'N' => 'kel_struktural_p',
+        'O' => 'kel_pelaksana_l',
+        'P' => 'kel_pelaksana_p',
+        'Q' => 'kelurahan_total_l',
+        'R' => 'kelurahan_total_p',
+    ];
 
     public function __construct(protected string $periode)
     {
@@ -28,12 +62,9 @@ class RekapKecamatanExport implements FromArray, WithEvents
     }
 
     /**
-     * Data yang akan dimasukkan ke Excel
-     *
-     * Kolom "Alamat Kelurahan" dihapus sesuai permintaan — kolom
-     * "Alamat Kemantren" tetap dipertahankan. Kolom pertama "No" berisi
-     * nomor urut per Kemantren/Kecamatan (hanya terisi di baris pertama
-     * tiap grup, sama seperti kolom Kemantren, supaya bisa di-merge).
+     * Data Excel. Kolom Kemantren/Alamat/Kecamatan hanya terisi di baris
+     * pertama tiap grup kemantren (baris lain null) karena kolom A-K
+     * di-merge per grup pada registerEvents().
      */
     public function array(): array
     {
@@ -46,14 +77,10 @@ class RekapKecamatanExport implements FromArray, WithEvents
             }
 
             $rows[] = [
-                // No urut
                 $d['jumlah_baris_kemantren'] !== null ? $no : null,
-
-                // Kemantren
                 $d['kemantren'],
                 $d['kemantren_alamat'],
 
-                // Kecamatan
                 $d['fungsional_l'],
                 $d['fungsional_p'],
                 $d['struktural_l'],
@@ -63,7 +90,6 @@ class RekapKecamatanExport implements FromArray, WithEvents
                 $d['kecamatan_total_l'],
                 $d['kecamatan_total_p'],
 
-                // Kelurahan (tanpa alamat)
                 $d['kelurahan'],
                 $d['kel_struktural_l'],
                 $d['kel_struktural_p'],
@@ -77,25 +103,13 @@ class RekapKecamatanExport implements FromArray, WithEvents
         return $rows;
     }
 
-    /**
-     * Format periode "Y-m" (mis. "2025-12") menjadi "Desember 2025",
-     * dipakai untuk baris judul ketiga.
-     */
+    /** "2026-08" => "AGUSTUS 2026" (kapital, sama dengan RekapAgamaExport). */
     protected function formatPeriode(string $periode): string
     {
         $bulan = [
-            '01' => 'Januari',
-            '02' => 'Februari',
-            '03' => 'Maret',
-            '04' => 'April',
-            '05' => 'Mei',
-            '06' => 'Juni',
-            '07' => 'Juli',
-            '08' => 'Agustus',
-            '09' => 'September',
-            '10' => 'Oktober',
-            '11' => 'November',
-            '12' => 'Desember',
+            '01' => 'JANUARI', '02' => 'FEBRUARI', '03' => 'MARET', '04' => 'APRIL',
+            '05' => 'MEI', '06' => 'JUNI', '07' => 'JULI', '08' => 'AGUSTUS',
+            '09' => 'SEPTEMBER', '10' => 'OKTOBER', '11' => 'NOVEMBER', '12' => 'DESEMBER',
         ];
 
         [$tahun, $bln] = explode('-', $periode);
@@ -103,482 +117,244 @@ class RekapKecamatanExport implements FromArray, WithEvents
         return ($bulan[$bln] ?? $bln) . ' ' . $tahun;
     }
 
-    /**
-     * Event untuk melakukan formatting Excel
-     */
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-
                 $sheet = $event->sheet->getDelegate();
+                $thin = Border::BORDER_THIN;
+                $hair = Border::BORDER_HAIR;
 
-                /*
-                |--------------------------------------------------------------------------
-                | Palet warna (senada dengan file rekap data pegawai)
-                |--------------------------------------------------------------------------
-                */
-                $navy = '1F4E78';
-                $headerFill = 'D9E2F3';
-                $totalKolomFill = 'EAF1FB';
-                $bandFill = 'F2F6FC';
-                $grandTotalFill = 'FCE4D6';
-
-                /*
-                |--------------------------------------------------------------------------
-                | Tambahkan baris untuk title (3 baris) dan header tabel (3 baris)
-                |--------------------------------------------------------------------------
-                */
+                // Sisipkan 7 baris di atas data (judul + header tabel)
                 $sheet->insertNewRowBefore(1, $this->headerRows);
 
-                /*
-                |--------------------------------------------------------------------------
-                | TITLE (3 baris). Baris 1 (judul utama) dibuat 1 ukuran lebih
-                | besar dibanding baris 2 & 3 ("di Kota Yogyakarta" dan
-                | bulan-tahun) supaya ada penekanan/hirarki.
-                |--------------------------------------------------------------------------
-                */
-                $sheet->setCellValue('A1', 'Jumlah ASN yang bekerja di Kecamatan / Kelurahan');
-                $sheet->setCellValue('A2', 'di Kota Yogyakarta');
-                $sheet->setCellValue('A3', $this->formatPeriode($this->periode));
-
-                $sheet->mergeCells('A1:R1');
-                $sheet->mergeCells('A2:R2');
-                $sheet->mergeCells('A3:R3');
-
-                $sheet->getStyle('A1:R3')
-                    ->getAlignment()
-                    ->setHorizontal('center')
-                    ->setVertical('center');
-
-                // Baris 1: judul utama, 1 ukuran lebih besar.
-                $sheet->getStyle('A1:R1')
-                    ->getFont()
-                    ->setName('Calibri')
-                    ->setBold(true)
-                    ->setSize(16)
-                    ->getColor()->setRGB($navy);
-
-                // Baris 2-3: "di Kota Yogyakarta" & bulan-tahun, 1 ukuran lebih kecil.
-                $sheet->getStyle('A2:R3')
-                    ->getFont()
-                    ->setName('Calibri')
-                    ->setBold(true)
-                    ->setSize(14);
+                $firstDataRow = $this->headerRows + 1;               // 8
+                $lastDataRow = $this->headerRows + count($this->data);
+                $totalRow = $lastDataRow + 1;
+                $boxRow = $totalRow + 2;                              // TOTAL L (P di baris berikutnya)
+                $lastRow = $boxRow + 1;
 
                 /*
-                |--------------------------------------------------------------------------
-                | HEADER TABEL — 3 tingkat, mengikuti format pada gambar referensi:
-                | baris 4  : nama kategori (Fungsional/Struktural/Pelaksana/Total)
-                | baris 5  : "Jumlah PNS yang bekerja di Kecamatan/Kelurahan"
-                | baris 6  : Laki-Laki / Perempuan
-                |--------------------------------------------------------------------------
+                |--------------------------------------------------------------
+                | JUDUL (baris 1-3): bold, kapital, rata tengah
+                |--------------------------------------------------------------
                 */
-                $headerRow1 = $this->titleRows + 1; // 4
-                $headerRow2 = $this->titleRows + 2; // 5
-                $headerRow3 = $this->titleRows + 3; // 6
+                $sheet->setCellValue('A1', 'REKAPITULASI JUMLAH ASN YANG BEKERJA DI KECAMATAN / KELURAHAN');
+                $sheet->setCellValue('A2', 'KOTA YOGYAKARTA');
+                $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
 
-                // Kolom yang tidak dibagi Laki-Laki/Perempuan -> merge vertikal 3 baris
-                $sheet->setCellValue("A{$headerRow1}", 'No');
-                $sheet->mergeCells("A{$headerRow1}:A{$headerRow3}");
-
-                $sheet->setCellValue("B{$headerRow1}", 'Kemantren');
-                $sheet->mergeCells("B{$headerRow1}:B{$headerRow3}");
-
-                $sheet->setCellValue("C{$headerRow1}", 'Alamat Kemantren');
-                $sheet->mergeCells("C{$headerRow1}:C{$headerRow3}");
-
-                $sheet->setCellValue("L{$headerRow1}", 'Kelurahan');
-                $sheet->mergeCells("L{$headerRow1}:L{$headerRow3}");
-
-                // Grup kolom Laki-Laki/Perempuan: [kolom mulai, kolom akhir, label kategori, "di Kecamatan"/"di Kelurahan"]
-                $groups = [
-                    ['D', 'E', 'Fungsional', 'Kecamatan'],
-                    ['F', 'G', 'Struktural', 'Kecamatan'],
-                    ['H', 'I', 'Pelaksana', 'Kecamatan'],
-                    ['J', 'K', 'Total Kecamatan', 'Kecamatan'],
-                    ['M', 'N', 'Struktural', 'Kelurahan'],
-                    ['O', 'P', 'Pelaksana', 'Kelurahan'],
-                    ['Q', 'R', 'Total Kelurahan', 'Kelurahan'],
-                ];
-
-                foreach ($groups as [$colL, $colP, $label, $wilayah]) {
-                    // Baris 4: nama kategori
-                    $sheet->setCellValue("{$colL}{$headerRow1}", $label);
-                    $sheet->mergeCells("{$colL}{$headerRow1}:{$colP}{$headerRow1}");
-
-                    // Baris 5: "Jumlah PNS yang bekerja di Kecamatan/Kelurahan"
-                    $sheet->setCellValue("{$colL}{$headerRow2}", "Jumlah PNS yang bekerja di {$wilayah}");
-                    $sheet->mergeCells("{$colL}{$headerRow2}:{$colP}{$headerRow2}");
-
-                    // Baris 6: Laki-Laki / Perempuan
-                    $sheet->setCellValue("{$colL}{$headerRow3}", 'Laki-Laki');
-                    $sheet->setCellValue("{$colP}{$headerRow3}", 'Perempuan');
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->mergeCells("A{$r}:R{$r}");
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
                 }
 
                 /*
-                |--------------------------------------------------------------------------
-                | FORMAT HEADER TABEL
-                |--------------------------------------------------------------------------
+                |--------------------------------------------------------------
+                | HEADER TABEL (baris 5-7)
+                |--------------------------------------------------------------
                 */
-                $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
-                    ->getFont()
-                    ->setBold(true)
-                    ->getColor()->setRGB($navy);
+                $sheet->setCellValue('A5', 'NO');
+                $sheet->setCellValue('B5', 'KEMANTREN');
+                $sheet->setCellValue('C5', 'ALAMAT KEMANTREN');
+                $sheet->setCellValue('D5', 'JUMLAH PNS YANG BEKERJA DI KECAMATAN');
+                $sheet->setCellValue('L5', 'KELURAHAN');
+                $sheet->setCellValue('M5', 'JUMLAH PNS YANG BEKERJA DI KELURAHAN');
 
-                $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
-                    ->getAlignment()
-                    ->setHorizontal('center')
-                    ->setVertical('center')
+                foreach (['A', 'B', 'C', 'L'] as $col) {
+                    $sheet->mergeCells("{$col}5:{$col}7");
+                }
+                $sheet->mergeCells('D5:K5');
+                $sheet->mergeCells('M5:R5');
+
+                // [kolom L, kolom P, label kategori, ikut warna biru?]
+                $groups = [
+                    ['D', 'E', 'FUNGSIONAL', false],
+                    ['F', 'G', 'STRUKTURAL', false],
+                    ['H', 'I', 'PELAKSANA', false],
+                    ['J', 'K', 'TOTAL KECAMATAN', true],
+                    ['M', 'N', 'STRUKTURAL', false],
+                    ['O', 'P', 'PELAKSANA', false],
+                    ['Q', 'R', 'TOTAL KELURAHAN', true],
+                ];
+
+                foreach ($groups as [$colL, $colP, $label, $biru]) {
+                    $sheet->setCellValue("{$colL}6", $label);
+                    $sheet->mergeCells("{$colL}6:{$colP}6");
+                    $sheet->setCellValue("{$colL}7", 'Laki-Laki');
+                    $sheet->setCellValue("{$colP}7", 'Perempuan');
+
+                    if ($biru) {
+                        $sheet->getStyle("{$colL}6:{$colP}7")->getFill()
+                            ->setFillType(Fill::FILL_SOLID)
+                            ->getStartColor()->setRGB($this->warnaBiru);
+                    }
+                }
+
+                $sheet->getStyle('A5:R7')->getFont()->setBold(true);
+                $sheet->getStyle('A5:R7')->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
                     ->setWrapText(true);
-
-                $sheet->getStyle("A{$headerRow1}:R{$headerRow3}")
-                    ->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB($headerFill);
+                $sheet->getStyle('A5:R7')->getBorders()->getAllBorders()->setBorderStyle($thin);
 
                 /*
-                |--------------------------------------------------------------------------
-                | MERGE KEMANTREN
+                |--------------------------------------------------------------
+                | ISI: merge kolom A-K per kemantren, border, tinggi baris
                 |
-                | Kolom A-K (No, Kemantren, Alamat Kemantren, Fungsional,
-                | Struktural, Pelaksana, Total Kecamatan) akan di-merge sesuai
-                | jumlah baris Kemantren.
-                |
-                | CATATAN: Excel TIDAK auto-fit tinggi baris untuk cell yang
-                | di-merge, jadi kalau tidak diatur manual, alamat yang
-                | panjang & di-wrap bisa terpotong / tidak kelihatan penuh.
-                | Karena itu tinggi barisnya dihitung dari perkiraan jumlah
-                | baris teks alamat (berdasarkan lebar kolom C), lalu dibagi
-                | rata ke seluruh baris dalam grup Kemantren tsb.
-                |--------------------------------------------------------------------------
+                | Excel tidak auto-fit tinggi baris untuk sel yang di-merge,
+                | jadi tinggi dihitung dari perkiraan jumlah baris teks alamat
+                | lalu dibagi rata ke seluruh baris dalam grup.
+                |--------------------------------------------------------------
                 */
-                $row = $this->headerRows + 1;
-
-                $charsPerLine = 30; // kira-kira muat berapa karakter per baris di kolom C (lebar 32, sudah diperbesar)
-                $lineHeightPt = 16;
+                $charsPerLine = 50;   // perkiraan karakter per baris di kolom C (lebar 52)
+                $lineHeightPt = 15;
                 $minRowHeight = 24;
 
-                // Selang-seling warna per kelompok Kemantren (bukan per baris),
-                // supaya batas antar Kemantren mudah terlihat.
-                $bandToggle = false;
+                $row = $firstDataRow;
+                while ($row <= $lastDataRow) {
+                    $d = $this->data[$row - $firstDataRow];
+                    $span = max(1, (int) ($d['jumlah_baris_kemantren'] ?? 1));
+                    $endRow = min($row + $span - 1, $lastDataRow);
 
-                foreach ($this->data as $d) {
-
-                    if ($d['jumlah_baris_kemantren'] !== null) {
-
-                        $span = $d['jumlah_baris_kemantren'];
-                        $endRow = $row + $span - 1;
-                        $bandToggle = !$bandToggle;
-
-                        if ($bandToggle) {
-                            $sheet->getStyle("A{$row}:R{$endRow}")
-                                ->getFill()
-                                ->setFillType(Fill::FILL_SOLID)
-                                ->getStartColor()->setRGB($bandFill);
-                        }
-
-                        foreach (
-                            [
-                                'A',
-                                'B',
-                                'C',
-                                'D',
-                                'E',
-                                'F',
-                                'G',
-                                'H',
-                                'I',
-                                'J',
-                                'K'
-                            ] as $col
-                        ) {
-                            $sheet->mergeCells(
-                                "{$col}{$row}:{$col}{$endRow}"
-                            );
-                        }
-
-                        // Sesuaikan tinggi baris supaya alamat kemantren yang
-                        // di-wrap tetap kelihatan penuh (memanjang ke bawah).
-                        $alamat = (string) ($d['kemantren_alamat'] ?? '');
-
-                        if ($alamat !== '') {
-                            $estimatedLines = (int) ceil(mb_strlen($alamat) / $charsPerLine);
-                            $neededHeight = max($minRowHeight * $span, $estimatedLines * $lineHeightPt);
-                            $perRowHeight = $neededHeight / $span;
-
-                            for ($r = $row; $r <= $endRow; $r++) {
-                                $sheet->getRowDimension($r)->setRowHeight($perRowHeight);
-                            }
+                    if ($endRow > $row) {
+                        foreach (range('A', 'K') as $col) {
+                            $sheet->mergeCells("{$col}{$row}:{$col}{$endRow}");
                         }
                     }
 
-                    $row++;
+                    // Kolom A-K (satu blok per kemantren): kotak luar + garis tegak
+                    $sheet->getStyle("A{$row}:K{$endRow}")->applyFromArray(['borders' => [
+                        'outline' => ['borderStyle' => $thin],
+                        'vertical' => ['borderStyle' => $thin],
+                    ]]);
+
+                    // Kolom L-R (satu baris per kelurahan): garis antar-baris halus
+                    $sheet->getStyle("L{$row}:R{$endRow}")->applyFromArray(['borders' => [
+                        'outline' => ['borderStyle' => $thin],
+                        'vertical' => ['borderStyle' => $thin],
+                        'horizontal' => ['borderStyle' => $hair],
+                    ]]);
+
+                    // Tinggi baris (alamat panjang di-wrap ke bawah)
+                    $alamat = (string) ($d['kemantren_alamat'] ?? '');
+                    $lines = $alamat !== '' ? (int) ceil(mb_strlen($alamat) / $charsPerLine) : 1;
+                    $needed = max($minRowHeight * ($endRow - $row + 1), $lines * $lineHeightPt + 6);
+                    $perRow = $needed / ($endRow - $row + 1);
+
+                    for ($r = $row; $r <= $endRow; $r++) {
+                        $sheet->getRowDimension($r)->setRowHeight($perRow);
+                    }
+
+                    $row = $endRow + 1;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | BARIS DATA TERAKHIR
-                |--------------------------------------------------------------------------
-                */
-                $lastDataRow =
-                    $this->headerRows + count($this->data);
+                // Alignment isi tabel
+                $sheet->getStyle("A{$firstDataRow}:R{$lastDataRow}")->getAlignment()
+                    ->setVertical(Alignment::VERTICAL_CENTER);
+                $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("B{$firstDataRow}:C{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                    ->setWrapText(true);
+                $sheet->getStyle("D{$firstDataRow}:K{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("L{$firstDataRow}:L{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("M{$firstDataRow}:R{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                $dataStart = $this->headerRows + 1;
+                // Nama kemantren tebal
+                $sheet->getStyle("B{$firstDataRow}:B{$lastDataRow}")->getFont()->setBold(true);
 
-                /*
-                |--------------------------------------------------------------------------
-                | BORDER DATA
-                |--------------------------------------------------------------------------
-                */
-                $sheet->getStyle(
-                    "A{$headerRow1}:R{$lastDataRow}"
-                )
-                    ->getBorders()
-                    ->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
-
-                /*
-                |--------------------------------------------------------------------------
-                | WARNA KOLOM TOTAL — "Total Kecamatan" (J:K) & "Total Kelurahan"
-                | (Q:R) diberi tint biar menonjol dari kolom rincian lain,
-                | sekaligus di header supaya konsisten dari atas ke bawah.
-                |--------------------------------------------------------------------------
-                */
-                foreach (["J{$headerRow1}:K{$lastDataRow}", "Q{$headerRow1}:R{$lastDataRow}"] as $range) {
-                    $sheet->getStyle($range)
-                        ->getFill()
+                // Kolom total (Kecamatan J:K, Kelurahan Q:R): biru muda + bold
+                foreach (['J:K', 'Q:R'] as $kolom) {
+                    [$a, $b] = explode(':', $kolom);
+                    $range = "{$a}{$firstDataRow}:{$b}{$lastDataRow}";
+                    $sheet->getStyle($range)->getFill()
                         ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB($totalKolomFill);
+                        ->getStartColor()->setRGB($this->warnaBiru);
+                    $sheet->getStyle($range)->getFont()->setBold(true);
                 }
 
                 /*
-                |--------------------------------------------------------------------------
-                | ALIGNMENT DATA
-                |--------------------------------------------------------------------------
+                |--------------------------------------------------------------
+                | BARIS TOTAL: bold, border tipis, angka oranye muda
+                |--------------------------------------------------------------
                 */
-                $sheet->getStyle(
-                    "A{$dataStart}:R{$lastDataRow}"
-                )
-                    ->getAlignment()
-                    ->setVertical('center');
+                $sheet->setCellValue("A{$totalRow}", 'TOTAL');
+                $sheet->mergeCells("A{$totalRow}:C{$totalRow}");
+
+                $jumlah = [];
+                foreach ($this->kolomAngka as $col => $key) {
+                    $jumlah[$key] = (int) array_sum(array_column($this->data, $key));
+                    $sheet->setCellValue("{$col}{$totalRow}", $jumlah[$key]);
+                }
+
+                $sheet->getStyle("A{$totalRow}:R{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$totalRow}:K{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("L{$totalRow}:R{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("A{$totalRow}:R{$totalRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER);
+                foreach (["D{$totalRow}:K{$totalRow}", "M{$totalRow}:R{$totalRow}"] as $range) {
+                    $sheet->getStyle($range)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaOranye);
+                }
+                $sheet->getRowDimension($totalRow)->setRowHeight(22);
 
                 /*
-                |--------------------------------------------------------------------------
-                | CENTER KOLOM ANGKA & NO (kolom B/C -Kemantren & Alamat- dibiarkan
-                | rata kiri karena berisi teks/alamat)
-                |--------------------------------------------------------------------------
+                |--------------------------------------------------------------
+                | TOTAL L / TOTAL P (Kecamatan + Kelurahan)
+                |--------------------------------------------------------------
                 */
-                $sheet->getStyle(
-                    "A{$dataStart}:A{$lastDataRow}"
-                )
-                    ->getAlignment()
-                    ->setHorizontal('center');
+                $grand = [
+                    ['TOTAL L (Kecamatan + Kelurahan)', $jumlah['kecamatan_total_l'] + $jumlah['kelurahan_total_l']],
+                    ['TOTAL P (Kecamatan + Kelurahan)', $jumlah['kecamatan_total_p'] + $jumlah['kelurahan_total_p']],
+                ];
 
-                $sheet->getStyle(
-                    "D{$dataStart}:R{$lastDataRow}"
-                )
-                    ->getAlignment()
-                    ->setHorizontal('center');
+                foreach ($grand as $i => [$label, $nilai]) {
+                    $r = $boxRow + $i;
+                    $sheet->setCellValue("A{$r}", $label);
+                    $sheet->mergeCells("A{$r}:C{$r}");
+                    $sheet->setCellValue("D{$r}", $nilai);
+                    $sheet->getStyle("A{$r}:D{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}:D{$r}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                    $sheet->getStyle("A{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    $sheet->getStyle("D{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle("D{$r}")->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB($this->warnaOranye);
+                }
 
                 /*
-                |--------------------------------------------------------------------------
-                | ALAMAT KEMANTREN — dibuat memanjang ke BAWAH (wrap text), bukan
-                | melebar ke samping. Lebar kolom C dibuat cukup lega (lihat
-                | bagian LEBAR KOLOM di bawah) supaya teks alamat tidak
-                | terlihat kekecilan/kepenuhan, dan otomatis turun ke baris
-                | berikutnya kalau masih panjang.
-                |--------------------------------------------------------------------------
+                |--------------------------------------------------------------
+                | LEBAR KOLOM & TINGGI HEADER
+                |--------------------------------------------------------------
                 */
-                $sheet->getStyle(
-                    "C{$dataStart}:C{$lastDataRow}"
-                )
-                    ->getAlignment()
-                    ->setWrapText(true)
-                    ->setHorizontal('left')
-                    ->setVertical('center');
+                $lebar = ['A' => 5, 'B' => 20, 'C' => 52, 'L' => 22];
+                foreach (range('A', 'R') as $col) {
+                    $sheet->getColumnDimension($col)->setWidth($lebar[$col] ?? 11);
+                }
+                foreach ([5, 6, 7] as $r) {
+                    $sheet->getRowDimension($r)->setRowHeight(20);
+                }
 
                 /*
-                |--------------------------------------------------------------------------
-                | GRAND TOTAL
+                |--------------------------------------------------------------
+                | TAMPILAN & CETAK
                 |
-                | Posisi 2 baris setelah data terakhir, di bawah kolom B-C
-                |--------------------------------------------------------------------------
+                | Freeze kolom A-B (No, Kemantren) + header tabel. Cetak mengikuti
+                | PrintsConsistently: A4 landscape, muat 1 halaman lebar, baris
+                | header 5-7 diulang di tiap halaman.
+                |--------------------------------------------------------------
                 */
-                $sumRow = $lastDataRow + 2;
-
-                /*
-                |--------------------------------------------------------------------------
-                | LABEL GRAND TOTAL
-                |--------------------------------------------------------------------------
-                */
-                $sheet->setCellValue(
-                    "B{$sumRow}",
-                    'TOTAL L'
-                );
-
-                $sheet->setCellValue(
-                    "C{$sumRow}",
-                    'TOTAL P'
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | HITUNG TOTAL L
-                |--------------------------------------------------------------------------
-                */
-                $totalL =
-                    array_sum(
-                        array_filter(
-                            array_column(
-                                $this->data,
-                                'kecamatan_total_l'
-                            )
-                        )
-                    )
-                    +
-                    array_sum(
-                        array_column(
-                            $this->data,
-                            'kelurahan_total_l'
-                        )
-                    );
-
-                /*
-                |--------------------------------------------------------------------------
-                | HITUNG TOTAL P
-                |--------------------------------------------------------------------------
-                */
-                $totalP =
-                    array_sum(
-                        array_filter(
-                            array_column(
-                                $this->data,
-                                'kecamatan_total_p'
-                            )
-                        )
-                    )
-                    +
-                    array_sum(
-                        array_column(
-                            $this->data,
-                            'kelurahan_total_p'
-                        )
-                    );
-
-                /*
-                |--------------------------------------------------------------------------
-                | MASUKKAN NILAI GRAND TOTAL
-                |--------------------------------------------------------------------------
-                */
-                $sheet->setCellValue(
-                    "B" . ($sumRow + 1),
-                    $totalL
-                );
-
-                $sheet->setCellValue(
-                    "C" . ($sumRow + 1),
-                    $totalP
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | FORMAT KOTAK GRAND TOTAL
-                |--------------------------------------------------------------------------
-                */
-                $sheet->getStyle(
-                    "B{$sumRow}:C" . ($sumRow + 1)
-                )
-                    ->getBorders()
-                    ->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
-
-                $sheet->getStyle(
-                    "B{$sumRow}:C{$sumRow}"
-                )
-                    ->getFont()
-                    ->setBold(true);
-
-                $sheet->getStyle(
-                    "B{$sumRow}:C" . ($sumRow + 1)
-                )
-                    ->getAlignment()
-                    ->setHorizontal('center')
-                    ->setVertical('center');
-
-                $sheet->getStyle(
-                    "B{$sumRow}:C" . ($sumRow + 1)
-                )
-                    ->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB($grandTotalFill);
-
-                /*
-                |--------------------------------------------------------------------------
-                | LEBAR KOLOM
-                |
-                | Kolom B (Kemantren) & C (Alamat Kemantren) dibuat lebih lega
-                | supaya kotaknya tidak terlihat kekecilan, tapi tetap lebih
-                | sempit dibanding kolom lain supaya teks alamat turun ke
-                | bawah (wrap) bukan melebar ke samping.
-                |--------------------------------------------------------------------------
-                */
-                $sheet->getColumnDimension('A')->setWidth(6);
-                $sheet->getColumnDimension('B')->setWidth(24);
-                $sheet->getColumnDimension('C')->setWidth(32);
-
-                $sheet->getColumnDimension('D')->setWidth(15);
-                $sheet->getColumnDimension('E')->setWidth(15);
-
-                $sheet->getColumnDimension('F')->setWidth(15);
-                $sheet->getColumnDimension('G')->setWidth(15);
-
-                $sheet->getColumnDimension('H')->setWidth(15);
-                $sheet->getColumnDimension('I')->setWidth(15);
-
-                $sheet->getColumnDimension('J')->setWidth(18);
-                $sheet->getColumnDimension('K')->setWidth(18);
-
-                $sheet->getColumnDimension('L')->setWidth(20);
-
-                $sheet->getColumnDimension('M')->setWidth(15);
-                $sheet->getColumnDimension('N')->setWidth(15);
-
-                $sheet->getColumnDimension('O')->setWidth(15);
-                $sheet->getColumnDimension('P')->setWidth(15);
-
-                $sheet->getColumnDimension('Q')->setWidth(20);
-                $sheet->getColumnDimension('R')->setWidth(20);
-
-                /*
-                |--------------------------------------------------------------------------
-                | TINGGI BARIS
-                |
-                | Baris data TIDAK diberi tinggi tetap (dibiarkan auto) supaya
-                | Excel otomatis menambah tinggi baris ketika teks alamat
-                | (wrap text) turun ke bawah.
-                |--------------------------------------------------------------------------
-                */
-                $sheet->getRowDimension(1)->setRowHeight(24);
-                $sheet->getRowDimension(2)->setRowHeight(24);
-                $sheet->getRowDimension(3)->setRowHeight(24);
-
-                $sheet->getRowDimension($headerRow1)->setRowHeight(20);
-                $sheet->getRowDimension($headerRow2)->setRowHeight(35);
-                $sheet->getRowDimension($headerRow3)->setRowHeight(20);
-
-                /*
-                |--------------------------------------------------------------------------
-                | FREEZE PANE
-                |
-                | Tabel bisa digeser ke kanan/kiri, tapi kolom A-C (No,
-                | Kemantren, Alamat Kemantren) tetap terlihat/tidak ikut
-                | tergeser. Referensi 'D1' (baris 1) sengaja dipakai supaya
-                | HANYA kolom yang dibekukan — baris tetap bisa digeser
-                | seperti biasa.
-                |--------------------------------------------------------------------------
-                */
-                $sheet->freezePane('D1');
+                $sheet->setShowGridLines(true);
+                $sheet->freezePane("C{$firstDataRow}");
+                $this->applyPrintSetup($sheet, "A1:R{$lastRow}", 7, 'landscape', 5);
             },
         ];
     }
