@@ -30,7 +30,14 @@ function PreviewExcel({
                     value={periode}
                     max={getCurrentPeriode()}
                     onChange={(e) => e.target.value && setPeriode(e.target.value)}
-                    className="border p-3 rounded bg-white font-semibold text-gray-800"
+                    onClick={(e) => {
+                        try {
+                            e.currentTarget.showPicker();
+                        } catch (_) {
+                            // browser yang belum support showPicker: pakai perilaku default
+                        }
+                    }}
+                    className="border p-3 rounded bg-white font-semibold text-gray-800 cursor-pointer"
                 />
 
                 <p className="text-xs text-gray-500 mt-2">
@@ -42,40 +49,52 @@ function PreviewExcel({
 
             </div>
 
-            <h2 className="text-2xl font-bold mb-5">
-                Preview Data Excel
-            </h2>
+            <div className="bg-white rounded-xl shadow overflow-hidden">
 
-            <div className="overflow-x-auto border">
-                <table className="min-w-max border-collapse">
-                    <thead>
-                        <tr>
-                            {headers.map((header, index) => (
-                                <th
-                                    key={index}
-                                    className="border px-4 py-3 bg-gray-100 font-bold whitespace-nowrap"
-                                >
-                                    {header || "-"}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
+                <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-xl font-bold text-gray-800">
+                        Preview Data Excel
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Geser ke samping untuk melihat kolom lainnya.
+                    </p>
+                </div>
 
-                    <tbody>
-                        {preview.map((row, rowIndex) => (
-                            <tr key={rowIndex}>
-                                {headers.map((_, colIndex) => (
-                                    <td
-                                        key={colIndex}
-                                        className="border px-4 py-2 whitespace-nowrap"
+                <div className="overflow-x-auto">
+                    <table className="min-w-max w-full border-collapse text-sm">
+                        <thead>
+                            <tr>
+                                {headers.map((header, index) => (
+                                    <th
+                                        key={index}
+                                        className="px-4 py-3 bg-[#006A4E] text-white text-left font-semibold whitespace-nowrap"
                                     >
-                                        {row[colIndex] ?? "-"}
-                                    </td>
+                                        {header || "-"}
+                                    </th>
                                 ))}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+
+                        <tbody>
+                            {preview.map((row, rowIndex) => (
+                                <tr
+                                    key={rowIndex}
+                                    className="border-b border-gray-100 last:border-b-0 even:bg-gray-50 hover:bg-[#006A4E]/5"
+                                >
+                                    {headers.map((_, colIndex) => (
+                                        <td
+                                            key={colIndex}
+                                            className="px-4 py-3 text-gray-800 whitespace-nowrap"
+                                        >
+                                            {row[colIndex] ?? "-"}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
             </div>
 
             <div className="mt-6 flex gap-3">

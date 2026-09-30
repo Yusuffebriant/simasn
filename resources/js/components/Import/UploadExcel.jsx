@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { LoaderCircle, UploadCloud } from "lucide-react";
+import {
+    LoaderCircle,
+    UploadCloud,
+    FileSpreadsheet,
+    CheckCircle2,
+    AlertTriangle,
+    Info,
+} from "lucide-react";
 
 
 function UploadExcel({
@@ -19,14 +26,15 @@ function UploadExcel({
 
     const [error,setError] = useState("");
 
+    const [dragOver,setDragOver] = useState(false);
+
+    const inputRef = useRef(null);
 
 
 
 
-    function handleUpload(e){
 
-
-        const selectedFile = e.target.files[0];
+    function processFile(selectedFile){
 
 
 
@@ -41,11 +49,11 @@ function UploadExcel({
 
         if(
 
-            !selectedFile.name.endsWith(".xlsx")
+            !selectedFile.name.toLowerCase().endsWith(".xlsx")
 
             &&
 
-            !selectedFile.name.endsWith(".xls")
+            !selectedFile.name.toLowerCase().endsWith(".xls")
 
         ){
 
@@ -503,263 +511,160 @@ function UploadExcel({
 
 
 
+    function handleUpload(e){
+
+        processFile(e.target.files[0]);
+
+        // reset agar file yang sama bisa dipilih ulang setelah error
+        e.target.value = "";
+
+    }
+
+    function handleDrop(e){
+
+        e.preventDefault();
+
+        setDragOver(false);
+
+        if(loading){
+            return;
+        }
+
+        processFile(e.dataTransfer.files?.[0]);
+
+    }
+
+    function openPicker(){
+
+        if(!loading){
+            inputRef.current?.click();
+        }
+
+    }
+
     return (
-
-
-        <div>
-
-
-            <div className="
-
-                bg-white
-
-                rounded-xl
-
-                shadow
-
-                p-8
-
-            ">
-
-
-
-
-
-                <div className="
-
-                    flex
-
-                    items-center
-
-                    gap-3
-
-                    mb-5
-
-                ">
-
-
-                    <UploadCloud
-
-                        size={32}
-
-                    />
-
-
-
-                    <h2 className="
-
-                        text-xl
-
-                        font-bold
-
-                    ">
-
-                        Upload Excel SIMPEG
-
-                    </h2>
-
-
-
-                </div>
-
-
-
-
-
-
-
-
-                <p className="
-
-                    text-gray-600
-
-                    mb-5
-
-                ">
-
-
-                    Upload file mentah SIMPEG
-
-                    untuk proses import data ASN.
-
-
-                </p>
-
-
-
-
-
-
-
-
-                <input
-
-
-                    type="file"
-
-
-                    accept=".xlsx,.xls"
-
-
-                    onChange={handleUpload}
-
-
-                    className="
-
-                        border
-
-                        rounded
-
-                        p-3
-
-                        w-full
-
-                    "
-
-
-                />
-
-
-
-
-
-
-
-
-
-                {
-
-                    filename &&
-
-
-                    <div className="
-
-                        mt-4
-
-                        bg-gray-100
-
-                        p-3
-
-                        rounded
-
-                    ">
-
-
-                        File dipilih:
-
-
-                        <b className="ml-2">
-
-                            {filename}
-
-                        </b>
-
-
-
-                    </div>
-
-
-                }
-
-
-
-
-
-
-
-
-
-                {
-
-                    loading &&
-
-
-
-                    <div className="
-
-                        mt-5
-
-                        flex
-
-                        items-center
-
-                        gap-3
-
-                        text-gray-600
-
-                    ">
-
-
-                        <LoaderCircle
-
-                            className="animate-spin"
-
-                        />
-
-
-                        Membaca file Excel...
-
-
-
-                    </div>
-
-
-
-                }
-
-
-
-
-
-
-
-
-
-                {
-
-                    error &&
-
-
-
-                    <div className="
-
-                        mt-5
-
-                        bg-red-100
-
-                        text-red-700
-
-                        p-3
-
-                        rounded
-
-                    ">
-
-
-                        {error}
-
-
-                    </div>
-
-
-
-                }
-
-
-
-
-
+        <div className="bg-white rounded-xl shadow p-8">
+
+            <div className="flex items-center gap-3 mb-2">
+                <UploadCloud size={32} className="text-[#006A4E]" />
+                <h2 className="text-xl font-bold">
+                    Upload Excel SIMPEG
+                </h2>
             </div>
 
+            <p className="text-gray-600 mb-6">
+                Pilih file Excel mentah dari SIMPEG untuk proses import data ASN.
+            </p>
+
+            {/* AREA UPLOAD */}
+            <input
+                ref={inputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleUpload}
+                className="hidden"
+            />
+
+            <div
+                role="button"
+                tabIndex={0}
+                onClick={openPicker}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openPicker();
+                    }
+                }}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                className={`
+                    flex flex-col items-center justify-center text-center
+                    rounded-xl border-2 border-dashed px-6 py-12 transition
+                    ${loading ? "cursor-wait" : "cursor-pointer"}
+                    ${dragOver
+                        ? "border-[#006A4E] bg-emerald-50"
+                        : "border-gray-300 bg-gray-50 hover:border-[#006A4E] hover:bg-emerald-50"}
+                `}
+            >
+                {loading ? (
+                    <>
+                        <LoaderCircle size={48} className="animate-spin text-[#006A4E] mb-4" />
+                        <p className="font-semibold text-gray-700">
+                            Membaca file Excel...
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Mohon tunggu sebentar
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                            <FileSpreadsheet size={32} className="text-[#006A4E]" />
+                        </div>
+
+                        <p className="text-lg font-semibold text-gray-800">
+                            {dragOver
+                                ? "Lepaskan file di sini"
+                                : "Klik di sini untuk memilih file Excel"}
+                        </p>
+
+                        <p className="text-gray-500 mt-1">
+                            atau seret dan lepas file ke kotak ini
+                        </p>
+
+                        <span className="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#006A4E] text-white font-medium">
+                            <UploadCloud size={18} />
+                            Pilih File Excel
+                        </span>
+
+                        <p className="text-xs text-gray-500 mt-4">
+                            Format: .xlsx atau .xls &middot; Ukuran maksimal 10 MB
+                        </p>
+                    </>
+                )}
+            </div>
+
+            {/* FILE TERPILIH */}
+            {filename && !error && (
+                <div className="mt-4 flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-emerald-900">
+                    <CheckCircle2 size={20} className="flex-none" />
+                    <span className="text-sm break-all">
+                        File dipilih: <b>{filename}</b>
+                    </span>
+                </div>
+            )}
+
+            {/* ERROR */}
+            {error && (
+                <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 p-3 text-red-700"
+                >
+                    <AlertTriangle size={20} className="flex-none mt-0.5" />
+                    <div className="text-sm">
+                        <p>{error}</p>
+                        <p className="mt-1 text-red-600">
+                            Silakan pilih file lain dan coba lagi.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* CATATAN */}
+            <div className="mt-5 flex items-start gap-2 text-sm text-gray-500">
+                <Info size={16} className="flex-none mt-0.5" />
+                <span>
+                    Gunakan file asli hasil ekspor SIMPEG tanpa mengubah nama kolom.
+                    Pada tahap berikutnya Anda bisa memeriksa data sebelum benar-benar diimport.
+                </span>
+            </div>
 
         </div>
-
-
     );
-
-
 }
-
-
 
 export default UploadExcel;
