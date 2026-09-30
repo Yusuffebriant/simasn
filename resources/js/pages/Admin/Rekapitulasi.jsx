@@ -50,23 +50,24 @@ function Rekapitulasi() {
 
     return (
         <div>
-            {/* Ukuran & posisi sama seperti judul tab lain (text-2xl, jarak 24px
-                ke bawah). Ikut freeze tepat di bawah baris tab (offset 69px,
-                lihat Admin.jsx). */}
-            <h2 className="sticky top-[69px] z-20 bg-gray-100 pb-6 text-2xl font-bold">
+            {/* Jarak bawah 24px. Tinggi menu kiri & area tabel dibatasi
+                calc(100vh-265px) (= tinggi layar dikurangi bagian atas
+                halaman), jadi halaman pas satu layar: judul dan tab tidak
+                bergeser, yang di-scroll hanya menu kiri dan tabel. */}
+            <h2 className="mb-6 text-2xl font-bold">
                 Rekapitulasi ASN
             </h2>
 
-            {/* Layout dua kolom ala halaman Statistik: menu kategori di
-                kiri (kartu sticky, bisa di-scroll), tabel rekap di kanan. */}
+            {/* Dua kolom: menu kategori di kiri, tabel rekap di kanan.
+                Masing-masing scroll sendiri di dalam kolomnya. */}
             <div className="flex items-start gap-6">
-                <aside className="w-56 shrink-0 self-start sticky top-[125px]">
-                    <div className="max-h-[calc(100vh-145px)] flex flex-col overflow-hidden bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-4">
+                <aside className="w-56 shrink-0">
+                    <div className="max-h-[calc(100vh-265px)] flex flex-col overflow-hidden bg-white border border-[#E1E5EA] rounded-lg shadow-sm py-4">
                         <h3 className="shrink-0 px-5 text-[11px] font-semibold uppercase tracking-wide text-[#8A93A0] mb-2">
                             Rekapitulasi
                         </h3>
 
-                        <nav className="overflow-y-auto">
+                        <nav className="min-h-0 overflow-y-auto">
                             {REKAP_TABS.map((tab) => {
                                 const isActive = activeTab === tab.key;
 
@@ -99,12 +100,10 @@ function Rekapitulasi() {
                     </div>
                 </aside>
 
-                {/* Area tabel: yang digeser ke kanan-kiri dan naik-turun HANYA tabelnya
-                    (scroller di dalam kartu). Judul, tab, dan menu kiri tidak ikut
-                    bergeser. Semua wrapper ".overflow-x-auto" milik tabel-tabel rekap
-                    dijadikan scroller dua arah setinggi sisa layar, jadi scrollbar
-                    horizontalnya selalu kelihatan di bawah layar. */}
-                <div className="flex-1 min-w-0 [&_.overflow-x-auto]:overflow-auto [&_.overflow-x-auto]:max-h-[calc(100vh-119px)] [&_.overflow-x-auto]:min-h-[32rem]">
+                {/* Area tabel: kolom ini scroll sendiri. Wrapper ".overflow-x-auto"
+                    milik tabel-tabel rekap dijadikan scroller dua arah setinggi
+                    sisa layar, jadi scrollbar horizontalnya tetap kelihatan. */}
+                <div className="flex-1 min-w-0 max-h-[calc(100vh-265px)] overflow-y-auto [&_.overflow-x-auto]:overflow-auto [&_.overflow-x-auto]:max-h-[calc(100vh-385px)] [&_.overflow-x-auto]:min-h-[20rem]">
                     {activeTab === "agama" && (
                         <RekapKategoriTable
                             title="Rekapitulasi Berdasarkan Agama"
