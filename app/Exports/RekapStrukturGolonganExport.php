@@ -210,6 +210,9 @@ class RekapStrukturGolonganExport implements FromArray, WithEvents
                     'P' => 6.6, 'Q' => 6.6, 'R' => 6.6, 'S' => 6.6,
                     'T' => 8, 'U' => 11,
                 ]);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }

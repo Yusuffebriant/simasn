@@ -234,6 +234,9 @@ class RekapPendidikanExport implements FromArray, WithEvents
                     $sheet->getColumnDimension($col)->setWidth(9);
                 }
                 $sheet->getColumnDimension('Y')->setWidth(10);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }

@@ -175,6 +175,9 @@ class RekapEselonGolonganGenderExport implements FromArray, WithEvents
                 $sheet->getColumnDimension('L')->setWidth(10);
                 $sheet->getColumnDimension('V')->setWidth(10);
                 $sheet->getColumnDimension('W')->setWidth(11);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }

@@ -211,6 +211,9 @@ class RekapStrukturEselonExport implements FromArray, WithEvents
                     'J' => 6.6, 'K' => 6.6, 'L' => 6.6, 'M' => 6.6, 'N' => 6.6, 'O' => 6.6,
                     'P' => 11.66, 'Q' => 11,
                 ]);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }
