@@ -213,6 +213,9 @@ class RekapAgamaExport implements FromArray, WithEvents
                 foreach ($lebar as $col => $w) {
                     $sheet->getColumnDimension($col)->setWidth($w);
                 }
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }

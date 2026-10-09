@@ -9,7 +9,6 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 /**
  * Export tabel "PNS Kelurahan" (5.03.019), dikelompokkan berdasarkan
@@ -17,7 +16,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
  * PnsKelurahanPanel.jsx, yaitu StatistikService::statistikPnsKelurahan().
  *
  * Layout sheet: satu baris per Kelurahan, dikelompokkan per Kemantren,
- * dengan baris "Jumlah <Kemantren>" di akhir tiap kelompok dan baris
+ * dengan baris "Total PNS Kelurahan di Wilayah Kemantren <Nama>" di akhir tiap kelompok dan baris
  * "TOTAL" di paling bawah. Kolom: No, Kemantren, Kelurahan, Laki-laki,
  * Perempuan, Jumlah PNS — rincian gender diambil dari
  * $detail['kelurahan_gender'] (ditambahkan di statistikPnsKelurahan()
@@ -76,8 +75,8 @@ class PnsKelurahanExport implements FromArray, WithEvents, WithStrictNullCompari
 
             $this->subtotalIndexes[] = count($rows);
             $rows[] = [
+                'Total PNS Kelurahan di Wilayah Kemantren ' . $this->toTitleCase($namaKemantren),
                 '',
-                'Jumlah Kemantren ' . $this->toTitleCase($namaKemantren),
                 '',
                 $totalLakiKemantren,
                 $totalPerempuanKemantren,
@@ -87,7 +86,7 @@ class PnsKelurahanExport implements FromArray, WithEvents, WithStrictNullCompari
 
         if (($this->data['tidak_dikenali'] ?? 0) > 0) {
             $this->tidakDikenaliIndex = count($rows);
-            $rows[] = ['', 'Tidak Dikenali', '', '', '', $this->data['tidak_dikenali']];
+            $rows[] = ['Tidak Dikenali', '', '', '', '', $this->data['tidak_dikenali']];
         }
 
         return $rows;
@@ -103,83 +102,127 @@ class PnsKelurahanExport implements FromArray, WithEvents, WithStrictNullCompari
         return ucwords(strtolower($text));
     }
 
+    protected function formatPeriode(?string $periode): string
+    {
+        $bulan = [
+            '01' => 'JANUARI', '02' => 'FEBRUARI', '03' => 'MARET', '04' => 'APRIL',
+            '05' => 'MEI', '06' => 'JUNI', '07' => 'JULI', '08' => 'AGUSTUS',
+            '09' => 'SEPTEMBER', '10' => 'OKTOBER', '11' => 'NOVEMBER', '12' => 'DESEMBER',
+        ];
+
+        if (!$periode || !preg_match('/^(\d{4})-(\d{2})/', $periode, $m)) {
+            $m = [null, date('Y'), date('m')];
+        }
+
+        return ($bulan[$m[2]] ?? $m[2]) . ' ' . $m[1];
+    }
+
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
 
-                // Sisipkan 3 baris di atas data: judul, subjudul, header kolom.
-                // (Sebelumnya hanya 2 baris, sehingga header menimpa baris data
-                // pertama dan tabel jadi tidak sama dengan tampilan statistik.)
-                $sheet->insertNewRowBefore(1, 3);
+                // Baris 1-3 judul, baris 4 kosong, baris 5 header kolom, data mulai baris 6
+                // (mengikuti sheet contoh di file data pegawai).
+                $headerRow = 5;
+                $sheet->insertNewRowBefore(1, $headerRow);
 
                 $sheet->setCellValue('A1', 'REKAPITULASI JUMLAH PNS KELURAHAN');
                 $sheet->setCellValue('A2', 'DIPERINCI MENURUT KEMANTREN, KELURAHAN, DAN JENIS KELAMIN');
-                $sheet->mergeCells('A1:F1');
-                $sheet->mergeCells('A2:F2');
+                $sheet->setCellValue('A3', 'KEADAAN : ' . $this->formatPeriode($this->periode));
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->mergeCells("A{$r}:F{$r}");
+                }
 
-                // Header kolom sama dengan tabel di halaman Statistik.
-                $sheet->setCellValue('A3', 'No');
-                $sheet->setCellValue('B3', 'Kemantren');
-                $sheet->setCellValue('C3', 'Kelurahan');
-                $sheet->setCellValue('D3', 'L');
-                $sheet->setCellValue('E3', 'P');
-                $sheet->setCellValue('F3', 'Jumlah PNS');
+                foreach (['No', 'Kemantren', 'Kelurahan', 'L', 'P', 'Jumlah PNS'] as $i => $label) {
+                    $sheet->setCellValue(chr(65 + $i) . $headerRow, $label);
+                }
 
-                $firstDataRow = 4;
-                $lastDataRow = 3 + count($this->rows);
+                $firstDataRow = $headerRow + 1;
+                $lastDataRow = $headerRow + count($this->rows);
                 $totalRow = $lastDataRow + 1;
 
-                // Baris TOTAL: L, P, dan Jumlah, sama seperti <tfoot> di halaman Statistik.
                 $sheet->setCellValue('A' . $totalRow, 'TOTAL');
                 $sheet->mergeCells("A{$totalRow}:C{$totalRow}");
                 $sheet->setCellValue('D' . $totalRow, $this->grandLaki);
                 $sheet->setCellValue('E' . $totalRow, $this->grandPerempuan);
                 $sheet->setCellValue('F' . $totalRow, $this->data['jumlah_pns_kelurahan']);
 
-                // Gaya umum.
-                $sheet->getStyle('A1:A2')->getFont()->setBold(true);
-                $sheet->getStyle('A1:A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle('A3:F3')->getFont()->setBold(true);
-                $sheet->getStyle('A3:F3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle('A3:F3')->getFill()->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('F9FAFB');
-                $sheet->getStyle("A3:F{$totalRow}")->getBorders()->getAllBorders()
-                    ->setBorderStyle(Border::BORDER_THIN);
+                // ===== Styling (mengikuti sheet contoh: Calibri 11, tanpa warna) =====
+                $thin = Border::BORDER_THIN;
 
-                // No & angka rata tengah seperti di halaman Statistik.
-                $sheet->getStyle("A{$firstDataRow}:A{$totalRow}")->getAlignment()
+                $sheet->getParent()->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
+
+                // Judul: bold & rata tengah
+                foreach ([1, 2, 3] as $r) {
+                    $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+                    $sheet->getStyle("A{$r}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                        ->setVertical(Alignment::VERTICAL_CENTER);
+                }
+
+                // Header: bold, rata tengah, border tipis
+                $sheet->getStyle("A{$headerRow}:F{$headerRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$headerRow}:F{$headerRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
+                $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+                // Semua sel tabel: border tipis, rata tengah vertikal
+                $sheet->getStyle("A{$headerRow}:F{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+                $sheet->getStyle("A{$headerRow}:F{$totalRow}")->getAlignment()
+                    ->setVertical(Alignment::VERTICAL_CENTER);
+
+                // No & angka rata tengah, nama rata kiri
+                $sheet->getStyle("A{$firstDataRow}:A{$lastDataRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("B{$firstDataRow}:C{$lastDataRow}")->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("D{$firstDataRow}:F{$totalRow}")->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("F{$firstDataRow}:F{$totalRow}")->getFont()->setBold(true);
 
-                // Baris subtotal "Jumlah Kemantren ...": tebal, abu-abu, label digabung B:C.
+                // Kolom Jumlah PNS: bold
+                $sheet->getStyle("F{$firstDataRow}:F{$lastDataRow}")->getFont()->setBold(true);
+
+                // Subtotal per Kemantren: label di kolom A digabung A:C, bold
                 foreach ($this->subtotalIndexes as $index) {
                     $row = $firstDataRow + $index;
-                    $sheet->mergeCells("B{$row}:C{$row}");
+                    $sheet->mergeCells("A{$row}:C{$row}");
                     $sheet->getStyle("A{$row}:F{$row}")->getFont()->setBold(true);
-                    $sheet->getStyle("A{$row}:F{$row}")->getFill()->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('F3F4F6');
+                    $sheet->getStyle("A{$row}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                        ->setIndent(1);
                 }
 
-                // Baris "Tidak Dikenali" (hanya muncul jika ada): kuning muda, label digabung B:E.
+                // "Tidak Dikenali" (jika ada): label digabung A:E
                 if ($this->tidakDikenaliIndex !== null) {
                     $row = $firstDataRow + $this->tidakDikenaliIndex;
-                    $sheet->mergeCells("B{$row}:E{$row}");
-                    $sheet->getStyle("A{$row}:F{$row}")->getFill()->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('FFF8E1');
+                    $sheet->mergeCells("A{$row}:E{$row}");
+                    $sheet->getStyle("A{$row}")->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                        ->setIndent(1);
                 }
 
-                // Baris TOTAL: tebal & abu-abu.
-                $sheet->getStyle("A{$totalRow}:F{$totalRow}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$totalRow}:F{$totalRow}")->getFill()->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('F3F4F6');
+                // Baris TOTAL: bold ukuran 13
+                $sheet->getStyle("A{$totalRow}:F{$totalRow}")->getFont()->setBold(true)->setSize(13);
+                $sheet->getStyle("A{$totalRow}")->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                    ->setIndent(1);
+                $sheet->getRowDimension($totalRow)->setRowHeight(18);
 
-                foreach (['A' => 6, 'B' => 22, 'C' => 22, 'D' => 12, 'E' => 12, 'F' => 14] as $col => $width) {
+                // Lebar kolom
+                foreach (['A' => 6, 'B' => 24, 'C' => 26, 'D' => 10, 'E' => 10, 'F' => 14] as $col => $width) {
                     $sheet->getColumnDimension($col)->setWidth($width);
                 }
+
+                // Header tetap terlihat saat scroll & siap cetak
+                $sheet->freezePane('A' . $firstDataRow);
+                $sheet->getPageSetup()->setFitToPage(true);
+                $sheet->getPageSetup()->setFitToWidth(1);
+                $sheet->getPageSetup()->setFitToHeight(0);
+                $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
             },
         ];
     }

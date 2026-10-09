@@ -8,6 +8,7 @@ use App\Models\ImportBatch;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Http\Requests\StoreImportRequest;
 use App\Http\Resources\ImportBatchResource; 
 
@@ -66,6 +67,36 @@ class ImportController extends Controller
         return response()->json(
             $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
         );
+    }
+
+    /**
+     * DELETE /api/imports/{batch}
+     * Hapus satu riwayat import beserta catatan baris gagalnya.
+     *
+     * Data pegawai TIDAK ikut terhapus: kolom pegawai.raw_import_id
+     * bertipe nullOnDelete, jadi hanya referensinya yang dikosongkan.
+     * Angka rekapitulasi juga tidak berubah.
+     */
+    public function destroy(ImportBatch $batch)
+    {
+        $this->authorizeBatch($batch);
+
+        // Batch yang sedang diproses jangan dihapus (job masih menulis ke batch ini).
+        // Kalau sudah lebih dari 1 jam masih "diproses" dianggap macet dan boleh dihapus.
+        if ($batch->status === 'diproses' && $batch->created_at?->gt(now()->subHour())) {
+            return response()->json([
+                'message' => 'Import ini masih diproses, tunggu sampai selesai sebelum dihapus.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($batch) {
+            $batch->errors()->delete();
+            $batch->delete();
+        });
+
+        return response()->json([
+            'message' => 'Riwayat import berhasil dihapus.',
+        ]);
     }
 
     /**

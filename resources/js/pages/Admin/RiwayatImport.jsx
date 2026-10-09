@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle, AlertTriangle, X, Eye } from "lucide-react";
+import { LoaderCircle, AlertTriangle, X, Eye, Trash2 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 const STATUS_STYLE = {
@@ -176,6 +176,127 @@ function ImportErrorsModal({ batch, onClose }) {
     );
 }
 
+// Dialog konfirmasi hapus riwayat import.
+// Sumber: DELETE /imports/{batch_id}. Yang dihapus hanya catatan riwayat
+// (dan detail baris gagalnya) — data pegawai & angka rekap tidak berubah.
+function DeleteBatchModal({ batch, onClose, onDeleted }) {
+    const [deleting, setDeleting] = useState(false);
+    const [error, setError] = useState("");
+
+    // Esc = batal (kecuali sedang proses hapus)
+    useEffect(() => {
+        function onKey(e) {
+            if (e.key === "Escape" && !deleting) onClose();
+        }
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [deleting, onClose]);
+
+    async function handleDelete() {
+        setDeleting(true);
+        setError("");
+
+        try {
+            const res = await apiFetch(`/imports/${batch.id}`, { method: "DELETE" });
+
+            if (!res.ok) {
+                let message = "Gagal menghapus riwayat import.";
+                if (res.status === 403) {
+                    message = "Anda tidak berhak menghapus riwayat import ini.";
+                } else {
+                    try {
+                        const data = await res.json();
+                        if (data?.message) message = data.message;
+                    } catch {
+                        // abaikan, pakai pesan default
+                    }
+                }
+                throw new Error(message);
+            }
+
+            onDeleted();
+        } catch (err) {
+            setError(err.message);
+            setDeleting(false);
+        }
+    }
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
+            onMouseDown={(e) => {
+                if (e.target === e.currentTarget && !deleting) onClose();
+            }}
+        >
+            <style>{`
+                @media (prefers-reduced-motion: no-preference) {
+                    .hb-card { animation: hb-in .16s ease-out both; }
+                }
+                @keyframes hb-in {
+                    from { opacity: 0; transform: translateY(8px) scale(.98) }
+                    to   { opacity: 1; transform: none }
+                }
+            `}</style>
+
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="hb-title"
+                className="hb-card w-full max-w-md rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200"
+            >
+                <div className="flex items-start justify-between gap-4">
+                    <h3 id="hb-title" className="text-lg font-semibold text-gray-900">
+                        Hapus riwayat import?
+                    </h3>
+                    <button
+                        onClick={onClose}
+                        disabled={deleting}
+                        aria-label="Tutup"
+                        className="-mr-2 -mt-1 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                    <span className="font-medium text-gray-900">{batch.nama_file}</span>{" "}
+                    (periode {batch.periode}) akan dihapus dari riwayat. Data pegawai
+                    tidak terpengaruh.
+                </p>
+
+                {error && (
+                    <div
+                        role="alert"
+                        className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    >
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        {error}
+                    </div>
+                )}
+
+                <div className="mt-6 flex justify-end gap-3">
+                    <button
+                        autoFocus
+                        onClick={onClose}
+                        disabled={deleting}
+                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-70"
+                    >
+                        {deleting && <LoaderCircle className="animate-spin" size={16} />}
+                        {deleting ? "Menghapus..." : "Hapus"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function RiwayatImport() {
 
     const [batches, setBatches] = useState([]);
@@ -184,6 +305,19 @@ function RiwayatImport() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [detailBatch, setDetailBatch] = useState(null);
+    const [deleteBatch, setDeleteBatch] = useState(null);
+    const [reloadKey, setReloadKey] = useState(0);
+
+    // Dipanggil setelah hapus berhasil: muat ulang daftar, dan kalau halaman
+    // ini jadi kosong (menghapus baris terakhir di halaman), mundur satu halaman.
+    function handleDeleted() {
+        setDeleteBatch(null);
+        if (batches.length === 1 && page > 1) {
+            setPage((p) => p - 1);
+        } else {
+            setReloadKey((k) => k + 1);
+        }
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -216,7 +350,7 @@ function RiwayatImport() {
         load();
 
         return () => { cancelled = true; };
-    }, [page]);
+    }, [page, reloadKey]);
 
     return (
         <div>
@@ -253,13 +387,14 @@ function RiwayatImport() {
                                     <th className="border-b p-3 text-left">Diupload Oleh</th>
                                     <th className="border-b p-3 text-left">Tanggal</th>
                                     <th className="border-b p-3 text-center">Keterangan</th>
+                                    <th className="border-b p-3 text-center">Aksi</th>
                                 </tr>
                             </thead>
 
                             <tbody>
                                 {batches.length === 0 && (
                                     <tr>
-                                        <td className="p-3 text-gray-500" colSpan={8}>
+                                        <td className="p-3 text-gray-500" colSpan={9}>
                                             Belum ada riwayat import.
                                         </td>
                                     </tr>
@@ -288,6 +423,15 @@ function RiwayatImport() {
                                             ) : (
                                                 <span className="text-gray-400">-</span>
                                             )}
+                                        </td>
+                                        <td className="border-b p-3 text-center">
+                                            <button
+                                                onClick={() => setDeleteBatch(batch)}
+                                                className="flex items-center gap-1 text-sm text-red-600 font-semibold hover:underline mx-auto"
+                                            >
+                                                <Trash2 size={16} />
+                                                Hapus
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -319,6 +463,14 @@ function RiwayatImport() {
                         </div>
                     )}
                 </>
+            )}
+
+            {deleteBatch && (
+                <DeleteBatchModal
+                    batch={deleteBatch}
+                    onClose={() => setDeleteBatch(null)}
+                    onDeleted={handleDeleted}
+                />
             )}
 
             {detailBatch && (

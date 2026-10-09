@@ -171,7 +171,7 @@ function KelurahanRekapTable({
                                             colSpan={2}
                                             className="border px-3 py-2 sticky left-12 z-10 bg-gray-100"
                                         >
-                                            Jumlah Kemantren {g.label}
+                                            Total{rowLabelSuffix ? ` ${rowLabelSuffix}` : ""} Kelurahan di Wilayah Kemantren {g.label}
                                         </td>
                                         <td className="border px-2 py-2 text-center">
                                             {g.totalLaki}

@@ -300,6 +300,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
             ->middleware('throttle:10,1');
         Route::get('/imports/{batch}', [ImportController::class, 'show']);
         Route::get('/imports/{batch}/errors', [ImportController::class, 'errors']);
+        Route::delete('/imports/{batch}', [ImportController::class, 'destroy']);
 
         // ---- PEGAWAI CRUD ----
         Route::apiResource('pegawai', PegawaiController::class)

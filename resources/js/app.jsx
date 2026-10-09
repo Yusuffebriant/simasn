@@ -6,8 +6,9 @@ import Home from './pages/home/home';
 import LoginPage from './pages/Login/Login';
 import Admin from './pages/Admin/Admin';
 import Statistik from './pages/Statistik/Statistik';
+import NotFound from './pages/NotFound/NotFound';
 
-import { isLoggedIn, hasRole, getUserRole, verifySession } from './lib/api';
+import { isLoggedIn, hasRole, getUserRole } from './lib/api';
 import Setting from './pages/Setting/Setting';
 
 function withRedirectTo(path) {
@@ -49,16 +50,13 @@ function App() {
         return <LoginPage />;
     }
 
-    // "/statistik" — statistik pejabat struktural & fungsional. Sama seperti
-    // /admin dan /setting: hanya super-admin dan admin-instansi yang boleh
-    // masuk. Role lain dilempar balik ke halaman rumahnya.
+    // "/statistik" — statistik pejabat struktural & fungsional. Endpoint-nya
+    // (/api/statistik/pejabat-struktural & /pejabat-fungsional) cuma butuh
+    // login (auth:sanctum), tanpa batasan role tertentu — jadi semua user
+    // yang sudah login boleh buka halaman ini (bukan cuma admin).
     if (path === '/statistik') {
         if (!isLoggedIn()) {
             window.location.replace(withRedirectTo('/statistik'));
-            return null;
-        }
-        if (!hasRole(...ADMIN_ROLES)) {
-            window.location.replace(homeFor(getUserRole()));
             return null;
         }
         return <Statistik />;
@@ -79,7 +77,7 @@ function App() {
     }
 
     // "/setting" — boleh diakses role admin, super-admin, admin-instansi.
-    if (path === '/setting') {
+    if (path === '/settings') {
         if (!isLoggedIn()) {
             window.location.replace(withRedirectTo('/setting'));
             return null;
@@ -91,30 +89,14 @@ function App() {
         return <Setting />;
     }
 
-    // Default: path tidak dikenal -> ke halaman utama, BUKAN Admin
-    return <Home />;
-}
-
-// Sebelum menampilkan halaman, pastikan token di browser (kalau ada) masih
-// berlaku di server. Kalau sudah kedaluwarsa, data login dibersihkan dulu
-// sehingga sidebar & halaman terproteksi langsung memperlakukan user sebagai
-// belum login. Tanpa token, tidak ada request/penundaan sama sekali.
-function Root() {
-    const [ready, setReady] = React.useState(!isLoggedIn());
-
-    React.useEffect(() => {
-        if (ready) return;
-        verifySession().finally(() => setReady(true));
-    }, [ready]);
-
-    if (!ready) return null;
-    return <App />;
+    // Default: path tidak dikenal -> halaman 404
+return <NotFound />;
 }
 
 createRoot(document.getElementById('app')).render(
     <React.StrictMode>
         <ErrorBoundary>
-            <Root />
+            <App />
         </ErrorBoundary>
     </React.StrictMode>
 );

@@ -6,15 +6,91 @@ use App\Services\RekapService;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class RekapStrukturEselonExport implements FromArray, WithEvents
 {
+    // Palet warna (RGB tanpa '#') — diambil dari file contoh.
+    protected string $warnaBiruMuda = 'DCE6F2';
+    protected string $warnaOranye = 'FCD5B5';
+    protected string $warnaTosca = 'B7DEE8';
+    protected string $warnaToscaMuda = 'DBEEF4';
+    protected string $warnaUngu = 'E6E0EC';
+    protected string $warnaMerahMuda = 'E6B9B8';
+    protected string $warnaNavy = '002060';
+    protected string $warnaViolet = '7030A0';
+
+    protected function rekapWarnai(Worksheet $sheet, string $range, string $rgb): void
+    {
+        $sheet->getStyle($range)->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($rgb);
+    }
+
+    /** Baris 1-3 (judul): bold, rata tengah. */
+    protected function rekapJudul(Worksheet $sheet): void
+    {
+        foreach ([1, 2, 3] as $r) {
+            $sheet->getStyle("A{$r}")->getFont()->setBold(true);
+            $sheet->getStyle("A{$r}")->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                ->setVertical(Alignment::VERTICAL_CENTER);
+        }
+    }
+
+    /** Blok header: bold, tengah, wrap, border tipis di semua sisi. */
+    protected function rekapHeader(Worksheet $sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true);
+        $sheet->getStyle($range)->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER)
+            ->setWrapText(true);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN);
+    }
+
+    /** Baris data: garis luar & garis tegak tipis, garis antar-baris halus (hair). */
+    protected function rekapBarisData(Worksheet $sheet, string $range): void
+    {
+        $sheet->getStyle($range)->applyFromArray(['borders' => [
+            'outline' => ['borderStyle' => Border::BORDER_THIN],
+            'vertical' => ['borderStyle' => Border::BORDER_THIN],
+            'horizontal' => ['borderStyle' => Border::BORDER_HAIR],
+        ]]);
+    }
+
+    /** Baris TOTAL: bold + border tipis. */
+    protected function rekapBarisTotal(Worksheet $sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN);
+    }
+
+    /** Teks putih + bold (untuk banner PNS / PPPK yang berlatar gelap). */
+    protected function rekapTeksPutih(Worksheet $sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    }
+
+    /** @param array<string,float|int> $lebar  kolom => lebar */
+    protected function rekapLebarKolom(Worksheet $sheet, array $lebar): void
+    {
+        foreach ($lebar as $col => $w) {
+            $sheet->getColumnDimension($col)->setWidth($w);
+        }
+    }
+
     protected array $data;
 
     protected array $eselonList = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
 
-    protected int $headerRows = 7;
+    protected int $headerRows = 8;
 
     public function __construct(protected string $periode)
     {
@@ -91,6 +167,11 @@ class RekapStrukturEselonExport implements FromArray, WithEvents
                     $sheet->setCellValue([$index + 10, 7], $eselon);
                 }
 
+                // Baris nomor kolom (1 s/d 17) tepat di bawah judul golongan
+                for ($kolom = 1; $kolom <= 17; $kolom++) {
+                    $sheet->setCellValue([$kolom, 8], $kolom);
+                }
+
                 $sheet->setCellValue('A' . $totalRow, 'TOTAL');
                 $sheet->mergeCells("A{$totalRow}:B{$totalRow}");
 
@@ -102,11 +183,37 @@ class RekapStrukturEselonExport implements FromArray, WithEvents
                     $sheet->setCellValue($column . $totalRow, $sum);
                 }
 
-                $sheet->getStyle('A1:A3')->getFont()->setBold(true);
-                $sheet->getStyle('A5:Q7')->getFont()->setBold(true);
-                $sheet->getStyle('A5:Q7')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
-                $sheet->getStyle("A5:Q{$totalRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle("A{$totalRow}:Q{$totalRow}")->getFont()->setBold(true);
+                // ===== Styling (mengikuti sheet "struk es" di file data pegawai) =====
+                $firstDataRow = $this->headerRows + 1;
+
+                $this->rekapJudul($sheet);
+                $this->rekapHeader($sheet, 'A5:Q8');
+                $this->rekapBarisData($sheet, "A{$firstDataRow}:Q{$lastDataRow}");
+                $this->rekapBarisTotal($sheet, "A{$totalRow}:Q{$totalRow}");
+
+                // Nama eselon (baris 7): biru muda
+                $this->rekapWarnai($sheet, 'C7:H7', $this->warnaBiruMuda);
+                $this->rekapWarnai($sheet, 'J7:O7', $this->warnaBiruMuda);
+
+                // Kolom JML pria (I) & JML wanita (P): ungu muda
+                $this->rekapWarnai($sheet, "I{$firstDataRow}:I{$lastDataRow}", $this->warnaUngu);
+                $this->rekapWarnai($sheet, "P{$firstDataRow}:P{$lastDataRow}", $this->warnaUngu);
+
+                // Baris TOTAL: tebal ukuran 12, tanpa warna (sama seperti contoh)
+                $sheet->getStyle("A{$totalRow}:Q{$totalRow}")->getFont()->setSize(12);
+
+                $sheet->getRowDimension(7)->setRowHeight(20);
+
+                $this->rekapLebarKolom($sheet, [
+                    'A' => 5, 'B' => 113.11,
+                    'C' => 6.6, 'D' => 6.6, 'E' => 6.6, 'F' => 6.6, 'G' => 6.6, 'H' => 6.6,
+                    'I' => 11.66,
+                    'J' => 6.6, 'K' => 6.6, 'L' => 6.6, 'M' => 6.6, 'N' => 6.6, 'O' => 6.6,
+                    'P' => 11.66, 'Q' => 11,
+                ]);
+
+                // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
+                $sheet->freezePane('A' . ($this->headerRows + 1));
             },
         ];
     }
