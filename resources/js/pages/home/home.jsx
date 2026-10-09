@@ -70,7 +70,7 @@ function Home() {
                         </h1>
                         <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
                         <p className="text-[#687386] text-[15px]">
-                             Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
+                            Rekapitulasi Data Kepegawaian · Pemerintah Kota Yogyakarta
                         </p>
                     </div>
 
@@ -131,7 +131,7 @@ function Home() {
                         {/* Total Pegawai */}
                         <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                             <TotalCard
-                                title="Total Pegawai"
+                                title="Total Pegawai (PNS + PPPK)"
                                 total={data.total.total}
                                 pria={data.total.pria}
                                 wanita={data.total.wanita}
@@ -167,6 +167,43 @@ function Home() {
                                 />
                             ))}
                         </div>
+
+                        {/* Status Kepegawaian */}
+                        {data.ringkasan_status && (
+                            <>
+                                <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+                                    <h3 className="text-[#172033] font-semibold">
+                                        Status Kepegawaian
+                                    </h3>
+                                    <span className="text-xs text-[#8A93A0] tabular-nums">
+                                        Total semua status:{" "}
+                                        {(data.ringkasan_status.TOTAL ?? 0).toLocaleString("id-ID")}{" "}
+                                        pegawai
+                                    </span>
+                                </div>
+                                <div
+                                    className="grid gap-4 mb-6"
+                                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
+                                >
+                                    <MiniStatCard
+                                        title="PNS"
+                                        total={data.ringkasan_status.PNS ?? 0}
+                                    />
+                                    <MiniStatCard
+                                        title="PPPK"
+                                        total={data.ringkasan_status.PPPK ?? 0}
+                                    />
+                                    <MiniStatCard
+                                        title="PPPK Paruh Waktu"
+                                        total={data.ringkasan_status.PPPK_PW ?? 0}
+                                    />
+                                    <MiniStatCard
+                                        title="Lainnya"
+                                        total={data.ringkasan_status.LAINNYA ?? 0}
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         {/* Generasi */}
                         <h3 className="text-[#172033] font-semibold mb-3">
@@ -384,9 +421,8 @@ function CategoryStatTable({ title, labelHeader, data }) {
                     {data.map((row, i) => (
                         <tr
                             key={row.label}
-                            className={`border-b border-[#F0F2F5] hover:bg-[#F5F7FA] transition-colors ${
-                                i % 2 === 1 ? "bg-[#FAFBFC]" : ""
-                            }`}
+                            className={`border-b border-[#F0F2F5] hover:bg-[#F5F7FA] transition-colors ${i % 2 === 1 ? "bg-[#FAFBFC]" : ""
+                                }`}
                         >
                             <td className="py-2 pr-2 text-[#172033] text-xs font-normal whitespace-nowrap">
                                 {row.label}

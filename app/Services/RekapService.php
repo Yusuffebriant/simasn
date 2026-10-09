@@ -769,6 +769,7 @@ class RekapService
             ),
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
+            'ringkasan_status' => $this->ringkasanStatusKepegawaian(),
         ];
     }
 
