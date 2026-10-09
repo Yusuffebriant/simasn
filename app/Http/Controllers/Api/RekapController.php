@@ -150,6 +150,22 @@ class RekapController extends Controller
         return response()->json($data);
     }
 
+    public function paruhWaktuJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = Cache::remember(
+            "rekap.paruh-waktu.{$periode}",
+            now()->addMinutes(10),
+            fn () => [
+                'ringkasan_status' => (new RekapService())->ringkasanStatusKepegawaian(),
+                'per_instansi' => (new RekapService())->rekapParuhWaktu($periode),
+            ]
+        );
+
+        return response()->json($data);
+    }
+
     public function exportNakes(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));

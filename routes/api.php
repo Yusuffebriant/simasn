@@ -315,6 +315,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         // ---- REKAP JSON ----
         Route::get('/rekap/agama', [RekapController::class, 'agamaJson']);
         Route::get('/rekap/nakes', [RekapController::class, 'nakesJson']);
+        Route::get('/rekap/paruh-waktu', [RekapController::class, 'paruhWaktuJson']);
         Route::get('/rekap/sd', [RekapController::class, 'sdJson']);
         Route::get('/rekap/smp', [RekapController::class, 'smpJson']);
         Route::get('/rekap/kecamatan', [RekapController::class, 'kecamatanJson']);

@@ -23,6 +23,7 @@ class PegawaiResource extends JsonResource
             'pendidikan' => $this->pendidikan?->jenjang,
             'jabatan' => $this->jabatan,
             'status_aktif' => $this->status_aktif,
+            'status_perkawinan' => $this->whenLoaded('detail', fn () => $this->detail?->status_perkawinan),
         ];
     }
 }

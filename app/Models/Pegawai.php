@@ -15,18 +15,20 @@ class Pegawai extends Model
     protected $table = 'pegawai';
 
     protected $fillable = [
-        'nip', 'nama', 'instansi_id', 'unit', 'sub_unit',
-        'jenis_kelamin', 'status_kepegawaian',
-        'golongan_ruang_id', 'eselon_id', 'agama_id', 'pendidikan_id',
-        'jabatan', 'jenis_kedudukan', 'tanggal_lahir', 'tmt_pangkat', 'tanggal_pensiun',
-        'status_aktif', 'raw_import_id',
-    ];
+    'nip', 'nik', 'nama', 'instansi_id', 'unit', 'sub_unit',
+    'jenis_kelamin', 'status_kepegawaian',
+    'golongan_ruang_id', 'eselon_id', 'agama_id', 'pendidikan_id',
+    'jabatan', 'jenis_kedudukan', 'tanggal_lahir', 'tmt_pangkat',
+    'tanggal_pensiun', 'tanggal_selesai_kontrak',
+    'status_aktif', 'raw_import_id',
+];
 
-    protected $casts = [
-        'tanggal_lahir' => 'date',
-        'tmt_pangkat' => 'date',
-        'tanggal_pensiun' => 'date',
-    ];
+protected $casts = [
+    'tanggal_lahir' => 'date',
+    'tmt_pangkat' => 'date',
+    'tanggal_pensiun' => 'date',
+    'tanggal_selesai_kontrak' => 'date',
+];
 
     public function instansi()
     {
@@ -62,6 +64,17 @@ class Pegawai extends Model
     {
         return $this->hasOne(PegawaiDetail::class);
     }
+    
+    /** PNS + PPPK. Dipakai semua laporan resmi yang sudah terverifikasi. */
+public function scopeAsnPenuh($query)
+{
+    return $query->whereIn('pegawai.status_kepegawaian', ['PNS', 'PPPK']);
+}
+
+public function scopeParuhWaktu($query)
+{
+    return $query->where('pegawai.status_kepegawaian', 'PPPK_PW');
+}
 
     public function getActivitylogOptions(): LogOptions
     {

@@ -18,7 +18,7 @@ class RekapService
     {
         $agamaList = ['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha'];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->join('agama', 'agama.id', '=', 'pegawai.agama_id')
             ->select(
@@ -86,7 +86,7 @@ class RekapService
             'S3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->select(
@@ -194,7 +194,7 @@ class RekapService
 
         $kolomList = array_merge($golonganList, $pppkList);
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
@@ -298,7 +298,7 @@ class RekapService
         // 'PELAKSANA', 'STRUKTURAL', dst) — BUKAN menebak dari teks
         // bebas pegawai.jabatan lewat regex. Baris Eselon tetap ditentukan
         // dari eselon.kode seperti sebelumnya (sudah akurat).
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->select(
@@ -379,7 +379,7 @@ class RekapService
     {
         $eselonList = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
@@ -606,7 +606,7 @@ class RekapService
         }
 
         // Rekap per Unit Kerja (instansi)
-        $unitKerjaRows = Pegawai::query()
+        $unitKerjaRows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->where('pegawai.status_aktif', 'aktif')
             ->select(
@@ -647,7 +647,7 @@ class RekapService
         usort($unitKerja, fn($a, $b) => strcmp($a['label'], $b['label']));
 
         // Rekap per Agama
-        $agamaRows = Pegawai::query()
+        $agamaRows = Pegawai::asnPenuh()
             ->join('agama', 'agama.id', '=', 'pegawai.agama_id')
             ->where('pegawai.status_aktif', 'aktif')
             ->select(
@@ -770,6 +770,59 @@ class RekapService
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
         ];
+    }
+
+    /**
+     * Ringkasan jumlah pegawai aktif per status kepegawaian, untuk
+     * rekonsiliasi hasil import. Sengaja memakai Pegawai::select() (bukan
+     * Pegawai::query()) supaya tidak ikut ter-scope asnPenuh().
+     */
+    public function ringkasanStatusKepegawaian(): array
+    {
+        $rows = Pegawai::select('status_kepegawaian', DB::raw('COUNT(*) as jumlah'))
+            ->where('status_aktif', 'aktif')
+            ->groupBy('status_kepegawaian')
+            ->pluck('jumlah', 'status_kepegawaian');
+
+        $hasil = [];
+        foreach (['PNS', 'PPPK', 'PPPK_PW', 'LAINNYA'] as $status) {
+            $hasil[$status] = (int) ($rows[$status] ?? 0);
+        }
+        $hasil['TOTAL'] = array_sum($hasil);
+
+        return $hasil;
+    }
+
+    /** Rekap PPPK paruh waktu per instansi (unit), pria/wanita/jumlah. */
+    public function rekapParuhWaktu(?string $periode = null): array
+    {
+        $rows = Pegawai::paruhWaktu()
+            ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
+            ->select(
+                'instansi.id as instansi_id',
+                'instansi.nama as instansi_nama',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy('instansi.id', 'instansi.nama', 'pegawai.jenis_kelamin')
+            ->get();
+
+        $perInstansi = [];
+        foreach ($rows as $row) {
+            $id = $row->instansi_id;
+            $perInstansi[$id] ??= ['instansi' => $row->instansi_nama, 'pria' => 0, 'wanita' => 0];
+            $perInstansi[$id][$row->jenis_kelamin === 'L' ? 'pria' : 'wanita'] += (int) $row->jumlah;
+        }
+
+        foreach ($perInstansi as &$data) {
+            $data['jumlah'] = $data['pria'] + $data['wanita'];
+        }
+        unset($data);
+
+        usort($perInstansi, fn ($a, $b) => $b['jumlah'] <=> $a['jumlah']);
+
+        return $perInstansi;
     }
 
     /**
@@ -932,7 +985,7 @@ class RekapService
     {
         $golonganList = self::STRUK_GOL_LIST;
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
@@ -997,7 +1050,7 @@ class RekapService
     {
         $eselonList = self::ESELON_LIST;
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->join('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->select(
@@ -1054,7 +1107,7 @@ class RekapService
         $pppkList = self::JF_TERTENTU_PPPK_LIST;
         $kolomList = array_merge($golonganList, $pppkList);
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
@@ -1153,7 +1206,7 @@ class RekapService
         $pppkList = self::JF_PELAKSANA_PPPK_LIST;
         $kolomList = array_merge($golonganList, $pppkList);
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
@@ -1320,7 +1373,7 @@ class RekapService
      */
     public function rekapNakes(?string $periode = null): array
     {
-        $rowsDinkes = Pegawai::query()
+        $rowsDinkes = Pegawai::asnPenuh()
             ->select('sub_unit', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
@@ -1347,7 +1400,7 @@ class RekapService
             }
         }
 
-        $rowsRsud = Pegawai::query()
+        $rowsRsud = Pegawai::asnPenuh()
             ->select('jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
@@ -1399,7 +1452,7 @@ class RekapService
      */
     public function rekapSdFungsional(?string $periode = null): array
     {
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->select('sub_unit', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
@@ -1417,7 +1470,7 @@ class RekapService
      */
     public function rekapSmpFungsional(?string $periode = null): array
     {
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->select('sub_unit', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
@@ -1479,7 +1532,7 @@ class RekapService
     {
         $eselonStruktural = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->select(
                 'pegawai.unit',
@@ -1709,7 +1762,7 @@ class RekapService
             $bindings[] = sprintf('%04d-01-01', $tahun + 1);
         }
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->selectRaw(implode(', ', $select), $bindings)
             ->where('pegawai.status_kepegawaian', 'PNS')

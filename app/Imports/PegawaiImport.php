@@ -24,7 +24,6 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
     }
 
     /**
-     * TAMBAHKAN method chunkSize
      * Menentukan jumlah baris per chunk
      */
     public function chunkSize(): int
@@ -32,9 +31,6 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
         return 1000; // Bisa diubah sesuai kebutuhan
     }
 
-    /**
-     * TAMBAHKAN return type : void
-     */
     public function collection(Collection $rows): void
     {
         $berhasilChunk = 0;
@@ -67,13 +63,31 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
                 $hasil = $this->normalizer->normalisasiBaris($rowArray);
 
                 DB::transaction(function () use ($hasil) {
-                    $pegawai = Pegawai::updateOrCreate(
-                        ['nip' => $hasil['pegawai']['nip']],
-                        array_merge(
-                            $hasil['pegawai'],
-                            ['raw_import_id' => $this->batch->id]
-                        )
+                    $data = array_merge(
+                        $hasil['pegawai'],
+                        ['raw_import_id' => $this->batch->id]
                     );
+
+                    $pegawai = null;
+
+                    // Cari berdasarkan NIP dulu, lalu NIK.
+                    if (!empty($data['nip'])) {
+                        $pegawai = Pegawai::where('nip', $data['nip'])->first();
+                    }
+
+                    if (!$pegawai && !empty($data['nik'])) {
+                        $pegawai = Pegawai::where('nik', $data['nik'])->first();
+                    }
+
+                    if ($pegawai) {
+                        // Jangan menimpa NIP lama dengan null kalau file tidak membawa NIP.
+                        if (empty($data['nip'])) {
+                            unset($data['nip']);
+                        }
+                        $pegawai->fill($data)->save();
+                    } else {
+                        $pegawai = Pegawai::create($data);
+                    }
 
                     PegawaiDetail::updateOrCreate(
                         ['pegawai_id' => $pegawai->id],
@@ -83,6 +97,8 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading
 
                 $berhasilChunk++;
             } catch (\Throwable $e) {
+                // Termasuk InvalidArgumentException dari normalisasiBaris()
+                // (STATUS_KEPEGAWAIAN tidak dikenali) -> masuk import_batch_errors.
                 $this->catatError(
                     $rowArray,
                     $e->getMessage()

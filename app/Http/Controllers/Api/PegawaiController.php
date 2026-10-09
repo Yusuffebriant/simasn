@@ -11,7 +11,8 @@ class PegawaiController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Pegawai::with(['instansi', 'golonganRuang', 'eselon', 'agama', 'pendidikan'])
+        // 'detail' dimuat agar status perkawinan ikut tampil tanpa N+1.
+        $query = Pegawai::with(['instansi', 'golonganRuang', 'eselon', 'agama', 'pendidikan', 'detail'])
             ->where('status_aktif', 'aktif');
 
         if ($request->filled('instansi_id')) {
@@ -40,7 +41,7 @@ class PegawaiController extends Controller
             'nama' => ['sometimes', 'string', 'max:255'],
             'jabatan' => ['sometimes', 'nullable', 'string', 'max:255'],
             'jenis_kelamin' => ['sometimes', 'in:L,P'],
-            'status_kepegawaian' => ['sometimes', 'in:PNS,PPPK'],
+            'status_kepegawaian' => ['sometimes', 'in:PNS,PPPK,PPPK_PW,LAINNYA'],
             'instansi_id' => ['sometimes', 'exists:instansi,id'],
             'golongan_ruang_id' => ['sometimes', 'nullable', 'exists:golongan_ruang,id'],
             'eselon_id' => ['sometimes', 'exists:eselon,id'],

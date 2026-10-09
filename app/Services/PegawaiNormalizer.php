@@ -15,17 +15,76 @@ class PegawaiNormalizer
     public function isRowValid(array $row): array
     {
         $nip = trim((string) ($row['NIP'] ?? ''));
+        $nik = $this->normalisasiNik($row['NIK'] ?? null);
         $nama = trim((string) ($row['NAMA'] ?? ''));
 
-        if ($nip === '' || $nama === '') {
-            return [false, 'NIP atau Nama kosong'];
+        if ($nama === '' || ($nip === '' && $nik === null)) {
+            return [false, 'Nama kosong, atau NIP dan NIK sama-sama kosong'];
         }
 
+        // Teks ini dibandingkan persis oleh PegawaiImport, jangan diubah.
         if (is_numeric($nama)) {
             return [false, 'Baris terdeteksi sebagai index palsu, bukan data pegawai'];
         }
 
         return [true, null];
+    }
+
+    public function normalisasiNik($val): ?string
+    {
+        if ($val === null) {
+            return null;
+        }
+
+        // Kolom diformat Number di Excel -> float notasi ilmiah.
+        if (is_int($val) || is_float($val)) {
+            $val = number_format((float) $val, 0, '', '');
+        }
+
+        $nik = preg_replace('/\D/', '', (string) $val);
+
+        return $nik === '' ? null : $nik;
+    }
+
+    /**
+     * Nilai tak dikenal -> null, dan baris ditolak lewat import_batch_errors
+     * (TIDAK lagi dipaksa jadi 'PNS').
+     */
+    public function resolveStatusKepegawaian(?string $raw): ?string
+    {
+        $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
+
+        return match ($key) {
+            'PNS' => 'PNS',
+            'PPPK' => 'PPPK',
+            'PPPK PARUH WAKTU' => 'PPPK_PW',
+            'NABAN', 'PEGAWAI TITIPAN' => 'LAINNYA',
+            default => null,
+        };
+    }
+
+    /**
+     * '-' dan kosong -> null. Varian yang belum dikenal tetap disimpan
+     * (huruf besar, spasi jadi underscore) supaya tidak ada data hilang
+     * dan varian baru kelihatan saat dicek.
+     */
+    public function resolveStatusPerkawinan(?string $raw): ?string
+    {
+        $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
+
+        if ($key === '' || $key === '-') {
+            return null;
+        }
+
+        return match ($key) {
+            'NIKAH', 'KAWIN' => 'KAWIN',
+            'BELUM NIKAH', 'BELUM KAWIN' => 'BELUM_KAWIN',
+            'CERAI HIDUP' => 'CERAI_HIDUP',
+            'CERAI MATI' => 'CERAI_MATI',
+            'JANDA' => 'JANDA',
+            'DUDA' => 'DUDA',
+            default => str_replace(' ', '_', $key),
+        };
     }
 
     public function normalisasiKodeGolongan(?string $raw): ?string
@@ -37,7 +96,7 @@ class PegawaiNormalizer
         $parts = explode(',', $raw);
         $kode = trim(end($parts));
 
-        return $kode === '' ? null : $kode;
+        return ($kode === '' || $kode === '-') ? null : $kode;
     }
 
     public function resolveGolonganRuang(
@@ -50,7 +109,7 @@ class PegawaiNormalizer
             return null;
         }
 
-        $kelompok = $statusKepegawaian === 'PPPK'
+        $kelompok = in_array($statusKepegawaian, ['PPPK', 'PPPK_PW'], true)
             ? 'PPPK'
             : 'PNS';
 
@@ -141,6 +200,7 @@ class PegawaiNormalizer
             // ==========================================
             'SMP' => 'SLTP',
             'SLTP' => 'SLTP',
+            'SLTP KEJURUAN' => 'SLTP',
 
             // ==========================================
             // SLTA
@@ -150,6 +210,7 @@ class PegawaiNormalizer
             'SMA/SMK' => 'SLTA',
             'SLTA' => 'SLTA',
             'SLTA KEJURUAN' => 'SLTA',
+            'SLTA KEGURUAN' => 'SLTA',
 
             // ==========================================
             // D I
@@ -232,12 +293,14 @@ class PegawaiNormalizer
 
                 'SMP' => 'SLTP',
                 'SLTP' => 'SLTP',
+                'SLTPKEJURUAN' => 'SLTP',
 
                 'SMA' => 'SLTA',
                 'SMK' => 'SLTA',
                 'SMASMK' => 'SLTA',
                 'SLTA' => 'SLTA',
                 'SLTAKEJURUAN' => 'SLTA',
+                'SLTAKEGURUAN' => 'SLTA',
 
                 'D1' => 'D I',
                 'DIPLOMAI' => 'D I',
@@ -299,7 +362,7 @@ class PegawaiNormalizer
 
     public function resolveAgama(?string $raw): ?int
     {
-        if (!$raw || trim($raw) === '') {
+        if (!$raw || trim($raw) === '' || trim($raw) === '-') {
             return null;
         }
 
@@ -345,30 +408,19 @@ class PegawaiNormalizer
     /**
      * Konversi nilai tanggal mentah dari Excel menjadi string 'Y-m-d'.
      *
-     * FIX (lihat riwayat bug "semua pegawai tanggal_lahir = 1970-01-01"):
-     * Sebelumnya method ini hanya memanggil Carbon::parse($val) langsung.
-     * Kalau kolom tanggal di Excel diformat sebagai "Number" (bukan
-     * "Date"), Maatwebsite Excel mengirim nilai mentah berupa SERIAL
-     * NUMBER (mis. 25567), bukan string tanggal. Carbon::parse() pada
-     * angka semacam itu tidak melempar exception — dia malah
-     * menginterpretasikannya sebagai timestamp/format lain yang salah
-     * dan hasilnya konsisten jatuh ke Unix Epoch (1970-01-01). Karena
-     * kolom tanggal_lahir nullable tanpa default DB, nilai yang salah
-     * itu (bukan NULL) yang akhirnya tersimpan — makanya SEMUA baris
-     * kena, bukan cuma sebagian.
+     * FIX (bug "semua pegawai tanggal_lahir = 1970-01-01"):
+     * Kalau kolom tanggal di Excel diformat sebagai "Number", Maatwebsite
+     * Excel mengirim SERIAL NUMBER (mis. 25567), dan Carbon::parse() pada
+     * angka itu jatuh ke Unix Epoch (1970-01-01) tanpa exception.
      *
-     * Fix ini menangani 3 bentuk input secara eksplisit:
+     * Method ini menangani 3 bentuk input secara eksplisit:
      *  1) Object tanggal (kadang sudah dikembalikan oleh Maatwebsite)
-     *  2) Serial number Excel (angka) -> dikonversi lewat
-     *     PhpSpreadsheet's ExcelDate, bukan Carbon::parse()
+     *  2) Serial number Excel (angka) -> lewat PhpSpreadsheet ExcelDate
      *  3) String tanggal biasa ("1990-05-14", "14/05/1990", dst)
      *
-     * Ditambah guard: kalau hasil parse tetap jatuh ke 1970-01-01
-     * padahal input mentahnya sama sekali tidak menyebut "1970",
-     * dianggap gagal parse -> return null. Ini sengaja lebih
-     * konservatif: data kosong (NULL) di database jauh lebih mudah
-     * dideteksi & diperbaiki lewat re-import ketimbang data yang
-     * terlihat "valid" tapi sebenarnya salah.
+     * Guard: hasil 1970-01-01 padahal input tidak menyebut "1970"
+     * dianggap gagal parse -> null (lebih mudah dideteksi daripada
+     * data yang tampak valid tapi salah).
      */
     private function toDate($val): ?string
     {
@@ -382,9 +434,8 @@ class PegawaiNormalizer
         }
 
         // Kasus 2: serial number Excel (kolom diformat sebagai Number).
-        // Range aman: > 0 (setelah 31 Des 1899) dan < 60000 (~tahun 2064),
-        // supaya angka lain yang salah masuk kolom ini (mis. NIK) tidak
-        // dipaksakan jadi tanggal.
+        // Range aman: > 0 dan < 60000 (~tahun 2064), supaya angka lain
+        // yang salah masuk kolom ini (mis. NIK) tidak dipaksakan jadi tanggal.
         if (is_numeric($val)) {
             $num = (float) $val;
 
@@ -418,32 +469,37 @@ class PegawaiNormalizer
 
     public function normalisasiBaris(array $row): array
     {
-        $statusKepegawaian = strtoupper(
-            trim((string) ($row['STATUS_KEPEGAWAIAN'] ?? 'PNS'))
+        $statusKepegawaian = $this->resolveStatusKepegawaian(
+            $row['STATUS_KEPEGAWAIAN'] ?? null
         );
 
-        $statusKepegawaian = in_array(
-            $statusKepegawaian,
-            ['PNS', 'PPPK'],
-            true
-        )
-            ? $statusKepegawaian
-            : 'PNS';
+        if ($statusKepegawaian === null) {
+            throw new \InvalidArgumentException(
+                'STATUS_KEPEGAWAIAN tidak dikenali: '
+                . ($row['STATUS_KEPEGAWAIAN'] ?? '(kosong)')
+            );
+        }
+
+        $nip = trim((string) ($row['NIP'] ?? ''));
+        $nik = $this->normalisasiNik($row['NIK'] ?? null);
+
+        // PNS -> tanggal pensiun. PPPK/PPPK_PW/LAINNYA -> tanggal selesai kontrak.
+        $tanggalAkhir = $this->toDate(
+            $row['TGL_PENSIUN_ATAU_TGL_SELESAI_KONTRAK'] ?? $row['TGL_PENSIUN'] ?? null
+        );
+        $isPns = $statusKepegawaian === 'PNS';
 
         $pegawai = [
-            'nip' => trim((string) ($row['NIP'] ?? '')),
+            'nip' => $nip === '' ? null : $nip,   // WAJIB null, bukan '' (kolom unique)
+            'nik' => $nik,
             'nama' => trim((string) ($row['NAMA'] ?? '')),
 
-            'instansi_id' => $this->resolveInstansi(
-                $row['UNIT'] ?? null
-            ),
+            'instansi_id' => $this->resolveInstansi($row['UNIT'] ?? null),
 
             'unit' => $row['UNIT'] ?? null,
             'sub_unit' => $row['SUB_UNIT'] ?? null,
 
-            'jenis_kelamin' => $this->resolveJenisKelamin(
-                $row['JENIS_KELAMIN'] ?? null
-            ),
+            'jenis_kelamin' => $this->resolveJenisKelamin($row['JENIS_KELAMIN'] ?? null),
 
             'status_kepegawaian' => $statusKepegawaian,
 
@@ -452,48 +508,27 @@ class PegawaiNormalizer
                 $statusKepegawaian
             ),
 
-            'eselon_id' => $this->resolveEselon(
-                $row['ESELON'] ?? null
-            ),
+            'eselon_id' => $this->resolveEselon($row['ESELON'] ?? null),
 
-            'agama_id' => $this->resolveAgama(
-                $row['AGAMA'] ?? null
-            ),
+            'agama_id' => $this->resolveAgama($row['AGAMA'] ?? null),
 
-            /*
-             * Bagian penting:
-             * S-3/Doktor -> S3 -> pendidikan.id = 7
-             */
-            'pendidikan_id' => $this->resolvePendidikan(
-                $row['TINGKAT_PENDIDIKAN'] ?? null
-            ),
+            // S-3/Doktor -> S3 -> pendidikan.id = 7
+            'pendidikan_id' => $this->resolvePendidikan($row['TINGKAT_PENDIDIKAN'] ?? null),
 
             'jabatan' => $row['JABATAN'] ?? null,
 
-            /*
-             * Sumber kebenaran untuk Fungsional Umum vs Fungsional
-             * Tertentu di rekap Jabatan — jangan lagi ditebak dari
-             * teks `jabatan` pakai regex.
-             */
-            'jenis_kedudukan' => $this->resolveJenisKedudukan(
-                $row['JENIS_KEDUDUKAN'] ?? null
-            ),
+            // Sumber kebenaran untuk Fungsional Umum vs Fungsional Tertentu
+            // di rekap Jabatan — jangan ditebak dari teks `jabatan`.
+            'jenis_kedudukan' => $this->resolveJenisKedudukan($row['JENIS_KEDUDUKAN'] ?? null),
 
-            'tanggal_lahir' => $this->toDate(
-                $row['TGL_LAHIR'] ?? null
-            ),
+            'tanggal_lahir' => $this->toDate($row['TGL_LAHIR'] ?? null),
 
-            'tmt_pangkat' => $this->toDate(
-                $row['PANGKAT_TMT'] ?? null
-            ),
+            'tmt_pangkat' => $this->toDate($row['PANGKAT_TMT'] ?? null),
 
-            'tanggal_pensiun' => $this->toDate(
-                $row['TGL_PENSIUN'] ?? null
-            ),
+            'tanggal_pensiun' => $isPns ? $tanggalAkhir : null,
+            'tanggal_selesai_kontrak' => $isPns ? null : $tanggalAkhir,
 
-            'status_aktif' => $this->resolveStatusAktif(
-                $row['KEDUDUKAN_KEPEGAWAIAN'] ?? null
-            ),
+            'status_aktif' => $this->resolveStatusAktif($row['KEDUDUKAN_KEPEGAWAIAN'] ?? null),
         ];
 
         $alamatParts = array_filter([
@@ -509,24 +544,16 @@ class PegawaiNormalizer
             $row['KABUPATEN'] ?? null,
             $row['PROPINSI'] ?? null,
 
-            $this->cleanZero(
-                $row['KODEPOS'] ?? null
-            ),
+            $this->cleanZero($row['KODEPOS'] ?? null),
         ]);
 
         $detail = [
-            'nik' => $this->cleanZero(
-                $row['NIK'] ?? null
-            ),
-
+            'nik' => $nik,
             'alamat' => implode(', ', $alamatParts),
-
-            'hp' => $this->cleanZero(
-                $row['HP'] ?? null
-            ),
-
-            'email' => $this->cleanZero(
-                $row['EMAIL'] ?? null
+            'hp' => $this->cleanZero($row['HP'] ?? null),
+            'email' => $this->cleanZero($row['EMAIL'] ?? null),
+            'status_perkawinan' => $this->resolveStatusPerkawinan(
+                $row['STATUS_PERKAWINAN'] ?? null
             ),
         ];
 

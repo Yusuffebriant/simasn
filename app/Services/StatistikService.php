@@ -32,7 +32,7 @@ class StatistikService
             'IV B' => 'IV',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->select(
                 'eselon.kode as eselon_kode',
@@ -87,7 +87,7 @@ class StatistikService
 
     public function statistikPejabatFungsional(?string $periode = null): array
     {
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->select(
                 'jenis_kedudukan',
                 'jenis_kelamin',
@@ -194,7 +194,7 @@ class StatistikService
             'P2UPD',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->select('jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->where('jenis_kedudukan', 'FUNGSIONAL')
@@ -287,7 +287,7 @@ class StatistikService
         $awal = sprintf('%04d-01-01', $tahun);
         $akhir = sprintf('%04d-01-01', $tahun + 1);
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
                 'golongan_ruang.kode as golongan_kode',
@@ -392,7 +392,7 @@ class StatistikService
             'IV' => ['IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e'],
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
                 'golongan_ruang.kode as golongan_kode',
@@ -477,7 +477,7 @@ class StatistikService
     {
         $golonganList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
                 'golongan_ruang.kode as golongan_kode',
@@ -561,7 +561,7 @@ class StatistikService
             'S3' => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->select(
                 'pendidikan.jenjang as pendidikan_nama',
@@ -672,7 +672,7 @@ class StatistikService
             'S3'   => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin(
                 'pendidikan',
                 'pendidikan.id',
@@ -838,7 +838,7 @@ class StatistikService
             'S3'   => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->leftJoin(
                 'pendidikan',
                 'pendidikan.id',
@@ -999,7 +999,7 @@ class StatistikService
             'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join(
                 'instansi',
                 'instansi.id',
@@ -1208,7 +1208,7 @@ class StatistikService
             'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join(
                 'instansi',
                 'instansi.id',
@@ -1352,7 +1352,7 @@ class StatistikService
             'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->join(
                 'eselon',
@@ -1502,7 +1502,7 @@ class StatistikService
             'DINAS SOSIAL TENAGA KERJA DAN TRANSMIGRASI',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join(
                 'instansi',
                 'instansi.id',
@@ -1591,7 +1591,7 @@ class StatistikService
         $awalTahun = sprintf('%04d-01-01', $tahun);
         $awalTahunBerikutnya = sprintf('%04d-01-01', $tahun + 1);
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join(
                 'instansi',
                 'instansi.id',
@@ -1679,7 +1679,7 @@ class StatistikService
     | "Total = Laki-Laki + Perempuan".
     */
         $hitung = function ($queryCallback) {
-            $query = Pegawai::query()
+            $query = Pegawai::asnPenuh()
                 ->where('pegawai.status_aktif', 'aktif');
 
             $queryCallback($query);
@@ -1839,7 +1839,7 @@ class StatistikService
     | Query filter eselon-nya sendiri TIDAK diubah — sudah terverifikasi
     | benar (663).
     */
-        $pejabatStrukturalQuery = Pegawai::query()
+        $pejabatStrukturalQuery = Pegawai::asnPenuh()
             ->leftJoin(
                 'eselon',
                 'eselon.id',
@@ -1989,7 +1989,7 @@ class StatistikService
         $hitungInstansi = function ($namaInstansi) use ($hitungDariQuery) {
             $namaList = is_array($namaInstansi) ? $namaInstansi : [$namaInstansi];
 
-            $query = Pegawai::query()
+            $query = Pegawai::asnPenuh()
                 ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
                 ->where('pegawai.status_aktif', 'aktif')
                 ->whereIn('instansi.nama', $namaList);
@@ -2002,7 +2002,7 @@ class StatistikService
         // "KOTA YOGYAKARTA", "Pengelola" vs "Pengelolaan", dst). Tiap
         // pattern digabung dengan OR, jadi cukup salah satu yang cocok.
         $hitungInstansiLike = function (array $patterns) use ($hitungDariQuery) {
-            $query = Pegawai::query()
+            $query = Pegawai::asnPenuh()
                 ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
                 ->where('pegawai.status_aktif', 'aktif')
                 ->where(function ($q) use ($patterns) {
@@ -2168,7 +2168,7 @@ class StatistikService
         // sekali) — supaya jumlah_asn/laki_laki/perempuan DIJAMIN selalu
         // sama dengan panel ASN Berdasarkan Tingkat Pendidikan dan Jenis
         // Kelamin, berapa pun hasil pencocokan instansi di atas.
-        $totalQuery = Pegawai::query()->where('pegawai.status_aktif', 'aktif');
+        $totalQuery = Pegawai::asnPenuh()->where('pegawai.status_aktif', 'aktif');
         $jumlahLakiLaki = (clone $totalQuery)
             ->where(function ($q) {
                 $q->where('pegawai.jenis_kelamin', 'L')->orWhere('pegawai.jenis_kelamin', 'LAKI-LAKI');
@@ -2273,7 +2273,7 @@ class StatistikService
             'S3'    => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->select(
@@ -2409,7 +2409,7 @@ class StatistikService
             'S3'    => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->select(
@@ -2560,7 +2560,7 @@ class StatistikService
             'S3'    => 'strata_3',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
             ->select(
@@ -2700,7 +2700,7 @@ class StatistikService
             'KOTAGEDE',
         ];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
@@ -2863,7 +2863,7 @@ class StatistikService
         // sama dengan PPPK_LIST di RekapGolonganTable (halaman Admin).
         $golonganList = ['I', 'III', 'V', 'VII', 'IX', 'X', 'XI'];
 
-        $rows = Pegawai::query()
+        $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->join('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->select(
@@ -3001,7 +3001,7 @@ public function statistikPnsKelurahan(?string $periode = null): array
         'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
     ];
 
-    $rows = Pegawai::query()
+    $rows = Pegawai::asnPenuh()
         ->select(
             'unit',
             'sub_unit',
@@ -3131,7 +3131,7 @@ public function statistikPppkKelurahan(?string $periode = null): array
         'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
     ];
 
-    $rows = Pegawai::query()
+    $rows = Pegawai::asnPenuh()
         ->select(
             'unit',
             'sub_unit',
