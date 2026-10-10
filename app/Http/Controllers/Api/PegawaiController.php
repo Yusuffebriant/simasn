@@ -11,6 +11,12 @@ class PegawaiController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'status_kepegawaian' => ['nullable', 'in:PNS,PPPK,PPPK_PW,LAINNYA'],
+            'status_perkawinan' => ['nullable', 'in:KAWIN,BELUM_KAWIN,CERAI_HIDUP,CERAI_MATI,JANDA,DUDA,KOSONG'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
         // 'detail' dimuat agar status perkawinan ikut tampil tanpa N+1.
         $query = Pegawai::with(['instansi', 'golonganRuang', 'eselon', 'agama', 'pendidikan', 'detail'])
             ->where('status_aktif', 'aktif');
@@ -18,6 +24,24 @@ class PegawaiController extends Controller
         if ($request->filled('instansi_id')) {
             $query->where('instansi_id', $request->instansi_id);
         }
+
+        if ($request->filled('status_kepegawaian')) {
+            $query->where('status_kepegawaian', $request->status_kepegawaian);
+        }
+
+        // KOSONG = pegawai yang status perkawinannya belum terisi
+        // (tidak punya baris detail, atau kolomnya NULL).
+        if ($request->filled('status_perkawinan')) {
+            if ($request->status_perkawinan === 'KOSONG') {
+                $query->where(function ($q) {
+                    $q->whereDoesntHave('detail')
+                      ->orWhereHas('detail', fn ($d) => $d->whereNull('status_perkawinan'));
+                });
+            } else {
+                $query->whereHas('detail', fn ($d) => $d->where('status_perkawinan', $request->status_perkawinan));
+            }
+        }
+
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('nama', 'like', "%{$request->search}%")
@@ -25,7 +49,11 @@ class PegawaiController extends Controller
             });
         }
 
-        return PegawaiResource::collection($query->paginate(20));
+        $perPage = (int) $request->input('per_page', 20);
+
+        return PegawaiResource::collection(
+            $query->orderBy('nama')->paginate($perPage)
+        );
     }
 
     public function show(Pegawai $pegawai)

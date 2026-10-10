@@ -11,6 +11,7 @@ use App\Exports\RekapGolonganExport;
 use App\Exports\RekapJabatanExport;
 use App\Exports\RekapEselonGolonganGenderExport;
 use App\Exports\RekapNakesExport;
+use App\Exports\RekapParuhWaktuLengkapExport;
 use App\Exports\RekapStrukturGolonganExport;
 use App\Exports\RekapStrukturEselonExport;
 use App\Exports\RekapJfTertentuExport;
@@ -160,6 +161,8 @@ class RekapController extends Controller
             fn () => [
                 'ringkasan_status' => (new RekapService())->ringkasanStatusKepegawaian(),
                 'per_instansi' => (new RekapService())->rekapParuhWaktu($periode),
+                'per_pendidikan' => (new RekapService())->rekapParuhWaktuPendidikan($periode),
+                'per_jenis_jabatan' => (new RekapService())->rekapParuhWaktuJenisJabatan($periode),
             ]
         );
 
@@ -171,6 +174,16 @@ class RekapController extends Controller
         $periode = $request->query('periode', now()->format('Y-m'));
 
         return Excel::download(new RekapNakesExport($periode), "rekap-nakes-{$periode}.xlsx");
+    }
+
+    public function exportParuhWaktu(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        return Excel::download(
+            new RekapParuhWaktuLengkapExport($periode),
+            "rekap-paruh-waktu-{$periode}.xlsx"
+        );
     }
     public function sdJson(Request $request)
     {

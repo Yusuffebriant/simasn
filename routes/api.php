@@ -338,6 +338,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/rekap/sd-smp/export', [RekapController::class, 'exportSdSmp']);
         Route::get('/rekap/kecamatan/export', [RekapController::class, 'exportKecamatan']);
         Route::get('/rekap/nakes/export', [RekapController::class, 'exportNakes']);
+        Route::get('/rekap/paruh-waktu/export', [RekapController::class, 'exportParuhWaktu']);
         Route::get('/rekap/pendidikan/export', [RekapController::class, 'exportPendidikan']);
         Route::get('/rekap/golongan/export', [RekapController::class, 'exportGolongan']);
         Route::get('/rekap/jabatan/export', [RekapController::class, 'exportJabatan']);

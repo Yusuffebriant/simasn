@@ -4,11 +4,13 @@ import ImportData from "./ImportData";
 import RiwayatImport from "./RiwayatImport";
 import Rekapitulasi from "./Rekapitulasi";
 import ExportLaporan from "./ExportLaporan";
+import DaftarPegawai from "./DaftarPegawai";
 
 const TABS = [
     { key: "import", label: "Import Data", component: ImportData },
     { key: "riwayat", label: "Riwayat Import", component: RiwayatImport },
     { key: "rekap", label: "Rekapitulasi", component: Rekapitulasi },
+    { key: "pegawai", label: "Daftar Pegawai", component: DaftarPegawai },
     { key: "export", label: "Export Laporan", component: ExportLaporan },
 ];
 
@@ -27,9 +29,8 @@ export default function Admin() {
             <Sidebar />
 
             <main
-                className={`flex-1 min-w-0 p-8 ${
-                    isRekap ? "overflow-x-clip" : "overflow-x-auto"
-                }`}
+                className={`flex-1 min-w-0 p-8 ${isRekap ? "overflow-x-clip" : "overflow-x-auto"
+                    }`}
             >
                 {/* Blok judul: kelasnya SAMA di semua tab, jadi posisi &
                     ukurannya pasti seragam. */}

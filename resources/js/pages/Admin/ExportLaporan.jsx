@@ -28,6 +28,9 @@ const REKAP_LIST = [
     "Struktural per Golongan",
     "Struktural per Eselon",
     "Rekap Pensiun",
+    "Rekap PPPK Paruh Waktu (per perangkat daerah)",
+    "Rekap PPPK Paruh Waktu per Pendidikan",
+    "Rekap PPPK Paruh Waktu per Jenis Jabatan",
 ];
 
 function ExportLaporan() {
@@ -100,7 +103,7 @@ function ExportLaporan() {
                     (agama, pendidikan, golongan ruang, jabatan, eselon,
                     nakes, SD, SMP, kecamatan/kelurahan, JF tertentu,
                     JF pelaksana, struktural per golongan, struktural
-                    per eselon, dan pensiun) untuk periode yang dipilih. Masing-masing
+                    per eselon, pensiun, dan PPPK paruh waktu) untuk periode yang dipilih. Masing-masing
                     rekap pada sheet-nya sendiri.
                 </p>
 

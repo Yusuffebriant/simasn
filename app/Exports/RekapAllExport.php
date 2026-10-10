@@ -101,6 +101,24 @@ class RekapAllExport implements Export, WithMultipleSheets, WithPreCalculateForm
                     return 'Rekap Pensiun';
                 }
             },
+            new class($this->periode) extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap PPPK Paruh Waktu';
+                }
+            },
+            new class($this->periode, 'pendidikan') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW per Pendidikan';
+                }
+            },
+            new class($this->periode, 'jenis_jabatan') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW per Jenis Jabatan';
+                }
+            },
         ];
     }
 }

@@ -769,7 +769,6 @@ class RekapService
             ),
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
-            'ringkasan_status' => $this->ringkasanStatusKepegawaian(),
         ];
     }
 
@@ -824,6 +823,89 @@ class RekapService
         usort($perInstansi, fn ($a, $b) => $b['jumlah'] <=> $a['jumlah']);
 
         return $perInstansi;
+    }
+
+    /**
+     * Rekap PPPK paruh waktu per tingkat pendidikan, pria/wanita/jumlah.
+     * Kategori sama dengan rekapPendidikan() (10 jenjang). Pegawai tanpa
+     * pendidikan (atau jenjang di luar daftar) masuk baris "Belum diisi /
+     * lainnya" supaya total tetap sama dengan jumlah pegawai paruh waktu.
+     */
+    public function rekapParuhWaktuPendidikan(?string $periode = null): array
+    {
+        $jenjang = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
+
+        $rows = Pegawai::paruhWaktu()
+            ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
+            ->select(
+                'pendidikan.jenjang as kategori',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy('pendidikan.jenjang', 'pegawai.jenis_kelamin')
+            ->get();
+
+        return $this->susunRekapKategori($rows, array_combine($jenjang, $jenjang));
+    }
+
+    /**
+     * Rekap PPPK paruh waktu per jenis jabatan (pelaksana / fungsional /
+     * struktural), pria/wanita/jumlah. Sumbernya pegawai.jenis_kedudukan,
+     * sama dengan yang dipakai rekap Jabatan.
+     */
+    public function rekapParuhWaktuJenisJabatan(?string $periode = null): array
+    {
+        $rows = Pegawai::paruhWaktu()
+            ->select(
+                'pegawai.jenis_kedudukan as kategori',
+                'pegawai.jenis_kelamin',
+                DB::raw('COUNT(*) as jumlah')
+            )
+            ->where('pegawai.status_aktif', 'aktif')
+            ->groupBy('pegawai.jenis_kedudukan', 'pegawai.jenis_kelamin')
+            ->get();
+
+        return $this->susunRekapKategori($rows, [
+            'PELAKSANA' => 'Jabatan Pelaksana',
+            'FUNGSIONAL' => 'Jabatan Fungsional',
+            'STRUKTURAL' => 'Jabatan Struktural',
+        ]);
+    }
+
+    /**
+     * Susun baris rekap (kategori x pria/wanita) dari hasil query.
+     *
+     * @param  iterable  $rows   objek dengan kategori, jenis_kelamin, jumlah
+     * @param  array     $label  [nilai di database => nama yang ditampilkan]
+     */
+    private function susunRekapKategori(iterable $rows, array $label): array
+    {
+        $hasil = [];
+        foreach ($label as $kunci => $nama) {
+            $hasil[$kunci] = ['kategori' => $nama, 'pria' => 0, 'wanita' => 0];
+        }
+        $hasil['_kosong'] = ['kategori' => 'Belum diisi / lainnya', 'pria' => 0, 'wanita' => 0];
+
+        foreach ($rows as $row) {
+            $kunci = ($row->kategori !== null && isset($hasil[$row->kategori]))
+                ? $row->kategori
+                : '_kosong';
+
+            $hasil[$kunci][$row->jenis_kelamin === 'L' ? 'pria' : 'wanita'] += (int) $row->jumlah;
+        }
+
+        // Baris "Belum diisi" hanya ditampilkan kalau memang ada isinya.
+        if ($hasil['_kosong']['pria'] + $hasil['_kosong']['wanita'] === 0) {
+            unset($hasil['_kosong']);
+        }
+
+        foreach ($hasil as &$data) {
+            $data['jumlah'] = $data['pria'] + $data['wanita'];
+        }
+        unset($data);
+
+        return array_values($hasil);
     }
 
     /**
