@@ -14,7 +14,7 @@ class PegawaiNormalizer
 {
     public function isRowValid(array $row): array
     {
-        $nip = trim((string) ($row['NIP'] ?? ''));
+        $nip = $this->bersihkanRumus($row['NIP'] ?? null);
         $nik = $this->normalisasiNik($row['NIK'] ?? null);
         $nama = trim((string) ($row['NAMA'] ?? ''));
 
@@ -396,9 +396,25 @@ class PegawaiNormalizer
         };
     }
 
-    private function cleanZero($val): ?string
+    /**
+     * Kolom Excel yang diformat sebagai teks sering berisi rumus
+     * seperti ="08122711195". Maatwebsite membacanya apa adanya
+     * (tanpa WithCalculatedFormulas), jadi bungkus =" " dibuang di sini.
+     */
+    private function bersihkanRumus($val): string
     {
         $val = trim((string) $val);
+
+        if (str_starts_with($val, '=')) {
+            $val = trim($val, '=" ');
+        }
+
+        return $val;
+    }
+
+    private function cleanZero($val): ?string
+    {
+        $val = $this->bersihkanRumus($val);
 
         return ($val === '' || $val === '0' || $val === '-')
             ? null
@@ -480,7 +496,7 @@ class PegawaiNormalizer
             );
         }
 
-        $nip = trim((string) ($row['NIP'] ?? ''));
+        $nip = $this->bersihkanRumus($row['NIP'] ?? null);
         $nik = $this->normalisasiNik($row['NIK'] ?? null);
 
         // PNS -> tanggal pensiun. PPPK/PPPK_PW/LAINNYA -> tanggal selesai kontrak.
@@ -531,13 +547,16 @@ class PegawaiNormalizer
             'status_aktif' => $this->resolveStatusAktif($row['KEDUDUKAN_KEPEGAWAIAN'] ?? null),
         ];
 
+        $rt = $this->cleanZero($row['RT'] ?? null);
+        $rw = $this->cleanZero($row['RW'] ?? null);
+        $rtRw = ($rt || $rw)
+            ? 'RT ' . ($rt ?? '-') . '/RW ' . ($rw ?? '-')
+            : null;
+
         $alamatParts = array_filter([
             $row['ALAMAT'] ?? null,
 
-            isset($row['RT'], $row['RW'])
-                ? 'RT ' . $this->cleanZero($row['RT'])
-                    . '/RW ' . $this->cleanZero($row['RW'])
-                : null,
+            $rtRw,
 
             $row['KELURAHAN'] ?? null,
             $row['KECAMATAN'] ?? null,
