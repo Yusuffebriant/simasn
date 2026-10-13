@@ -53,6 +53,12 @@ class ImportController extends Controller
             'total_baris' => $batch->total_baris,
             'berhasil' => $batch->berhasil,
             'gagal' => $batch->gagal,
+            'sinkron_status' => $batch->sinkron_status,
+            'sinkron_jumlah_sisa' => $batch->sinkron_jumlah_sisa,
+            'sinkron_total_aktif' => $batch->sinkron_total_aktif,
+            'sinkron_catatan' => $batch->sinkron_catatan,
+            'rekonsiliasi_status' => $batch->rekonsiliasi_status,
+            'rekonsiliasi' => $batch->rekonsiliasi,
         ]);
     }
 

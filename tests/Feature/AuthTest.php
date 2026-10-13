@@ -10,6 +10,15 @@ class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Pembuatan User memicu observer yang memberi role super-admin,
+        // jadi role harus sudah ada di database tes.
+        $this->seed(\Database\Seeders\RoleSeeder::class);
+    }
+
     public function test_user_bisa_login_dengan_kredensial_benar(): void
     {
         $user = User::factory()->create(['password' => bcrypt('password123')]);

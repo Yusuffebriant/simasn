@@ -3,6 +3,7 @@ import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { getCurrentPeriode } from "../../lib/periode";
 import PeriodeLabel from "./PeriodeLabel";
+import InfoParuhWaktu from "./InfoParuhWaktu";
 
 function filenameFromResponse(res, fallback) {
     const disposition = res.headers.get("Content-Disposition") || "";
@@ -302,6 +303,12 @@ function RekapJfTertentuTable() {
                     </table>
                 </div>
             )}
+
+            <InfoParuhWaktu
+                periode={periode}
+                kategori="Jabatan Fungsional"
+                label="JF Tertentu"
+            />
         </div>
     );
 }

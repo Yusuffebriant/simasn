@@ -406,6 +406,32 @@ function RiwayatImport() {
                                         <td className="border-b p-3">{batch.periode}</td>
                                         <td className="border-b p-3">
                                             <StatusBadge status={batch.status} />
+                                            {batch.rekonsiliasi_status === "selisih" && (
+                                                <p className="mt-1 text-xs text-amber-600">
+                                                    Ada selisih file vs database
+                                                </p>
+                                            )}
+                                            {batch.rekonsiliasi_status === "cocok" && (
+                                                <p className="mt-1 text-xs text-[#006A4E]">
+                                                    Data cocok dengan file
+                                                </p>
+                                            )}
+                                            {batch.sinkron_status === "dilewati" && (
+                                                <p
+                                                    className="mt-1 text-xs text-amber-600"
+                                                    title={batch.sinkron_catatan || ""}
+                                                >
+                                                    Sinkron dilewati
+                                                </p>
+                                            )}
+                                            {batch.sinkron_status === "dinonaktifkan" && (
+                                                <p
+                                                    className="mt-1 text-xs text-gray-500"
+                                                    title={batch.sinkron_catatan || ""}
+                                                >
+                                                    {batch.sinkron_jumlah_sisa} dinonaktifkan
+                                                </p>
+                                            )}
                                         </td>
                                         <td className="border-b p-3">{batch.berhasil ?? "-"}</td>
                                         <td className="border-b p-3">{batch.gagal ?? "-"}</td>
@@ -484,4 +510,4 @@ function RiwayatImport() {
     );
 }
 
-export default RiwayatImport;
+export default RiwayatImport;   

@@ -12,6 +12,15 @@ class PegawaiImportTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Pembuatan User memicu observer yang memberi role super-admin,
+        // jadi role harus sudah ada di database tes.
+        $this->seed(\Database\Seeders\RoleSeeder::class);
+    }
+
     public function test_upload_valid_membuat_batch_dan_dispatch_job(): void
     {
         Queue::fake();

@@ -19,6 +19,8 @@ use App\Exports\RekapJfPelaksanaExport;
 use App\Exports\RekapPensiunExport;
 
 use App\Services\RekapService;
+use App\Services\RekapParuhWaktuTambahanService;
+use App\Support\RekapCache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
@@ -35,10 +37,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.dashboard.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('dashboard', $periode, function () use ($periode) {
                 return (new RekapService())->rekapDashboard($periode);
             }
         );
@@ -50,10 +49,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.dashboard.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('dashboard', $periode, function () use ($periode) {
                 return (new RekapService())->rekapDashboard($periode);
             }
         );
@@ -68,10 +64,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.agama.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('agama', $periode, function () use ($periode) {
                 return (new RekapService())->rekapAgama($periode);
             }
         );
@@ -83,10 +76,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.pendidikan.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('pendidikan', $periode, function () use ($periode) {
                 return (new RekapService())->rekapPendidikan($periode);
             }
         );
@@ -98,10 +88,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.jabatan.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('jabatan', $periode, function () use ($periode) {
                 return (new RekapService())->rekapJabatan($periode);
             }
         );
@@ -113,10 +100,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.golongan.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('golongan', $periode, function () use ($periode) {
                 return (new RekapService())->rekapGolongan($periode);
             }
         );
@@ -128,10 +112,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.eselon-golongan-gender.{$periode}",
-            now()->addMinutes(10),
-            function () use ($periode) {
+        $data = RekapCache::remember('eselon-golongan-gender', $periode, function () use ($periode) {
                 return (new RekapService())->rekapEselonGolonganGender($periode);
             }
         );
@@ -142,10 +123,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.nakes.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapNakes($periode)
+        $data = RekapCache::remember('nakes', $periode, fn() => (new RekapService())->rekapNakes($periode)
         );
 
         return response()->json($data);
@@ -155,15 +133,16 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.paruh-waktu.{$periode}",
-            now()->addMinutes(10),
-            fn () => [
+        $data = RekapCache::remember('paruh-waktu', $periode, fn () => array_merge([
                 'ringkasan_status' => (new RekapService())->ringkasanStatusKepegawaian(),
                 'per_instansi' => (new RekapService())->rekapParuhWaktu($periode),
                 'per_pendidikan' => (new RekapService())->rekapParuhWaktuPendidikan($periode),
                 'per_jenis_jabatan' => (new RekapService())->rekapParuhWaktuJenisJabatan($periode),
-            ]
+            ],
+                // per_usia, per_pensiun, per_jf_rumpun, per_jabatan,
+                // per_persentase_instansi
+                (new RekapParuhWaktuTambahanService())->semua($periode)
+            )
         );
 
         return response()->json($data);
@@ -188,10 +167,7 @@ class RekapController extends Controller
     public function sdJson(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
-        $data = Cache::remember(
-            "rekap.sd.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapSdFungsional($periode)
+        $data = RekapCache::remember('sd', $periode, fn() => (new RekapService())->rekapSdFungsional($periode)
         );
         return response()->json($data);
     }
@@ -199,10 +175,7 @@ class RekapController extends Controller
     public function smpJson(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
-        $data = Cache::remember(
-            "rekap.smp.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapSmpFungsional($periode)
+        $data = RekapCache::remember('smp', $periode, fn() => (new RekapService())->rekapSmpFungsional($periode)
         );
         return response()->json($data);
     }
@@ -227,10 +200,7 @@ class RekapController extends Controller
     public function kecamatanJson(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
-        $data = Cache::remember(
-            "rekap.kecamatan.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapKecamatanKelurahan($periode)
+        $data = RekapCache::remember('kecamatan', $periode, fn() => (new RekapService())->rekapKecamatanKelurahan($periode)
         );
         return response()->json($data);
     }
@@ -311,10 +281,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.struktur-golongan.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapStrukturGolonganInstansi($periode)
+        $data = RekapCache::remember('struktur-golongan', $periode, fn() => (new RekapService())->rekapStrukturGolonganInstansi($periode)
         );
 
         return response()->json($data);
@@ -334,10 +301,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.struktur-eselon.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapStrukturEselonInstansi($periode)
+        $data = RekapCache::remember('struktur-eselon', $periode, fn() => (new RekapService())->rekapStrukturEselonInstansi($periode)
         );
 
         return response()->json($data);
@@ -357,10 +321,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.jf-tertentu.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapJfTertentu($periode)
+        $data = RekapCache::remember('jf-tertentu', $periode, fn() => (new RekapService())->rekapJfTertentu($periode)
         );
 
         return response()->json($data);
@@ -380,10 +341,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.jf-pelaksana.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapJfPelaksana($periode)
+        $data = RekapCache::remember('jf-pelaksana', $periode, fn() => (new RekapService())->rekapJfPelaksana($periode)
         );
 
         return response()->json($data);
@@ -403,10 +361,7 @@ class RekapController extends Controller
     {
         $periode = $request->query('periode', now()->format('Y-m'));
 
-        $data = Cache::remember(
-            "rekap.pensiun.{$periode}",
-            now()->addMinutes(10),
-            fn() => (new RekapService())->rekapPensiun($periode)
+        $data = RekapCache::remember('pensiun', $periode, fn() => (new RekapService())->rekapPensiun($periode)
         );
 
         return response()->json($data);

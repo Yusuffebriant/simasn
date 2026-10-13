@@ -59,7 +59,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/a'),
         ]);
 
-        $service = app(\App\Services\RekapService::class);
+        $service = app(\App\Services\StatistikService::class);
         $data = $service->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['jumlah_pensiunan_pns']);
@@ -72,7 +72,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/a'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['jumlah_pensiunan_pns']);
     }
@@ -84,7 +84,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/a'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(0, $data['jumlah_pensiunan_pns']);
     }
@@ -96,7 +96,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/a'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2025);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2025);
 
         $this->assertSame(1, $data['jumlah_pensiunan_pns']);
     }
@@ -109,7 +109,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => GolonganRuang::where('kode', 'III')->where('kelompok', 'PPPK')->firstOrFail()->id,
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(0, $data['jumlah_pensiunan_pns']);
     }
@@ -121,7 +121,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/a'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(0, $data['jumlah_pensiunan_pns']);
     }
@@ -133,7 +133,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('I/a'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['golongan_I']['total']);
         $this->assertSame(0, $data['golongan_II']['total']);
@@ -146,7 +146,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('II/b'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['golongan_II']['total']);
     }
@@ -158,7 +158,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('III/c'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['golongan_III']['total']);
     }
@@ -170,7 +170,7 @@ class StatistikPensiunanPNSTest extends TestCase
             'golongan_ruang_id' => $this->golongan('IV/d'),
         ]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(1, $data['golongan_IV']['total']);
     }
@@ -187,7 +187,7 @@ class StatistikPensiunanPNSTest extends TestCase
         $this->buatPegawai(['tanggal_pensiun' => '2025-01-01', 'golongan_ruang_id' => $this->golongan('I/a')]);
         $this->buatPegawai(['tanggal_pensiun' => '2023-12-31', 'golongan_ruang_id' => $this->golongan('I/a')]);
 
-        $data = app(\App\Services\RekapService::class)->statistikPensiunanPNS(2024);
+        $data = app(\App\Services\StatistikService::class)->statistikPensiunanPNS(2024);
 
         $this->assertSame(5, $data['jumlah_pensiunan_pns']);
         $this->assertSame(

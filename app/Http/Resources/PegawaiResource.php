@@ -26,10 +26,10 @@ class PegawaiResource extends JsonResource
             'pendidikan' => $this->pendidikan?->jenjang,
             'jabatan' => $this->jabatan,
             'status_aktif' => $this->status_aktif,
-            // PNS menyimpan tanggalnya di tanggal_pensiun, selain PNS di
-            // tanggal_selesai_kontrak. Khusus PPPK_PW, isi file sumber terbukti
-            // tanggal lahir + 58/60 tahun (batas usia pensiun), BUKAN akhir
-            // kontrak. Karena itu jenisnya dibedakan agar label di layar benar.
+            // PNS dan PPPK_PW menyimpan tanggalnya di tanggal_pensiun (batas usia
+            // pensiun), PPPK di tanggal_selesai_kontrak. Data kontrak asli
+            // PPPK_PW belum ada di file sumber, jadi tanggal_selesai_kontrak-nya
+            // kosong.
             'tanggal_akhir' => ($this->tanggal_pensiun ?? $this->tanggal_selesai_kontrak)?->format('Y-m-d'),
             'jenis_tanggal_akhir' => match ($this->status_kepegawaian) {
                 'PNS', 'PPPK_PW' => 'PENSIUN',

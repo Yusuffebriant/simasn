@@ -769,6 +769,11 @@ class RekapService
             ),
             'unit_kerja' => $unitKerja,
             'agama' => $agama,
+
+            // Seluruh status (termasuk PPPK Paruh Waktu & Lainnya), tidak
+            // ikut ter-scope asnPenuh() seperti angka lain di dashboard.
+            // Dipakai kartu "Status Kepegawaian" di halaman utama.
+            'ringkasan_status' => $this->ringkasanStatusKepegawaian(),
         ];
     }
 

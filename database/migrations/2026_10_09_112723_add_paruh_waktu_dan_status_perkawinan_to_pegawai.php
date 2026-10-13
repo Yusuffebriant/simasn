@@ -29,17 +29,23 @@ return new class extends Migration
 
         // Backfill NIK dari pegawai_detail untuk data lama.
         // Hanya NIK yang muncul sekali, supaya unique index tidak bentrok.
-        DB::statement("
-            UPDATE pegawai p
-            JOIN (
-                SELECT MIN(pegawai_id) AS pegawai_id, nik
-                FROM pegawai_detail
-                WHERE nik IS NOT NULL AND nik <> ''
-                GROUP BY nik
-                HAVING COUNT(*) = 1
-            ) d ON d.pegawai_id = p.id
-            SET p.nik = d.nik
-        ");
+        //
+        // Sintaks UPDATE ... JOIN hanya ada di MySQL/MariaDB. Database tes
+        // (SQLite :memory:) selalu kosong saat migrasi, jadi tidak ada data
+        // lama yang perlu di-backfill dan langkah ini aman dilewati.
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("
+                UPDATE pegawai p
+                JOIN (
+                    SELECT MIN(pegawai_id) AS pegawai_id, nik
+                    FROM pegawai_detail
+                    WHERE nik IS NOT NULL AND nik <> ''
+                    GROUP BY nik
+                    HAVING COUNT(*) = 1
+                ) d ON d.pegawai_id = p.id
+                SET p.nik = d.nik
+            ");
+        }
     }
 
     public function down(): void

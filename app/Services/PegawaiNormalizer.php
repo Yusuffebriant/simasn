@@ -499,11 +499,17 @@ class PegawaiNormalizer
         $nip = $this->bersihkanRumus($row['NIP'] ?? null);
         $nik = $this->normalisasiNik($row['NIK'] ?? null);
 
-        // PNS -> tanggal pensiun. PPPK/PPPK_PW/LAINNYA -> tanggal selesai kontrak.
+        // Isi kolom sumber ini BEDA per status (terbukti dari selisihnya dengan
+        // tanggal lahir di data):
+        // - PNS dan PPPK_PW  : batas usia pensiun (lahir + 58/60 tahun)
+        //                      -> tanggal_pensiun
+        // - PPPK dan LAINNYA : tanggal kontrak -> tanggal_selesai_kontrak
+        // tanggal_selesai_kontrak untuk PPPK_PW sengaja dikosongkan sampai ada
+        // data kontrak asli (tanggal mulai/selesai dan nomor SK).
         $tanggalAkhir = $this->toDate(
             $row['TGL_PENSIUN_ATAU_TGL_SELESAI_KONTRAK'] ?? $row['TGL_PENSIUN'] ?? null
         );
-        $isPns = $statusKepegawaian === 'PNS';
+        $isPensiun = in_array($statusKepegawaian, ['PNS', 'PPPK_PW'], true);
 
         $pegawai = [
             'nip' => $nip === '' ? null : $nip,   // WAJIB null, bukan '' (kolom unique)
@@ -541,8 +547,8 @@ class PegawaiNormalizer
 
             'tmt_pangkat' => $this->toDate($row['PANGKAT_TMT'] ?? null),
 
-            'tanggal_pensiun' => $isPns ? $tanggalAkhir : null,
-            'tanggal_selesai_kontrak' => $isPns ? null : $tanggalAkhir,
+            'tanggal_pensiun' => $isPensiun ? $tanggalAkhir : null,
+            'tanggal_selesai_kontrak' => $isPensiun ? null : $tanggalAkhir,
 
             'status_aktif' => $this->resolveStatusAktif($row['KEDUDUKAN_KEPEGAWAIAN'] ?? null),
         ];

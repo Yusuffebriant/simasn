@@ -31,6 +31,11 @@ const REKAP_LIST = [
     "Rekap PPPK Paruh Waktu (per perangkat daerah)",
     "Rekap PPPK Paruh Waktu per Pendidikan",
     "Rekap PPPK Paruh Waktu per Jenis Jabatan",
+    "Rekap PPPK Paruh Waktu per Kelompok Usia",
+    "Rekap PPPK Paruh Waktu Perkiraan Pensiun",
+    "Rekap PPPK Paruh Waktu Rincian JF (Pendidikan / Kesehatan / Teknis)",
+    "Rekap PPPK Paruh Waktu Jabatan Terbanyak",
+    "Rekap PPPK Paruh Waktu Persentase per Instansi",
 ];
 
 function ExportLaporan() {

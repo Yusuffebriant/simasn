@@ -5,6 +5,7 @@ import RiwayatImport from "./RiwayatImport";
 import Rekapitulasi from "./Rekapitulasi";
 import ExportLaporan from "./ExportLaporan";
 import DaftarPegawai from "./DaftarPegawai";
+import PeringatanData from "../../components/Admin/PeringatanData";
 
 const TABS = [
     { key: "import", label: "Import Data", component: ImportData },
@@ -59,6 +60,8 @@ export default function Admin() {
                         ))}
                     </div>
                 </div>
+
+                <PeringatanData refreshKey={activeTab} />
 
                 <ActiveComponent />
 

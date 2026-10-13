@@ -12,10 +12,14 @@ class ImportBatch extends Model
         'nama_file', 'periode', 'uploaded_by',
         'total_baris', 'berhasil', 'gagal',
         'mapping_kolom', 'status',
+        'sinkron_status', 'sinkron_jumlah_sisa',
+        'sinkron_total_aktif', 'sinkron_catatan',
+        'rekonsiliasi_status', 'rekonsiliasi',
     ];
 
     protected $casts = [
         'mapping_kolom' => 'array',
+        'rekonsiliasi' => 'array',
     ];
 
     public function uploader()

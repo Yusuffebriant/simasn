@@ -20,6 +20,40 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
     protected PegawaiNormalizer $normalizer;
     protected int $barisKe = 1;
 
+    /**
+     * Rekap apa yang dibaca dari file (hanya baris yang sukses tersimpan).
+     * Dipakai ImportRekonsiliasi untuk dibandingkan dengan isi database.
+     * Kunci null dicatat sebagai '_null'.
+     */
+    protected array $tally = [
+        'total' => 0,
+        'status_kepegawaian' => [],
+        'status_aktif' => [],
+        'status_perkawinan' => [],
+        'agama' => [],
+        'golongan' => [],
+    ];
+
+    public function tally(): array
+    {
+        return $this->tally;
+    }
+
+    protected function catatTally(array $hasil): void
+    {
+        $tambah = function (string $kategori, $nilai): void {
+            $kunci = ($nilai === null || $nilai === '') ? '_null' : (string) $nilai;
+            $this->tally[$kategori][$kunci] = ($this->tally[$kategori][$kunci] ?? 0) + 1;
+        };
+
+        $this->tally['total']++;
+        $tambah('status_kepegawaian', $hasil['pegawai']['status_kepegawaian'] ?? null);
+        $tambah('status_aktif', $hasil['pegawai']['status_aktif'] ?? null);
+        $tambah('agama', $hasil['pegawai']['agama_id'] ?? null);
+        $tambah('golongan', $hasil['pegawai']['golongan_ruang_id'] ?? null);
+        $tambah('status_perkawinan', $hasil['detail']['status_perkawinan'] ?? null);
+    }
+
     public function __construct(protected ImportBatch $batch)
     {
         $this->normalizer = new PegawaiNormalizer();
@@ -115,6 +149,7 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
                     );
                 });
 
+                $this->catatTally($hasil);
                 $berhasilChunk++;
             } catch (\Throwable $e) {
                 // Termasuk InvalidArgumentException dari normalisasiBaris()

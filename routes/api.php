@@ -293,6 +293,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::middleware(['role:super-admin|admin-instansi'])->group(function () {
 
         Route::get('/periode/aktif', [PeriodeController::class, 'aktif']);
+        Route::get('/periode/riwayat', [PeriodeController::class, 'riwayat']);
+        Route::get('/peringatan-data', [\App\Http\Controllers\Api\PeringatanDataController::class, 'index']);
 
         // ---- IMPORT ----
         Route::get('/imports', [ImportController::class, 'index']);

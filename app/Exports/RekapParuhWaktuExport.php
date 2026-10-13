@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Services\RekapService;
+use App\Services\RekapParuhWaktuTambahanService;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -18,6 +19,10 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
  *   'instansi'      (default) per perangkat daerah
  *   'pendidikan'              per tingkat pendidikan
  *   'jenis_jabatan'           per jenis jabatan (pelaksana/fungsional/struktural)
+ *   'usia'                    per kelompok usia
+ *   'pensiun'                 perkiraan masa pensiun per tahun
+ *   'jf_rumpun'               rincian JF (Pendidikan / Kesehatan / Teknis)
+ *   'jabatan'                 jabatan terbanyak
  *
  * Data diambil dari RekapService — sumber yang sama dengan endpoint JSON
  * /rekap/paruh-waktu, jadi angka di Excel = angka di sistem.
@@ -36,10 +41,15 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
     public function __construct(protected string $periode, protected string $jenis = 'instansi')
     {
         $service = new RekapService();
+        $tambahan = new RekapParuhWaktuTambahanService();
 
         $this->data = match ($jenis) {
             'pendidikan' => $service->rekapParuhWaktuPendidikan($periode),
             'jenis_jabatan' => $service->rekapParuhWaktuJenisJabatan($periode),
+            'usia' => $tambahan->rekapUsia($periode),
+            'pensiun' => $tambahan->rekapPerkiraanPensiun($periode),
+            'jf_rumpun' => $tambahan->rekapJfRumpun($periode),
+            'jabatan' => $tambahan->rekapJabatanTerbanyak($periode),
             default => $service->rekapParuhWaktu($periode),
         };
 
@@ -72,6 +82,10 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
         return match ($this->jenis) {
             'pendidikan' => 'DATA PPPK PARUH WAKTU, DIPERINCI MENURUT TINGKAT PENDIDIKAN DAN JENIS KELAMIN',
             'jenis_jabatan' => 'DATA PPPK PARUH WAKTU, DIPERINCI MENURUT JENIS JABATAN DAN JENIS KELAMIN',
+            'usia' => 'DATA PPPK PARUH WAKTU, DIPERINCI MENURUT KELOMPOK USIA DAN JENIS KELAMIN',
+            'pensiun' => 'DATA PPPK PARUH WAKTU, PERKIRAAN MASA PENSIUN PER TAHUN DAN JENIS KELAMIN',
+            'jf_rumpun' => 'DATA PPPK PARUH WAKTU JABATAN FUNGSIONAL, DIPERINCI MENURUT RUMPUN DAN JENIS KELAMIN',
+            'jabatan' => 'DATA PPPK PARUH WAKTU, JABATAN TERBANYAK MENURUT JENIS KELAMIN',
             default => 'DATA PPPK PARUH WAKTU, DIPERINCI MENURUT PERANGKAT DAERAH DAN JENIS KELAMIN',
         };
     }
@@ -81,6 +95,10 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
         return match ($this->jenis) {
             'pendidikan' => 'Tingkat Pendidikan',
             'jenis_jabatan' => 'Jenis Jabatan',
+            'usia' => 'Kelompok Usia',
+            'pensiun' => 'Perkiraan Pensiun',
+            'jf_rumpun' => 'Rumpun JF',
+            'jabatan' => 'Jabatan',
             default => 'Perangkat Daerah',
         };
     }

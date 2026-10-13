@@ -119,6 +119,36 @@ class RekapAllExport implements Export, WithMultipleSheets, WithPreCalculateForm
                     return 'PW per Jenis Jabatan';
                 }
             },
+            new class($this->periode, 'usia') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW per Usia';
+                }
+            },
+            new class($this->periode, 'pensiun') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW Perkiraan Pensiun';
+                }
+            },
+            new class($this->periode, 'jf_rumpun') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW Rincian JF';
+                }
+            },
+            new class($this->periode, 'jabatan') extends RekapParuhWaktuExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW Jabatan Terbanyak';
+                }
+            },
+            new class($this->periode) extends RekapParuhWaktuPersenExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'PW Persentase Instansi';
+                }
+            },
         ];
     }
 }
