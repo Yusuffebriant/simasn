@@ -362,6 +362,16 @@ class RekapService
     }
 
     /**
+     * Basis query Dashboard. Default PNS + PPPK (asnPenuh). Untuk Dashboard
+     * Total ($termasukParuhWaktu = true) ditambah PPPK Paruh Waktu dan
+     * Lainnya, sehingga seluruh kartu dan grafik menghitung semua status.
+     */
+    private function basisDashboard(bool $termasukParuhWaktu)
+    {
+        return $termasukParuhWaktu ? Pegawai::totalPegawai() : Pegawai::asnPenuh();
+    }
+
+    /**
      * Ringkasan dashboard: total pegawai, jabatan (struktural/JFU/JFT),
      * distribusi generasi, golongan, dan pendidikan — semuanya dari satu
      * query (tidak N+1).
@@ -375,11 +385,11 @@ class RekapService
      * S-3/DOKTOR) supaya tidak mengulang bug lama di mana varian teks tak
      * dikenal membuat pegawai "hilang" dari kategori pendidikannya.
      */
-    public function rekapDashboard(?string $periode = null): array
+    public function rekapDashboard(?string $periode = null, bool $termasukParuhWaktu = false): array
     {
         $eselonList = ['II A', 'II B', 'III A', 'III B', 'IV A', 'IV B'];
 
-        $rows = Pegawai::asnPenuh()
+        $rows = $this->basisDashboard($termasukParuhWaktu)
             ->leftJoin('golongan_ruang', 'golongan_ruang.id', '=', 'pegawai.golongan_ruang_id')
             ->leftJoin('eselon', 'eselon.id', '=', 'pegawai.eselon_id')
             ->leftJoin('pendidikan', 'pendidikan.id', '=', 'pegawai.pendidikan_id')
@@ -389,6 +399,7 @@ class RekapService
                 'pegawai.nama',
                 'pegawai.jenis_kelamin',
                 'pegawai.jenis_kedudukan',
+                'pegawai.status_kepegawaian',
                 'pegawai.jabatan',
                 'pegawai.tanggal_lahir',
                 'pegawai.tmt_pangkat',
@@ -444,6 +455,21 @@ class RekapService
             'III' => 0,
             'IV' => 0,
             'PPPK' => 0,
+            'BELUM DIISI' => 0,
+        ];
+
+        // Versi lengkap khusus Dashboard Total: pegawai tanpa golongan
+        // (PPPK Paruh Waktu & Lainnya) dihitung sebagai batang sendiri,
+        // supaya jumlah grafik Golongan = Total Pegawai. Kunci
+        // 'golongan' (dipakai export Excel) sengaja TIDAK diubah.
+        $golonganLengkap = [
+            'I' => 0,
+            'II' => 0,
+            'III' => 0,
+            'IV' => 0,
+            'PPPK' => 0,
+            'PPPK PW' => 0,
+            'Lainnya' => 0,
             'BELUM DIISI' => 0,
         ];
 
@@ -571,12 +597,21 @@ class RekapService
 
             if (!$row->golongan_kode) {
                 $golonganGroup['BELUM DIISI']++;
+
+                $kunciLengkap = match ($row->status_kepegawaian) {
+                    'PPPK_PW' => 'PPPK PW',
+                    'LAINNYA' => 'Lainnya',
+                    default => 'BELUM DIISI',
+                };
+                $golonganLengkap[$kunciLengkap]++;
             } elseif ($row->golongan_kelompok === 'PPPK') {
                 $golonganGroup['PPPK']++;
+                $golonganLengkap['PPPK']++;
             } else {
                 $romawi = explode('/', trim($row->golongan_kode))[0] ?? null;
                 if (isset($golonganGroup[$romawi])) {
                     $golonganGroup[$romawi]++;
+                    $golonganLengkap[$romawi]++;
                 }
             }
 
@@ -606,7 +641,7 @@ class RekapService
         }
 
         // Rekap per Unit Kerja (instansi)
-        $unitKerjaRows = Pegawai::asnPenuh()
+        $unitKerjaRows = $this->basisDashboard($termasukParuhWaktu)
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
             ->where('pegawai.status_aktif', 'aktif')
             ->select(
@@ -647,7 +682,7 @@ class RekapService
         usort($unitKerja, fn($a, $b) => strcmp($a['label'], $b['label']));
 
         // Rekap per Agama
-        $agamaRows = Pegawai::asnPenuh()
+        $agamaRows = $this->basisDashboard($termasukParuhWaktu)
             ->join('agama', 'agama.id', '=', 'pegawai.agama_id')
             ->where('pegawai.status_aktif', 'aktif')
             ->select(
@@ -687,7 +722,7 @@ class RekapService
 
         usort($agama, fn($a, $b) => strcmp($a['label'], $b['label']));
 
-        return [
+        $hasil = [
             'total' => [
                 'total' => $totalPria + $totalWanita,
                 'pria' => $totalPria,
@@ -775,6 +810,62 @@ class RekapService
             // Dipakai kartu "Status Kepegawaian" di halaman utama.
             'ringkasan_status' => $this->ringkasanStatusKepegawaian(),
         ];
+
+        // Status "Lainnya" disebutkan rinci (NABAN, Pegawai Titipan) di
+        // kedua dashboard, karena kartu Status Kepegawaian tampil di keduanya.
+        $hasil['rincian_lainnya'] = $this->rincianStatusLainnya();
+
+        // Dashboard Total: grafik Golongan yang jumlahnya = Total Pegawai.
+        // 'BELUM DIISI' (PNS/PPPK tanpa golongan) hanya muncul kalau ada.
+        if ($termasukParuhWaktu) {
+            $hasil['golongan_lengkap'] = array_values(array_filter(
+                array_map(
+                    fn($label, $jumlah) => ['label' => $label, 'jumlah' => $jumlah],
+                    array_keys($golonganLengkap),
+                    array_values($golonganLengkap)
+                ),
+                fn($row) => $row['label'] !== 'BELUM DIISI' || $row['jumlah'] > 0
+            ));
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Rincian pegawai berstatus LAINNYA per nama aslinya. NABAN dan
+     * Pegawai Titipan SELALU disebutkan (walau 0) supaya keterangannya
+     * konsisten. Pegawai yang diimport sebelum kolom status_lainnya ada
+     * belum punya nama; mereka dikelompokkan sebagai "Lainnya (belum
+     * terklasifikasi)" (hanya tampil bila ada) sampai file kepegawaian
+     * diimport ulang.
+     */
+    public function rincianStatusLainnya(): array
+    {
+        $rows = Pegawai::select('status_lainnya', DB::raw('COUNT(*) as jumlah'))
+            ->where('status_kepegawaian', 'LAINNYA')
+            ->where('status_aktif', 'aktif')
+            ->groupBy('status_lainnya')
+            ->get();
+
+        $hitung = [];
+        foreach ($rows as $row) {
+            $label = $row->status_lainnya ?: 'Lainnya (belum terklasifikasi)';
+            $hitung[$label] = ($hitung[$label] ?? 0) + (int) $row->jumlah;
+        }
+
+        $hasil = [];
+        foreach (['NABAN', 'Pegawai Titipan'] as $label) {
+            $hasil[] = ['label' => $label, 'total' => $hitung[$label] ?? 0];
+            unset($hitung[$label]);
+        }
+
+        $sisa = [];
+        foreach ($hitung as $label => $total) {
+            $sisa[] = ['label' => $label, 'total' => $total];
+        }
+        usort($sisa, fn ($a, $b) => [$b['total'], $a['label']] <=> [$a['total'], $b['label']]);
+
+        return array_merge($hasil, $sisa);
     }
 
     /**

@@ -17,6 +17,12 @@ class RekapAllExport implements Export, WithMultipleSheets, WithPreCalculateForm
     public function sheets(): array
     {
         return [
+            new class($this->periode) extends RekapStatusKepegawaianExport implements WithTitle {
+                public function title(): string
+                {
+                    return 'Rekap Status Kepegawaian';
+                }
+            },
             new class($this->periode) extends RekapAgamaExport implements WithTitle {
                 public function title(): string
                 {

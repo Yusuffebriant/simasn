@@ -49,6 +49,15 @@ Route::get('/rekap/dashboard', [RekapController::class, 'dashboardJson'])
 Route::get('/rekap/dashboard/export', [RekapController::class, 'exportDashboard'])
     ->middleware('throttle:60,1');
 
+// Dashboard Total: sama dengan Dashboard, tetapi semua pegawai digabung
+// (PNS + PPPK + PPPK Paruh Waktu). Publik seperti /rekap/dashboard karena
+// hanya berisi angka agregat.
+Route::get('/rekap/dashboard-total', [RekapController::class, 'dashboardTotalJson'])
+    ->middleware('throttle:60,1');
+
+Route::get('/rekap/dashboard-total/export', [RekapController::class, 'exportDashboardTotal'])
+    ->middleware('throttle:60,1');
+
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // =========================================================

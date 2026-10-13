@@ -79,6 +79,7 @@ function RekapParuhWaktuTable() {
     // Periode di sini tidak bisa dipilih bebas, lihat PeriodeLabel.jsx.
     const [periode, setPeriode] = useState(getCurrentPeriode());
     const [ringkasan, setRingkasan] = useState({});
+    const [rincianLainnya, setRincianLainnya] = useState([]);
     const [rows, setRows] = useState([]);
     const [perJabatan, setPerJabatan] = useState([]);
     const [perPendidikan, setPerPendidikan] = useState([]);
@@ -115,6 +116,7 @@ function RekapParuhWaktuTable() {
                 const data = await res.json();
                 if (!cancelled) {
                     setRingkasan(data.ringkasan_status ?? {});
+                    setRincianLainnya(arr(data.rincian_lainnya));
                     setRows(arr(data.per_instansi));
                     setPerJabatan(arr(data.per_jenis_jabatan));
                     setPerPendidikan(arr(data.per_pendidikan));
@@ -129,6 +131,7 @@ function RekapParuhWaktuTable() {
                 if (!cancelled) {
                     setError(err.message || "Gagal memuat data rekapitulasi.");
                     setRingkasan({});
+                    setRincianLainnya([]);
                     setRows([]);
                     setPerJabatan([]);
                     setPerPendidikan([]);
@@ -309,6 +312,27 @@ function RekapParuhWaktuTable() {
                             <p className="text-2xl font-bold text-gray-800">
                                 {(ringkasan.LAINNYA ?? 0).toLocaleString("id-ID")}
                             </p>
+
+                            {/* Rincian status Lainnya: NABAN, Pegawai Titipan, dan status lain */}
+                            {rincianLainnya.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-left">
+                                    {rincianLainnya.map((r) => (
+                                        <div
+                                            key={r.label}
+                                            className="flex items-center justify-between gap-2 text-xs"
+                                        >
+                                            <span className="text-gray-500">
+                                                {r.label.startsWith("Lainnya (belum")
+                                                    ? "Belum terklasifikasi"
+                                                    : r.label}
+                                            </span>
+                                            <span className="font-semibold text-gray-800 tabular-nums">
+                                                {fmt(r.total)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">

@@ -196,6 +196,40 @@ class RekapParuhWaktuTambahanService
      */
     public function rekapJabatanTerbanyak(?string $periode = null): array
     {
+        $baris = $this->urutanJabatan();
+
+        $teratas = array_slice($baris, 0, self::JABATAN_TERATAS);
+        $sisa = array_slice($baris, self::JABATAN_TERATAS);
+
+        if ($sisa !== []) {
+            $lain = ['kategori' => 'Jabatan lainnya (' . count($sisa) . ' jenis)', 'pria' => 0, 'wanita' => 0, 'jumlah' => 0];
+            foreach ($sisa as $s) {
+                $lain['pria'] += $s['pria'];
+                $lain['wanita'] += $s['wanita'];
+                $lain['jumlah'] += $s['jumlah'];
+            }
+            $teratas[] = $lain;
+        }
+
+        return $teratas;
+    }
+
+    /**
+     * Rincian jabatan yang digabung ke baris "Jabatan lainnya" pada
+     * rekapJabatanTerbanyak(). Dihitung dari data yang sama, jadi selalu
+     * ikut berubah setiap kali ada import baru. Kosong kalau semua jabatan
+     * sudah muat di daftar teratas.
+     *
+     * @return array<int, array{kategori: string, pria: int, wanita: int, jumlah: int}>
+     */
+    public function rincianJabatanLainnya(?string $periode = null): array
+    {
+        return array_slice($this->urutanJabatan(), self::JABATAN_TERATAS);
+    }
+
+    /** Semua jabatan Paruh Waktu aktif, urut dari yang terbanyak. */
+    private function urutanJabatan(): array
+    {
         $pegawai = Pegawai::paruhWaktu()
             ->where('pegawai.status_aktif', 'aktif')
             ->get(['pegawai.jabatan', 'pegawai.jenis_kelamin']);
@@ -219,20 +253,7 @@ class RekapParuhWaktuTambahanService
 
         usort($baris, fn ($a, $b) => [$b['jumlah'], $a['kategori']] <=> [$a['jumlah'], $b['kategori']]);
 
-        $teratas = array_slice($baris, 0, self::JABATAN_TERATAS);
-        $sisa = array_slice($baris, self::JABATAN_TERATAS);
-
-        if ($sisa !== []) {
-            $lain = ['kategori' => 'Jabatan lainnya (' . count($sisa) . ' jenis)', 'pria' => 0, 'wanita' => 0, 'jumlah' => 0];
-            foreach ($sisa as $s) {
-                $lain['pria'] += $s['pria'];
-                $lain['wanita'] += $s['wanita'];
-                $lain['jumlah'] += $s['jumlah'];
-            }
-            $teratas[] = $lain;
-        }
-
-        return $teratas;
+        return $baris;
     }
 
     /*

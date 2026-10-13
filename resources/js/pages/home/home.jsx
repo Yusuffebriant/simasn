@@ -14,7 +14,18 @@ import Sidebar from "../../components/Sidebar";
 import { isLoggedIn, getUser, apiFetch } from "../../lib/api";
 import ExportExcelButton from "../Statistik/components/ExportExcelButton";
 
-function Home() {
+// Dipakai dua halaman dengan tampilan yang sama persis:
+// - "/"                -> Dashboard       (PNS + PPPK)
+// - "/dashboard-total" -> Dashboard Total (PNS + PPPK + PPPK Paruh Waktu)
+// Beda keduanya hanya di sumber data dan label; semua prop punya default
+// sehingga <Home /> tetap berperilaku seperti Dashboard biasa.
+function Home({
+    judul = "Dashboard",
+    endpoint = "/rekap/dashboard",
+    exportPath = "/rekap/dashboard/export",
+    exportFilename = "laporan-simasn.xlsx",
+    totalLabel = "Total Pegawai (PNS + PPPK)",
+} = {}) {
     const loggedIn = isLoggedIn();
     const user = getUser();
     const displayName = user?.name || user?.email;
@@ -32,7 +43,7 @@ function Home() {
             setError(null);
 
             try {
-                const res = await apiFetch("/rekap/dashboard");
+                const res = await apiFetch(endpoint);
 
                 if (!res.ok) {
                     throw new Error("Gagal memuat statistik pegawai.");
@@ -56,17 +67,49 @@ function Home() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [endpoint]);
+
+    // Dashboard Total memakai golongan_lengkap (termasuk batang PPPK PW &
+    // Lainnya) supaya jumlahnya = Total Pegawai; Dashboard biasa tetap
+    // memakai golongan.
+    const dataGolongan = data?.golongan_lengkap ?? data?.golongan ?? [];
+    const jumlahBelumTerklasifikasi =
+        data?.rincian_lainnya?.find((r) =>
+            r.label.startsWith("Lainnya (belum")
+        )?.total ?? 0;
 
     return (
         <div className="flex min-h-screen bg-[#F5F7FA]">
             <Sidebar />
 
             <main className="flex-1 p-10 overflow-x-auto">
+                {/* Tombol pindah antara Dashboard (PNS + PPPK) dan Dashboard Total */}
+                <div className="mb-6 inline-flex rounded-lg border border-[#E1E5EA] bg-white p-1 shadow-sm">
+                    {[
+                        { href: "/", label: "Dashboard" },
+                        { href: "/dashboard-total", label: "Dashboard Total" },
+                    ].map((tab) => {
+                        const aktif = window.location.pathname === tab.href;
+                        return (
+                            <a
+                                key={tab.href}
+                                href={tab.href}
+                                aria-current={aktif ? "page" : undefined}
+                                className={`px-5 py-2 rounded-md text-sm font-semibold whitespace-nowrap transition-colors ${aktif
+                                    ? "bg-[#006A4E] text-white"
+                                    : "text-[#687386] hover:bg-[#F5F7FA]"
+                                    }`}
+                            >
+                                {tab.label}
+                            </a>
+                        );
+                    })}
+                </div>
+
                 <div className="mb-9 flex items-start justify-between flex-wrap gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-[#172033]">
-                            Dashboard
+                            {judul}
                         </h1>
                         <div className="w-20 h-1 bg-[#D4A017] mt-4 mb-4" />
                         <p className="text-[#687386] text-[15px]">
@@ -75,8 +118,8 @@ function Home() {
                     </div>
 
                     <ExportExcelButton
-                        path="/rekap/dashboard/export"
-                        filename="laporan-simasn.xlsx"
+                        path={exportPath}
+                        filename={exportFilename}
                         errorMessage="Gagal mengekspor data dashboard."
                         disabled={!data || loading}
                         onError={setError}
@@ -131,7 +174,7 @@ function Home() {
                         {/* Total Pegawai */}
                         <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                             <TotalCard
-                                title="Total Pegawai (PNS + PPPK)"
+                                title={totalLabel}
                                 total={data.total.total}
                                 pria={data.total.pria}
                                 wanita={data.total.wanita}
@@ -197,11 +240,19 @@ function Home() {
                                         title="PPPK Paruh Waktu"
                                         total={data.ringkasan_status.PPPK_PW ?? 0}
                                     />
-                                    <MiniStatCard
-                                        title="Lainnya"
+                                    <LainnyaCard
                                         total={data.ringkasan_status.LAINNYA ?? 0}
+                                        rincian={data.rincian_lainnya}
                                     />
                                 </div>
+                                {jumlahBelumTerklasifikasi > 0 && (
+                                    <p className="text-xs text-[#8A93A0] -mt-3 mb-6">
+                                        {jumlahBelumTerklasifikasi.toLocaleString("id-ID")}{" "}
+                                        pegawai berstatus Lainnya belum tercatat sebagai
+                                        NABAN atau Pegawai Titipan. Import ulang file
+                                        kepegawaian agar terklasifikasi.
+                                    </p>
+                                )}
                             </>
                         )}
 
@@ -219,9 +270,9 @@ function Home() {
                         <div className="grid gap-4 items-stretch" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
                             <ChartCard
                                 title="Golongan"
-                                total={data.golongan.reduce((s, r) => s + r.jumlah, 0)}
+                                total={dataGolongan.reduce((s, r) => s + r.jumlah, 0)}
                             >
-                                <BarChart data={data.golongan} barCategoryGap="28%" margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+                                <BarChart data={dataGolongan} barCategoryGap="28%" margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E5EA" />
                                     <XAxis
                                         dataKey="label"
@@ -332,6 +383,40 @@ function TotalCard({ title, total, pria, wanita }) {
             <div className="flex gap-2">
                 <GenderChip icon="♂" value={pria} tone="onDark" />
                 <GenderChip icon="♀" value={wanita} tone="onDark" />
+            </div>
+        </div>
+    );
+}
+
+// Kartu "Lainnya" + rincian per jenisnya (NABAN, Pegawai Titipan, dst.).
+// Total di atas = jumlah semua pegawai berstatus Lainnya; baris di bawahnya
+// merinci jumlah per jenis. "Belum terklasifikasi" muncul bila ada pegawai
+// Lainnya yang diimport sebelum kolom status_lainnya ada.
+function LainnyaCard({ total, rincian }) {
+    const baris = Array.isArray(rincian) ? rincian : [];
+
+    return (
+        <div className="bg-[#E6F4EE] border border-[#C8E6D9] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[13px] text-[#1F6B4E] mb-2">Lainnya</div>
+            <div className="text-3xl font-bold text-[#172033] mb-3">
+                {total.toLocaleString("id-ID")}
+            </div>
+            <div className="space-y-1.5">
+                {baris.map((r) => (
+                    <div
+                        key={r.label}
+                        className="flex items-center justify-between text-xs"
+                    >
+                        <span className="text-[#1F6B4E]">
+                            {r.label.startsWith("Lainnya (belum")
+                                ? "Belum terklasifikasi"
+                                : r.label}
+                        </span>
+                        <span className="font-semibold text-[#172033] tabular-nums">
+                            {r.total.toLocaleString("id-ID")}
+                        </span>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -551,7 +636,7 @@ function UnitKerjaTable({ data }) {
 
 /** Label kategori golongan, mis. "I" -> "Gol. I". PPPK tanpa awalan. */
 function golonganLabel(label) {
-    return label === "PPPK" ? label : `Gol. ${label}`;
+    return ["I", "II", "III", "IV"].includes(label) ? `Gol. ${label}` : label;
 }
 
 function ChartCardLoading({ title }) {

@@ -31,6 +31,7 @@ function Sidebar() {
 
     const navItems = [
         { href: "/", label: "Dashboard", show: true },
+        { href: "/dashboard-total", label: "Dashboard Total", show: true },
         {
             href: "/admin",
             label: "Admin",
@@ -93,9 +94,8 @@ function Sidebar() {
 
             <aside
                 onMouseLeave={() => setOpen(false)}
-                className={`fixed top-0 left-0 h-screen w-64 z-40 bg-[#006A4E] text-white flex flex-col overflow-y-auto overflow-x-hidden shadow-2xl transition-transform duration-300 ease-in-out ${
-                    open ? "translate-x-0" : "-translate-x-full"
-                }`}
+                className={`fixed top-0 left-0 h-screen w-64 z-40 bg-[#006A4E] text-white flex flex-col overflow-y-auto overflow-x-hidden shadow-2xl transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"
+                    }`}
             >
 
                 <div className="p-5 border-b border-white/20">
@@ -140,9 +140,8 @@ function Sidebar() {
                                 ref={(el) => (itemRefs.current[item.href] = el)}
                                 onMouseEnter={() => setHoveredHref(item.href)}
                                 onMouseLeave={() => setHoveredHref(null)}
-                                className={`relative z-10 block px-3 py-3 rounded-lg ${
-                                    isActive || isHovered ? "font-bold" : ""
-                                }`}
+                                className={`relative z-10 block px-3 py-3 rounded-lg ${isActive || isHovered ? "font-bold" : ""
+                                    }`}
                             >
                                 {item.label}
                             </a>
@@ -170,7 +169,7 @@ function Sidebar() {
                         </>
                     ) : (
 
-                         <a   href="/login"
+                        <a href="/login"
                             className="block text-center w-full text-sm font-semibold border border-white/40 rounded-lg py-2 hover:bg-white/10"
                         >
                             Masuk sebagai Admin

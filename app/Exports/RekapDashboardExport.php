@@ -22,6 +22,8 @@ use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents, WithTitle
@@ -602,8 +604,52 @@ class RekapDashboardExport implements Export, FromArray, WithCharts, WithEvents,
                     'landscape',
                     $unitKerjaHeaderRow ?? 1
                 );
+
+                /*
+                 * Sheet tambahan "Status Kepegawaian" (PNS, PPPK, PPPK
+                 * Paruh Waktu, Lainnya: NABAN, Pegawai Titipan, dst.).
+                 * Dibuat paling akhir, setelah seluruh laporan di atas
+                 * selesai, dan dibungkus try/catch di dalam method-nya:
+                 * kalau sheet ini gagal dibuat, laporan Dashboard tetap
+                 * jadi seperti biasa.
+                 */
+                $this->tambahkanSheetStatusKepegawaian($sheet->getParentOrThrow());
             },
         ];
+    }
+
+    /**
+     * Menambahkan sheet "Status Kepegawaian" memakai data yang sama dengan
+     * kartu Status Kepegawaian di dashboard ($data['ringkasan_status'] dan
+     * $data['rincian_lainnya']), termasuk untuk periode arsip.
+     */
+    private function tambahkanSheetStatusKepegawaian(Spreadsheet $spreadsheet): void
+    {
+        $sheetStatus = null;
+
+        try {
+            $sheetStatus = $spreadsheet->createSheet();
+            $sheetStatus->setTitle('Status Kepegawaian');
+
+            (new RekapStatusKepegawaianExport(
+                $this->periode,
+                $this->data['ringkasan_status'] ?? null,
+                $this->data['rincian_lainnya'] ?? null
+            ))->isiWorksheet($sheetStatus);
+        } catch (\Throwable $e) {
+            // Sheet tambahan gagal: buang yang setengah jadi, laporan utama tetap aman.
+            if ($sheetStatus !== null) {
+                try {
+                    $spreadsheet->removeSheetByIndex($spreadsheet->getIndex($sheetStatus));
+                } catch (\Throwable $ignored) {
+                    // abaikan
+                }
+            }
+
+            Log::warning('RekapDashboardExport: sheet Status Kepegawaian gagal dibuat', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /*

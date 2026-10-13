@@ -39,6 +39,21 @@ function App() {
         return <Home />;
     }
 
+    // "/dashboard-total" — tampilan sama dengan Dashboard, tetapi menghitung
+    // semua status (PNS + PPPK + PPPK Paruh Waktu + Lainnya). Publik seperti
+    // "/" karena endpoint /api/rekap/dashboard-total juga publik.
+    if (path === '/dashboard-total') {
+        return (
+            <Home
+                judul="Dashboard Total"
+                endpoint="/rekap/dashboard-total"
+                exportPath="/rekap/dashboard-total/export"
+                exportFilename="laporan-simasn-total.xlsx"
+                totalLabel="Total Seluruh Pegawai (PNS + PPPK + Paruh Waktu)"
+            />
+        );
+    }
+
     if (path === '/login') {
         // Kalau sudah login, tidak perlu lihat form login lagi —
         // langsung ke tujuan semula (?redirect=...) atau halaman sesuai role.
@@ -79,7 +94,7 @@ function App() {
     // "/setting" — boleh diakses role admin, super-admin, admin-instansi.
     if (path === '/settings') {
         if (!isLoggedIn()) {
-            window.location.replace(withRedirectTo('/setting'));
+            window.location.replace(withRedirectTo('/settings'));
             return null;
         }
         if (!hasRole(...ADMIN_ROLES)) {
@@ -90,7 +105,7 @@ function App() {
     }
 
     // Default: path tidak dikenal -> halaman 404
-return <NotFound />;
+    return <NotFound />;
 }
 
 createRoot(document.getElementById('app')).render(

@@ -60,6 +60,33 @@ class RekapController extends Controller
         );
     }
 
+    public function dashboardTotalJson(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = RekapCache::remember('dashboard-total', $periode, function () use ($periode) {
+                return (new RekapService())->rekapDashboard($periode, true);
+            }
+        );
+
+        return response()->json($data);
+    }
+
+    public function exportDashboardTotal(Request $request)
+    {
+        $periode = $request->query('periode', now()->format('Y-m'));
+
+        $data = RekapCache::remember('dashboard-total', $periode, function () use ($periode) {
+                return (new RekapService())->rekapDashboard($periode, true);
+            }
+        );
+
+        return Excel::download(
+            new RekapDashboardExport($data, $periode),
+            "laporan-simasn-total-{$periode}.xlsx"
+        );
+    }
+
     public function agamaJson(Request $request)
     {
         $periode = $request->query('periode', now()->format('Y-m'));
@@ -135,6 +162,8 @@ class RekapController extends Controller
 
         $data = RekapCache::remember('paruh-waktu', $periode, fn () => array_merge([
                 'ringkasan_status' => (new RekapService())->ringkasanStatusKepegawaian(),
+                // Rincian status Lainnya (NABAN, Pegawai Titipan, dst.) untuk kartu Lainnya
+                'rincian_lainnya' => (new RekapService())->rincianStatusLainnya(),
                 'per_instansi' => (new RekapService())->rekapParuhWaktu($periode),
                 'per_pendidikan' => (new RekapService())->rekapParuhWaktuPendidikan($periode),
                 'per_jenis_jabatan' => (new RekapService())->rekapParuhWaktuJenisJabatan($periode),

@@ -15,6 +15,7 @@ function filenameFromResponse(res, fallback) {
 // Rekapitulasi yang tercakup dalam laporan "Export All".
 // Yang lain (per-kategori) menyusul belakangan.
 const REKAP_LIST = [
+    "Status Kepegawaian (PNS, PPPK, PPPK Paruh Waktu, Lainnya: NABAN dan Pegawai Titipan)",
     "Rekap Agama",
     "Rekap Pendidikan",
     "Rekap Golongan",

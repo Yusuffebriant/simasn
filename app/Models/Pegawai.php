@@ -16,7 +16,7 @@ class Pegawai extends Model
 
     protected $fillable = [
     'nip', 'nik', 'nama', 'instansi_id', 'unit', 'sub_unit',
-    'jenis_kelamin', 'status_kepegawaian',
+    'jenis_kelamin', 'status_kepegawaian', 'status_lainnya',
     'golongan_ruang_id', 'eselon_id', 'agama_id', 'pendidikan_id',
     'jabatan', 'jenis_kedudukan', 'tanggal_lahir', 'tmt_pangkat',
     'tanggal_pensiun', 'tanggal_selesai_kontrak',
@@ -69,6 +69,12 @@ protected $casts = [
 public function scopeAsnPenuh($query)
 {
     return $query->whereIn('pegawai.status_kepegawaian', ['PNS', 'PPPK']);
+}
+
+/** Semua status aktif (PNS, PPPK, PPPK Paruh Waktu, Lainnya). Dipakai khusus Dashboard Total. */
+public function scopeTotalPegawai($query)
+{
+    return $query->whereIn('pegawai.status_kepegawaian', ['PNS', 'PPPK', 'PPPK_PW', 'LAINNYA']);
 }
 
 public function scopeParuhWaktu($query)

@@ -24,6 +24,7 @@ class RekapSnapshotService
 {
     private const DAFTAR_ENDPOINT = [
         'dashboardJson',
+        'dashboardTotalJson',
         'agamaJson',
         'pendidikanJson',
         'jabatanJson',

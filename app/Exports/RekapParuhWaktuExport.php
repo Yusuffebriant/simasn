@@ -38,6 +38,10 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
     protected string $warnaBiru = 'DCE6F2';   // header tabel & kolom Jumlah
     protected string $warnaOranye = 'FCD5B5'; // baris TOTAL
 
+    /** Rincian "Jabatan lainnya" (hanya untuk $jenis = 'jabatan'). */
+    protected array $rincianLainnya = [];
+    protected ?int $totalRekap = null; // total Paruh Waktu menurut rekap per perangkat daerah
+
     public function __construct(protected string $periode, protected string $jenis = 'instansi')
     {
         $service = new RekapService();
@@ -52,6 +56,11 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
             'jabatan' => $tambahan->rekapJabatanTerbanyak($periode),
             default => $service->rekapParuhWaktu($periode),
         };
+
+        if ($jenis === 'jabatan') {
+            $this->rincianLainnya = $tambahan->rincianJabatanLainnya($periode);
+            $this->totalRekap = array_sum(array_column($service->rekapParuhWaktu($periode), 'jumlah'));
+        }
 
         // Minimal 1 baris supaya border/total tidak error saat belum ada data.
         $this->jumlahBaris = max(1, count($this->data));
@@ -101,6 +110,53 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
             'jabatan' => 'Jabatan',
             default => 'Perangkat Daerah',
         };
+    }
+
+    private function angka(int $n): string
+    {
+        return number_format($n, 0, ',', '.');
+    }
+
+    /**
+     * Kalimat keterangan "Jabatan lainnya", disusun dari data terbaru
+     * sehingga otomatis menyesuaikan setiap import baru. Null kalau tidak
+     * ada jabatan yang digabung.
+     */
+    protected function keteranganJabatanLainnya(): ?string
+    {
+        $r = $this->rincianLainnya;
+        if ($r === []) {
+            return null;
+        }
+
+        $jenis = count($r);
+        $jumlahPerJabatan = array_unique(array_column($r, 'jumlah'));
+        $pria = array_sum(array_column($r, 'pria'));
+        $wanita = array_sum(array_column($r, 'wanita'));
+
+        $isi = "Jabatan lainnya ({$jenis} jenis) berisi {$jenis} jabatan";
+        if (count($jumlahPerJabatan) === 1) {
+            $isi .= ", masing-masing {$jumlahPerJabatan[0]} orang";
+        } else {
+            $isi .= ', masing-masing ' . min($jumlahPerJabatan) . '-' . max($jumlahPerJabatan) . ' orang';
+        }
+        $isi .= match (true) {
+            $pria === 0 => ', semuanya wanita',
+            $wanita === 0 => ', semuanya pria',
+            default => ", dengan total {$pria} pria dan {$wanita} wanita",
+        };
+        $isi .= '.';
+
+        $total = array_sum(array_column($this->data, 'jumlah'));
+        $isi .= ' Dihitung otomatis dari data PPPK Paruh Waktu aktif hasil import terakhir; ';
+        if ($this->totalRekap === null || $total === $this->totalRekap) {
+            $isi .= 'total ' . $this->angka($total) . ' cocok dengan rekap.';
+        } else {
+            $isi .= 'PERHATIAN: total ' . $this->angka($total) . ' tidak sama dengan rekap per perangkat daerah ('
+                . $this->angka($this->totalRekap) . ').';
+        }
+
+        return $isi;
     }
 
     protected function formatPeriode(string $periode): string
@@ -229,7 +285,54 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
                     ->setVertical('top');
                 $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()
                     ->setHorizontal('center');
+
+                // Keterangan "Jabatan lainnya" + rincian (hanya sheet jabatan)
+                $this->tulisKeterangan($sheet, $totalRow + 2);
             },
         ];
+    }
+
+    protected function tulisKeterangan($sheet, int $row): void
+    {
+        $teks = $this->keteranganJabatanLainnya();
+        if ($teks === null) {
+            return;
+        }
+
+        $thin = Border::BORDER_THIN;
+
+        $sheet->setCellValue("A{$row}", 'Keterangan: ' . $teks);
+        $sheet->mergeCells("A{$row}:E{$row}");
+        $sheet->getStyle("A{$row}")->getFont()->setItalic(true);
+        $sheet->getStyle("A{$row}")->getAlignment()
+            ->setWrapText(true)
+            ->setVertical('top')
+            ->setHorizontal('left');
+        // Sel gabungan tidak auto-tinggi di Excel: hitung manual (+-90 huruf per baris).
+        $sheet->getRowDimension($row)->setRowHeight(max(1, (int) ceil(mb_strlen($teks) / 90)) * 15 + 4);
+
+        // Tabel rincian
+        $head = $row + 2;
+        $sheet->setCellValue("B{$head}", 'Rincian Jabatan lainnya');
+        $sheet->setCellValue("C{$head}", 'Pria');
+        $sheet->setCellValue("D{$head}", 'Wanita');
+        $sheet->setCellValue("E{$head}", 'Jumlah');
+        $sheet->getStyle("B{$head}:E{$head}")->getFont()->setBold(true);
+        $sheet->getStyle("B{$head}:E{$head}")->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("B{$head}:E{$head}")->getFill()
+            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($this->warnaBiru);
+
+        $r = $head;
+        foreach ($this->rincianLainnya as $d) {
+            $r++;
+            $sheet->setCellValue("B{$r}", $d['kategori']);
+            $sheet->setCellValue("C{$r}", $d['pria']);
+            $sheet->setCellValue("D{$r}", $d['wanita']);
+            $sheet->setCellValue("E{$r}", $d['jumlah']);
+        }
+
+        $sheet->getStyle("B{$head}:E{$r}")->getBorders()->getAllBorders()->setBorderStyle($thin);
+        $sheet->getStyle("B" . ($head + 1) . ":B{$r}")->getAlignment()->setWrapText(true)->setVertical('top');
+        $sheet->getStyle("C" . ($head + 1) . ":E{$r}")->getAlignment()->setHorizontal('center');
     }
 }

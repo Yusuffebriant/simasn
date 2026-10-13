@@ -47,20 +47,58 @@ class PegawaiNormalizer
     }
 
     /**
-     * Nilai tak dikenal -> null, dan baris ditolak lewat import_batch_errors
-     * (TIDAK lagi dipaksa jadi 'PNS').
+     * Status kepegawaian yang dikenali: PNS, PPPK, PPPK Paruh Waktu.
+     * Selain itu masuk ke LAINNYA (NABAN, Pegawai Titipan, dan status apa
+     * pun yang belum dikenal), jadi baris tidak ditolak dan jumlah pegawai
+     * tetap lengkap. Nama aslinya disimpan di kolom status_lainnya
+     * (lihat resolveStatusLainnya) supaya tetap kelihatan di rincian.
+     *
+     * Hanya status yang benar-benar kosong (atau '-') yang dikembalikan
+     * null, dan barisnya ditolak lewat import_batch_errors.
      */
     public function resolveStatusKepegawaian(?string $raw): ?string
     {
         $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
 
+        if ($key === '' || $key === '-') {
+            return null;
+        }
+
         return match ($key) {
             'PNS' => 'PNS',
             'PPPK' => 'PPPK',
             'PPPK PARUH WAKTU' => 'PPPK_PW',
-            'NABAN', 'PEGAWAI TITIPAN' => 'LAINNYA',
-            default => null,
+            default => 'LAINNYA',
         };
+    }
+
+    /**
+     * Nama asli status untuk pegawai berstatus LAINNYA, supaya bisa
+     * disebutkan rinci (Dashboard, halaman PPPK Paruh Waktu):
+     *   - NABAN                  -> 'NABAN'
+     *   - Pegawai Titipan        -> 'Pegawai Titipan'
+     *   - status lain tak dikenal -> teks aslinya (Huruf Awal Kapital)
+     * Status PNS / PPPK / PPPK Paruh Waktu -> null (bukan LAINNYA).
+     */
+    public function resolveStatusLainnya(?string $raw): ?string
+    {
+        $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
+
+        if ($key === '' || $key === '-' || in_array($key, ['PNS', 'PPPK', 'PPPK PARUH WAKTU'], true)) {
+            return null;
+        }
+
+        if ($key === 'NABAN') {
+            return 'NABAN';
+        }
+
+        if (str_contains($key, 'TITIP')) {
+            return 'Pegawai Titipan';
+        }
+
+        // Status lain yang belum dikenal: simpan teks aslinya apa adanya
+        // (dipotong 50 karakter sesuai kolom) supaya terlihat di rincian.
+        return mb_substr(mb_convert_case(mb_strtolower($key), MB_CASE_TITLE), 0, 50);
     }
 
     /**
@@ -524,6 +562,9 @@ class PegawaiNormalizer
             'jenis_kelamin' => $this->resolveJenisKelamin($row['JENIS_KELAMIN'] ?? null),
 
             'status_kepegawaian' => $statusKepegawaian,
+            'status_lainnya' => $statusKepegawaian === 'LAINNYA'
+                ? $this->resolveStatusLainnya($row['STATUS_KEPEGAWAIAN'] ?? null)
+                : null,
 
             'golongan_ruang_id' => $this->resolveGolonganRuang(
                 $row['PANGKAT_GOLRU'] ?? null,
