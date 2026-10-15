@@ -286,10 +286,74 @@ class RekapParuhWaktuExport implements FromArray, WithEvents, WithTitle
                 $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()
                     ->setHorizontal('center');
 
-                // Keterangan "Jabatan lainnya" + rincian (hanya sheet jabatan)
-                $this->tulisKeterangan($sheet, $totalRow + 2);
+                // Keterangan cara baca sheet (semua sheet), lalu keterangan
+                // "Jabatan lainnya" + rincian (hanya sheet jabatan).
+                $barisBerikut = $this->tulisKeteranganUmum($sheet, $totalRow + 2);
+                $this->tulisKeterangan($sheet, $barisBerikut);
             },
         ];
+    }
+
+    /**
+     * Kalimat keterangan "isi sheet ini apa" untuk tiap jenis rekap.
+     * Dipakai tulisKeteranganUmum() supaya pembaca Excel paham tanpa
+     * perlu membuka sistem. Kalimat disesuaikan dengan aturan hitung
+     * di RekapService / RekapParuhWaktuTambahanService.
+     *
+     * @return string[] satu elemen = satu baris keterangan
+     */
+    protected function keteranganSheet(): array
+    {
+        $isi = match ($this->jenis) {
+            'pendidikan' => 'Sheet ini menghitung PPPK Paruh Waktu aktif menurut tingkat pendidikan (SD sampai S3). '
+                . 'Baris "Belum diisi / lainnya" hanya muncul bila ada pegawai yang pendidikannya belum tercatat.',
+            'jenis_jabatan' => 'Sheet ini menghitung PPPK Paruh Waktu aktif menurut jenis jabatan: Pelaksana, Fungsional, atau Struktural.',
+            'usia' => 'Sheet ini menghitung PPPK Paruh Waktu aktif menurut kelompok usia. '
+                . 'Usia dihitung pada akhir bulan periode (bukan hari ini), sehingga angka periode yang sama selalu konsisten. '
+                . 'Pegawai tanpa tanggal lahir masuk ke "Belum diisi / lainnya".',
+            'pensiun' => 'Sheet ini memperkirakan kapan PPPK Paruh Waktu aktif memasuki masa pensiun, berdasarkan tanggal pensiun di data pegawai. '
+                . 'Dikelompokkan per tahun mulai tahun periode sampai 5 tahun ke depan; sisanya digabung ke baris "dan sesudahnya". '
+                . 'Baris "Sudah melewati batas pensiun" berisi pegawai yang tanggal pensiunnya lebih awal dari bulan periode.',
+            'jf_rumpun' => 'Sheet ini hanya menghitung PPPK Paruh Waktu aktif yang berjenis jabatan Fungsional, '
+                . 'dikelompokkan ke tiga rumpun: Pendidikan (Guru), Kesehatan, dan Teknis / lainnya. '
+                . 'Pengelompokan memakai kata kunci nama jabatan yang sama dengan kartu JFT di dashboard.',
+            'jabatan' => 'Sheet ini menampilkan 10 jabatan dengan PPPK Paruh Waktu aktif terbanyak. '
+                . 'Jabatan di luar 10 besar digabung ke baris "Jabatan lainnya" supaya total tetap sama dengan jumlah seluruh Paruh Waktu.',
+            default => 'Sheet ini menghitung PPPK Paruh Waktu aktif pada setiap perangkat daerah (instansi tempat pegawai bertugas).',
+        };
+
+        return [
+            $isi,
+            'Cara membaca: kolom Pria + Wanita = Jumlah. Baris TOTAL adalah penjumlahan seluruh baris di atasnya. '
+                . 'Angka pada sheet ini diambil dari sumber yang sama dengan tampilan rekap Paruh Waktu di sistem.',
+        ];
+    }
+
+    /**
+     * Tulis blok "Keterangan" di bawah baris TOTAL (kolom A sampai E digabung).
+     * Mengembalikan nomor baris kosong berikutnya, supaya blok lain
+     * (mis. rincian "Jabatan lainnya") bisa ditulis tepat di bawahnya.
+     */
+    protected function tulisKeteranganUmum($sheet, int $row): int
+    {
+        foreach ($this->keteranganSheet() as $i => $teks) {
+            $teks = ($i === 0 ? 'Keterangan: ' : '') . $teks;
+
+            $sheet->setCellValue("A{$row}", $teks);
+            $sheet->mergeCells("A{$row}:E{$row}");
+            $sheet->getStyle("A{$row}")->getFont()->setItalic(true)->setSize(9);
+            $sheet->getStyle("A{$row}")->getAlignment()
+                ->setWrapText(true)
+                ->setVertical('top')
+                ->setHorizontal('left');
+            // Sel gabungan tidak auto-tinggi di Excel: hitung manual (+-90 huruf per baris).
+            $sheet->getRowDimension($row)->setRowHeight(max(1, (int) ceil(mb_strlen($teks) / 90)) * 13 + 4);
+
+            $row++;
+        }
+
+        // Satu baris kosong sebelum blok berikutnya.
+        return $row + 1;
     }
 
     protected function tulisKeterangan($sheet, int $row): void

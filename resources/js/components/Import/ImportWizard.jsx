@@ -4,7 +4,6 @@ import UploadExcel from "./UploadExcel";
 import PreviewExcel from "./PreviewExcel";
 import ImportProgress from "./ImportProgress";
 import ImportResult from "./ImportResult";
-import { getCurrentPeriode } from "../../lib/periode";
 
 
 const STEPS = ["Upload", "Preview", "Import", "Selesai"];
@@ -17,10 +16,9 @@ function ImportWizard() {
     const [file, setFile] = useState(null);
     const [headers, setHeaders] = useState([]);
     const [preview, setPreview] = useState([]);
-    // Default awal periode = bulan berjalan, tapi pengguna bisa mengubahnya
-    // di step Preview (mis. saat mengimport data historis seperti Juli 2026
-    // atau April 2025) — lihat PreviewExcel.jsx.
-    const [periode, setPeriode] = useState(getCurrentPeriode());
+    // Periode TIDAK diisi otomatis: pengguna wajib memilih bulan & tahun
+    // sendiri di step Preview (lihat PreviewExcel.jsx), format "YYYY-MM".
+    const [periode, setPeriode] = useState("");
 
     // hasil akhir import, diisi oleh ImportProgress setelah polling selesai
     const [result, setResult] = useState(null);
@@ -162,7 +160,7 @@ function ImportWizard() {
                         setFile(null);
                         setHeaders([]);
                         setPreview([]);
-                        setPeriode(getCurrentPeriode());
+                        setPeriode("");
                         setResult(null);
                     }}
                 />

@@ -5,6 +5,7 @@ import RiwayatImport from "./RiwayatImport";
 import Rekapitulasi from "./Rekapitulasi";
 import ExportLaporan from "./ExportLaporan";
 import DaftarPegawai from "./DaftarPegawai";
+import PerubahanBulanan from "./PerubahanBulanan";
 import PeringatanData from "../../components/Admin/PeringatanData";
 
 const TABS = [
@@ -12,12 +13,28 @@ const TABS = [
     { key: "riwayat", label: "Riwayat Import", component: RiwayatImport },
     { key: "rekap", label: "Rekapitulasi", component: Rekapitulasi },
     { key: "pegawai", label: "Daftar Pegawai", component: DaftarPegawai },
+    { key: "perubahan", label: "Perubahan Pegawai", component: PerubahanBulanan },
     { key: "export", label: "Export Laporan", component: ExportLaporan },
 ];
 
+// Tab awal bisa ditentukan lewat URL, mis. /admin?tab=pegawai&kelengkapan=belum
+// (dipakai tautan "Lengkapi" dari hasil import dan banner peringatan).
+function tabAwal() {
+    const key = new URLSearchParams(window.location.search).get("tab");
+    return TABS.some((t) => t.key === key) ? key : "import";
+}
+
 export default function Admin() {
 
-    const [activeTab, setActiveTab] = useState("import");
+    const [activeTab, setActiveTab] = useState(tabAwal);
+
+    // Pindah tab secara manual = filter dari URL tidak berlaku lagi.
+    function pilihTab(key) {
+        setActiveTab(key);
+        if (window.location.search) {
+            window.history.replaceState(null, "", window.location.pathname);
+        }
+    }
 
     const isRekap = activeTab === "rekap";
 
@@ -47,7 +64,7 @@ export default function Admin() {
                         {TABS.map((tab) => (
                             <button
                                 key={tab.key}
-                                onClick={() => setActiveTab(tab.key)}
+                                onClick={() => pilihTab(tab.key)}
                                 className={`
                                     px-4 py-3 text-sm font-semibold border-b-2 -mb-px
                                     ${activeTab === tab.key

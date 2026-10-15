@@ -12,8 +12,8 @@ class ImportBatch extends Model
         'nama_file', 'periode', 'uploaded_by',
         'total_baris', 'berhasil', 'gagal',
         'mapping_kolom', 'status',
-        'sinkron_status', 'sinkron_jumlah_sisa',
-        'sinkron_total_aktif', 'sinkron_catatan',
+        'jumlah_dihapus', 'jumlah_dilindungi', 'backup_path',
+        // Hasil rekonsiliasi isi file vs database (lihat ImportRekonsiliasi).
         'rekonsiliasi_status', 'rekonsiliasi',
     ];
 

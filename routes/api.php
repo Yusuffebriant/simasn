@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\PeriodeController;
 use App\Http\Controllers\Api\RekapController;
 use App\Http\Controllers\Api\ImportController;
+use App\Http\Controllers\Api\PerubahanBulananController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PegawaiController;
 use App\Http\Controllers\Api\ReferensiController;
@@ -307,10 +308,21 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
         // ---- IMPORT ----
         Route::get('/imports', [ImportController::class, 'index']);
+        // Prefix 'import-upload' = hitungan sendiri. Tanpa prefix, batas 10/menit ini
+        // berbagi hitungan dengan throttle:60,1 milik grup (semua request API
+        // user ikut dihitung), sehingga upload bisa kena 429 padahal baru sekali klik.
         Route::post('/imports', [ImportController::class, 'store'])
-            ->middleware('throttle:10,1');
+            ->middleware('throttle:10,1,import-upload');
         Route::get('/imports/{batch}', [ImportController::class, 'show']);
         Route::get('/imports/{batch}/errors', [ImportController::class, 'errors']);
+        Route::get('/imports/{batch}/kelengkapan', [ImportController::class, 'kelengkapan']);
+        Route::get('/imports/{batch}/perubahan', [ImportController::class, 'perubahan']);
+        Route::get('/imports/{batch}/perubahan/export', [ImportController::class, 'perubahanExport']);
+
+        // ---- PERUBAHAN PEGAWAI PER BULAN (halaman tersendiri di Admin) ----
+        Route::get('/perubahan-pegawai', [PerubahanBulananController::class, 'index']);
+        Route::get('/perubahan-pegawai/{periode}', [PerubahanBulananController::class, 'show']);
+        Route::get('/perubahan-pegawai/{periode}/export', [PerubahanBulananController::class, 'export']);
         Route::delete('/imports/{batch}', [ImportController::class, 'destroy']);
 
         // ---- PEGAWAI CRUD ----

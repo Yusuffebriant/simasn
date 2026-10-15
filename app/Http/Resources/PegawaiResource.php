@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\KelengkapanPegawai;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,7 +21,12 @@ class PegawaiResource extends JsonResource
             'jenis_kelamin' => $this->jenis_kelamin,
             'status_kepegawaian' => $this->status_kepegawaian,
             'golongan_ruang_id' => $this->golongan_ruang_id,
+            'agama_id' => $this->agama_id,
+            'pendidikan_id' => $this->pendidikan_id,
+            'jenis_kedudukan' => $this->jenis_kedudukan,
+            'tanggal_lahir' => $this->tanggal_lahir?->format('Y-m-d'),
             'golongan' => $this->golonganRuang?->kode,
+            'eselon_id' => $this->eselon_id,
             'eselon' => $this->eselon?->kode,
             'agama' => $this->agama?->nama,
             'pendidikan' => $this->pendidikan?->jenjang,
@@ -37,6 +43,8 @@ class PegawaiResource extends JsonResource
                 default => null,
             },
             'status_perkawinan' => $this->whenLoaded('detail', fn () => $this->detail?->status_perkawinan),
+            // Isian yang masih kosong (lihat App\Support\KelengkapanPegawai).
+            'kosong' => $this->whenLoaded('detail', fn () => KelengkapanPegawai::kosong($this->resource)),
         ];
     }
 }

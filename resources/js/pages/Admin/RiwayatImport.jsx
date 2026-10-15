@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle, AlertTriangle, X, Eye, Trash2 } from "lucide-react";
+import { LoaderCircle, AlertTriangle, X, Eye, Trash2, Users } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import PerubahanPegawai from "../../components/Import/PerubahanPegawai";
 
 const STATUS_STYLE = {
     selesai: "bg-green-50 text-[#006A4E]",
@@ -176,12 +177,48 @@ function ImportErrorsModal({ batch, onClose }) {
     );
 }
 
-// Dialog konfirmasi hapus riwayat import.
-// Sumber: DELETE /imports/{batch_id}. Yang dihapus hanya catatan riwayat
-// (dan detail baris gagalnya) — data pegawai & angka rekap tidak berubah.
+// Dialog konfirmasi hapus import.
+// Sumber: GET /imports/{batch_id} (ringkasan "akan_dihapus") dan
+// DELETE /imports/{batch_id}. Yang dihapus SEMUA data dari import ini:
+// riwayat, baris gagal, catatan perubahan, data pegawai hasil import,
+// rekap beku periodenya, dan file cadangan. Permanen.
 function DeleteBatchModal({ batch, onClose, onDeleted }) {
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState("");
+    const [ringkasan, setRingkasan] = useState(null);
+    const [konfirmasi, setKonfirmasi] = useState("");
+
+    // Import yang masih "diproses" (macet / worker mati) dihapus paksa.
+    const paksa = batch.status === "diproses";
+
+    // Muat ringkasan apa saja yang akan terhapus.
+    useEffect(() => {
+        let batal = false;
+
+        apiFetch(`/imports/${batch.id}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((json) => {
+                if (!batal) {
+                    setRingkasan(
+                        json?.akan_dihapus ?? { jumlah_pegawai: null, jumlah_perubahan: null }
+                    );
+                }
+            })
+            .catch(() => {
+                if (!batal) setRingkasan({ jumlah_pegawai: null, jumlah_perubahan: null });
+            });
+
+        return () => {
+            batal = true;
+        };
+    }, [batch.id]);
+
+    // Kalau ada data pegawai yang ikut terhapus (atau jumlahnya tidak
+    // diketahui), wajib ketik HAPUS dulu.
+    const jumlahPegawai = ringkasan?.jumlah_pegawai;
+    const perluKonfirmasi = jumlahPegawai !== 0;
+    const siapHapus =
+        ringkasan !== null && (!perluKonfirmasi || konfirmasi.trim().toUpperCase() === "HAPUS");
 
     // Esc = batal (kecuali sedang proses hapus)
     useEffect(() => {
@@ -197,12 +234,15 @@ function DeleteBatchModal({ batch, onClose, onDeleted }) {
         setError("");
 
         try {
-            const res = await apiFetch(`/imports/${batch.id}`, { method: "DELETE" });
+            const res = await apiFetch(
+                `/imports/${batch.id}${paksa ? "?paksa=1" : ""}`,
+                { method: "DELETE" }
+            );
 
             if (!res.ok) {
-                let message = "Gagal menghapus riwayat import.";
+                let message = "Gagal menghapus import.";
                 if (res.status === 403) {
-                    message = "Anda tidak berhak menghapus riwayat import ini.";
+                    message = "Anda tidak berhak menghapus import ini.";
                 } else {
                     try {
                         const data = await res.json();
@@ -242,11 +282,11 @@ function DeleteBatchModal({ batch, onClose, onDeleted }) {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="hb-title"
-                className="hb-card w-full max-w-md rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200"
+                className="hb-card w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200"
             >
                 <div className="flex items-start justify-between gap-4">
                     <h3 id="hb-title" className="text-lg font-semibold text-gray-900">
-                        Hapus riwayat import?
+                        Hapus import beserta semua datanya?
                     </h3>
                     <button
                         onClick={onClose}
@@ -260,9 +300,58 @@ function DeleteBatchModal({ batch, onClose, onDeleted }) {
 
                 <p className="mt-2 text-sm leading-relaxed text-gray-600">
                     <span className="font-medium text-gray-900">{batch.nama_file}</span>{" "}
-                    (periode {batch.periode}) akan dihapus dari riwayat. Data pegawai
-                    tidak terpengaruh.
+                    (periode {batch.periode}) akan dihapus permanen beserta:
                 </p>
+
+                {ringkasan === null ? (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                        <LoaderCircle className="animate-spin" size={16} />
+                        Menghitung data yang terkait...
+                    </div>
+                ) : (
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-700">
+                        <li>
+                            <span className="font-semibold">
+                                {jumlahPegawai === null
+                                    ? "Data pegawai"
+                                    : `${jumlahPegawai.toLocaleString("id-ID")} data pegawai`}
+                            </span>{" "}
+                            hasil import ini (termasuk detail dan log aktivitasnya)
+                        </li>
+                        <li>Catatan perubahan pegawai dan baris yang gagal</li>
+                        <li>Rekap beku periode {batch.periode} (jika tidak ada import lain di periode yang sama)</li>
+                        <li>File cadangan dan file upload import ini</li>
+                    </ul>
+                )}
+
+                <p className="mt-3 text-sm font-medium text-red-700">
+                    Tindakan ini tidak bisa dibatalkan.
+                </p>
+
+                {paksa && !error && (
+                    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        Import ini masih berstatus diproses. Jika worker tidak
+                        berjalan atau proses macet, prosesnya dibatalkan dan
+                        semuanya dihapus paksa.
+                    </div>
+                )}
+
+                {ringkasan !== null && perluKonfirmasi && (
+                    <div className="mt-4">
+                        <label className="block text-sm text-gray-700" htmlFor="hb-konfirmasi">
+                            Ketik <span className="font-semibold">HAPUS</span> untuk melanjutkan
+                        </label>
+                        <input
+                            id="hb-konfirmasi"
+                            value={konfirmasi}
+                            onChange={(e) => setKonfirmasi(e.target.value)}
+                            disabled={deleting}
+                            autoComplete="off"
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                    </div>
+                )}
 
                 {error && (
                     <div
@@ -285,12 +374,33 @@ function DeleteBatchModal({ batch, onClose, onDeleted }) {
                     </button>
                     <button
                         onClick={handleDelete}
-                        disabled={deleting}
-                        className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-70"
+                        disabled={deleting || !siapHapus}
+                        className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
                     >
                         {deleting && <LoaderCircle className="animate-spin" size={16} />}
-                        {deleting ? "Menghapus..." : "Hapus"}
+                        {deleting ? "Menghapus..." : "Hapus semua"}
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Panel catatan perubahan pegawai untuk satu batch import.
+function PerubahanModal({ batch, onClose }) {
+    return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[88vh] flex flex-col">
+                <div className="flex items-center justify-between p-5 border-b">
+                    <p className="text-sm text-gray-500">
+                        {batch.nama_file} · Periode {batch.periode}
+                    </p>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="overflow-y-auto p-5 flex-1">
+                    <PerubahanPegawai batchId={batch.id} />
                 </div>
             </div>
         </div>
@@ -306,6 +416,7 @@ function RiwayatImport() {
     const [error, setError] = useState("");
     const [detailBatch, setDetailBatch] = useState(null);
     const [deleteBatch, setDeleteBatch] = useState(null);
+    const [perubahanBatch, setPerubahanBatch] = useState(null);
     const [reloadKey, setReloadKey] = useState(0);
 
     // Dipanggil setelah hapus berhasil: muat ulang daftar, dan kalau halaman
@@ -438,6 +549,15 @@ function RiwayatImport() {
                                         <td className="border-b p-3">{batch.diupload_oleh}</td>
                                         <td className="border-b p-3">{batch.dibuat_pada}</td>
                                         <td className="border-b p-3 text-center">
+                                            {batch.status === "selesai" && (
+                                                <button
+                                                    onClick={() => setPerubahanBatch(batch)}
+                                                    className="flex items-center gap-1 text-sm text-[#006A4E] font-semibold hover:underline mx-auto mb-1"
+                                                >
+                                                    <Users size={16} />
+                                                    Lihat Perubahan
+                                                </button>
+                                            )}
                                             {(batch.gagal ?? 0) > 0 ? (
                                                 <button
                                                     onClick={() => setDetailBatch(batch)}
@@ -499,6 +619,13 @@ function RiwayatImport() {
                 />
             )}
 
+            {perubahanBatch && (
+                <PerubahanModal
+                    batch={perubahanBatch}
+                    onClose={() => setPerubahanBatch(null)}
+                />
+            )}
+
             {detailBatch && (
                 <ImportErrorsModal
                     batch={detailBatch}
@@ -510,4 +637,4 @@ function RiwayatImport() {
     );
 }
 
-export default RiwayatImport;   
+export default RiwayatImport;

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ImportBatch;
 use App\Models\Pegawai;
 use App\Models\RekapSnapshotData;
+use App\Support\KelengkapanPegawai;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -45,6 +46,7 @@ class PeringatanDataService
         $this->cekSisaBatchLama($batch, $peringatan);
         $this->cekKemungkinanDobel($peringatan);
         $this->cekImportTerakhir($batch, $peringatan);
+        $this->cekKelengkapan($peringatan);
         $this->cekSnapshot($batch, $peringatan);
 
         return $this->hasil($peringatan, $batch->periode);
@@ -163,7 +165,32 @@ class PeringatanDataService
         }
     }
 
-    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null): array
+    /** Pegawai aktif yang isiannya belum lengkap (seleksi kelengkapan data). */
+    private function cekKelengkapan(array &$peringatan): void
+    {
+        $ringkasan = KelengkapanPegawai::ringkasan();
+
+        if ($ringkasan['total_belum_lengkap'] === 0) {
+            return;
+        }
+
+        $rincian = collect($ringkasan['per_kolom'])
+            ->take(4)
+            ->map(fn ($k) => "{$k['label']} ({$k['jumlah']})")
+            ->implode(', ');
+
+        $peringatan[] = $this->item(
+            'data_belum_lengkap',
+            'peringatan',
+            'Data pegawai belum lengkap',
+            "Ada pegawai aktif yang isiannya masih kosong. Terbanyak: {$rincian}. "
+                . 'Buka Daftar Pegawai untuk melengkapinya.',
+            $ringkasan['total_belum_lengkap'],
+            ['label' => 'Lengkapi sekarang', 'href' => '/admin?tab=pegawai&kelengkapan=belum']
+        );
+    }
+
+    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null): array
     {
         return [
             'kode' => $kode,
@@ -171,6 +198,7 @@ class PeringatanDataService
             'judul' => $judul,
             'pesan' => $pesan,
             'jumlah' => $jumlah,
+            'tautan' => $tautan,
         ];
     }
 

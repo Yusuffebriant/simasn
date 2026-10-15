@@ -11,11 +11,12 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pegawai;
 use App\Services\ImportRekonsiliasi;
-use App\Services\RekapSnapshotService;
-use App\Support\RekapCache;
+use App\Services\PerubahanPegawaiService;
 
 class ProcessPegawaiImport implements ShouldQueue
 {
@@ -24,41 +25,197 @@ class ProcessPegawaiImport implements ShouldQueue
     public int $tries = 1; // import tidak aman diulang otomatis (bisa dobel proses)
     public int $timeout = 600; // 10 menit, cukup untuk file besar
 
+    // Kalau riwayat import dihapus (mis. hapus paksa) sebelum job sempat jalan,
+    // job dibuang diam-diam, tidak masuk failed_jobs.
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(
         protected ImportBatch $batch,
         protected string $filePath
     ) {}
 
+    /**
+     * Ekspor semua pegawai (+ detail) ke CSV di storage/app/.../backups.
+     * Return path relatif file cadangan.
+     */
+    protected function buatCadangan(): string
+    {
+        $rel = 'backups/pegawai-sebelum-import-' . $this->batch->id
+            . '-' . now()->format('Ymd-His') . '.csv';
+
+        Storage::makeDirectory('backups');
+
+        $fh = fopen(Storage::path($rel), 'w');
+        if ($fh === false) {
+            throw new \RuntimeException('Gagal membuat file cadangan data pegawai.');
+        }
+
+        $headerDitulis = false;
+
+        $rows = DB::table('pegawai')
+            ->leftJoin('pegawai_detail', 'pegawai_detail.pegawai_id', '=', 'pegawai.id')
+            ->select(
+                'pegawai.*',
+                'pegawai_detail.alamat as detail_alamat',
+                'pegawai_detail.hp as detail_hp',
+                'pegawai_detail.email as detail_email',
+                'pegawai_detail.status_perkawinan as detail_status_perkawinan'
+            )
+            ->orderBy('pegawai.id')
+            ->cursor();
+
+        foreach ($rows as $row) {
+            $arr = (array) $row;
+            if (!$headerDitulis) {
+                fputcsv($fh, array_keys($arr), ',', '"', '');
+                $headerDitulis = true;
+            }
+            fputcsv($fh, $arr, ',', '"', '');
+        }
+
+        fclose($fh);
+
+        return $rel;
+    }
+
     public function handle(): void
     {
+        // Batch dihapus saat job menunggu/baru mulai: batalkan, bersihkan file.
+        if (!ImportBatch::whereKey($this->batch->id)->exists()) {
+            Storage::delete($this->filePath);
+
+            return;
+        }
+
         try {
+            // Cadangan seluruh data pegawai SEBELUM ada yang diubah/dihapus.
+            // Kalau gagal membuat cadangan, import dihentikan (data aman).
+            $backupPath = $this->buatCadangan();
+            $this->batch->update(['backup_path' => $backupPath]);
+
+            // Foto kondisi pegawai SEBELUM import, untuk catatan perubahan
+            // bulanan (pensiun, naik pangkat, pegawai baru, dst). Kalau gagal,
+            // import tetap jalan; hanya catatan perubahannya yang tidak ada.
+            $perubahan = new PerubahanPegawaiService();
+            $foto = null;
+            try {
+                $foto = $perubahan->ambilFoto();
+            } catch (\Throwable $e) {
+                Log::warning("Import batch {$this->batch->id}: gagal mengambil foto perubahan pegawai: " . $e->getMessage());
+            }
+
+            // Objek import dipegang supaya hitungan isi file & rincian baris
+            // ganda bisa dibaca lagi setelah proses selesai.
             $import = new PegawaiImport($this->batch);
 
             Excel::import($import, Storage::path($this->filePath));
 
             $this->batch->refresh();
 
-            // Urutan penting: sinkron & reset cache dulu, baru status
-            // 'selesai'. Frontend membaca hasil begitu status 'selesai',
-            // jadi hasil sinkron dan angka rekap sudah final saat itu.
-            $this->jalankanRekonsiliasi($import->tally());
+            // MODE GANTI TOTAL: data pegawai lama yang tidak ikut di file
+            // import ini dihapus permanen, jadi database = isi file terbaru.
+            // Pengaman: kalau tidak ada satu pun baris yang berhasil
+            // (file kosong / salah format), JANGAN hapus apa pun.
+            $dihapus = 0;
 
-            $this->nonaktifkanPegawaiSisa();
+            if ($this->batch->berhasil > 0) {
+                $batchId = $this->batch->id;
 
-            // Naikkan versi cache rekap: semua key rekap (semua periode,
-            // termasuk endpoint yang ditambahkan kemudian) otomatis tidak
-            // terpakai lagi, jadi tidak ada angka lama yang tertinggal
-            // sampai TTL 10 menit habis.
-            RekapCache::bump();
+                $dihapus = DB::transaction(function () use ($batchId) {
+                    $query = Pegawai::withTrashed()->where(function ($q) use ($batchId) {
+                        $q->whereNull('raw_import_id')
+                          ->orWhere('raw_import_id', '!=', $batchId);
+                    });
 
-            // Bekukan rekap periode import ini supaya tetap bisa dibuka
-            // setelah ada import periode berikutnya.
-            $this->bekukanRekap();
+                    $jumlah = (clone $query)->count();
+
+                    // forceDelete lewat query builder: permanen (menghindari
+                    // bentrok unique NIP/NIK akibat soft delete) dan
+                    // pegawai_detail ikut terhapus via cascade FK.
+                    $query->forceDelete();
+
+                    return $jumlah;
+                });
+
+                Log::info("Import batch {$batchId}: {$dihapus} pegawai lama dihapus (diganti data baru).");
+            }
+
+            // Catat perubahan pegawai (dibanding sebelum import). Dilakukan SEBELUM
+            // status 'selesai' supaya begitu layar hasil muncul, catatannya sudah ada.
+            // Kegagalan di sini tidak boleh membatalkan import yang datanya sudah masuk.
+            if ($foto === null) {
+                $perubahan->setStatus($this->batch, 'gagal');
+            } elseif ($this->batch->berhasil > 0) {
+                try {
+                    $jumlahPerubahan = $perubahan->catat($this->batch, $foto);
+                    Log::info("Import batch {$this->batch->id}: {$jumlahPerubahan} perubahan pegawai dicatat.");
+                } catch (\Throwable $e) {
+                    Log::error("Import batch {$this->batch->id}: gagal mencatat perubahan pegawai: " . $e->getMessage());
+                    $perubahan->setStatus($this->batch, 'gagal');
+                }
+            }
+            unset($foto);
+
+            // Rekonsiliasi: bandingkan isi file dengan isi database. Kalau
+            // jumlahnya berbeda (mis. 39 baris di Excel tapi 37 pegawai di
+            // sistem), rincian baris yang saling menimpa ikut disimpan agar
+            // alasannya tampil di layar hasil import. Kegagalan di sini tidak
+            // boleh membatalkan import yang datanya sudah masuk.
+            if ($this->batch->berhasil > 0) {
+                try {
+                    $rekon = (new ImportRekonsiliasi())->bandingkan($this->batch, $import->tally());
+                    $rekon['ganda_detail'] = $import->gandaDetail();
+                    // Pegawai tersimpan tapi tidak ikut rekap (bukan berstatus aktif).
+                    $rekon['tidak_aktif_jumlah'] = $import->tidakAktifJumlah();
+                    $rekon['tidak_aktif_detail'] = $import->tidakAktifDetail();
+
+                    $this->batch->update([
+                        'rekonsiliasi_status' => $rekon['status'],
+                        'rekonsiliasi' => $rekon,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning("Import batch {$this->batch->id}: rekonsiliasi gagal dihitung: " . $e->getMessage());
+                    $this->batch->update(['rekonsiliasi_status' => 'tidak_tersedia']);
+                }
+            }
 
             $this->batch->update([
+                'jumlah_dihapus' => $dihapus,
                 'status' => 'selesai',
                 'total_baris' => $this->batch->berhasil + $this->batch->gagal,
             ]);
+
+            // Hapus cache rekap setelah seluruh proses import selesai.
+            //
+            // FIX: sebelumnya hanya 3 key (agama/pendidikan/jabatan) yang
+            // dihapus, padahal RekapController meng-cache SEMUA endpoint
+            // rekap (termasuk dashboard) per periode selama 10 menit. Ini
+            // yang menyebabkan angka di Dashboard (mis. kartu Generasi,
+            // tabel Usia, grafik Golongan, dll.) bisa tampak "salah
+            // hitung"/tidak konsisten segera setelah import baru selesai —
+            // padahal cuma menyajikan data cache lama sampai TTL-nya habis.
+            // Sekarang semua key rekap per periode ikut dihapus supaya
+            // seluruh halaman rekap langsung menampilkan data terbaru.
+            foreach (
+                [
+                    'rekap.dashboard',
+                    'rekap.agama',
+                    'rekap.pendidikan',
+                    'rekap.jabatan',
+                    'rekap.golongan',
+                    'rekap.eselon-golongan-gender',
+                    'rekap.nakes',
+                    'rekap.sd',
+                    'rekap.smp',
+                    'rekap.kecamatan',
+                    'rekap.struktur-golongan',
+                    'rekap.struktur-eselon',
+                    'rekap.jf-tertentu',
+                    'rekap.jf-pelaksana',
+                ] as $rekapKey
+            ) {
+                Cache::forget("{$rekapKey}.{$this->batch->periode}");
+            }
         } catch (\Throwable $e) {
             $this->batch->update([
                 'status' => 'gagal'
@@ -70,145 +227,6 @@ class ProcessPegawaiImport implements ShouldQueue
             // Hapus file sementara setelah selesai diproses
             // (berhasil ataupun gagal)
             Storage::delete($this->filePath);
-        }
-    }
-
-    /**
-     * Setelah import penuh, pegawai aktif dari batch LAIN (import lama)
-     * yang tidak ikut ter-update oleh file ini ditandai 'mutasi_keluar',
-     * supaya tidak ikut terhitung di rekap.
-     *
-     * Pengaman: dilewati jika ada baris gagal, tidak ada baris berhasil,
-     * atau jumlah yang akan dinonaktifkan > 20% pegawai aktif (curiga
-     * file hanya sebagian data).
-     */
-    private function nonaktifkanPegawaiSisa(): void
-    {
-        if ($this->batch->gagal > 0 || $this->batch->berhasil <= 0) {
-            Log::info('Sinkron import dilewati: ada baris gagal / tidak ada baris berhasil', [
-                'batch_id' => $this->batch->id,
-            ]);
-            $this->catatSinkron(
-                'dilewati',
-                null,
-                null,
-                $this->batch->berhasil <= 0
-                    ? 'Tidak ada baris berhasil.'
-                    : "Ada {$this->batch->gagal} baris gagal; penonaktifan dilewati demi keamanan data."
-            );
-            return;
-        }
-
-        $sisa = Pegawai::where('status_aktif', 'aktif')
-            ->where(function ($q) {
-                $q->whereNull('raw_import_id')
-                  ->orWhere('raw_import_id', '!=', $this->batch->id);
-            });
-
-        $jumlahSisa = (clone $sisa)->count();
-        $totalAktif = Pegawai::where('status_aktif', 'aktif')->count();
-
-        if ($jumlahSisa === 0) {
-            $this->catatSinkron('tidak_ada_sisa', 0, $totalAktif, 'Semua pegawai aktif ada di file ini.');
-            return;
-        }
-
-        if ($totalAktif > 0 && ($jumlahSisa / $totalAktif) > 0.20) {
-            Log::warning('Sinkron import dibatalkan: terlalu banyak pegawai akan dinonaktifkan', [
-                'batch_id' => $this->batch->id,
-                'jumlah_sisa' => $jumlahSisa,
-                'total_aktif' => $totalAktif,
-            ]);
-            $persen = round($jumlahSisa / $totalAktif * 100, 1);
-            $this->catatSinkron(
-                'dilewati',
-                $jumlahSisa,
-                $totalAktif,
-                "{$jumlahSisa} pegawai tidak ada di file ({$persen}% dari pegawai aktif), melebihi batas 20%. Tidak ada yang dinonaktifkan; periksa apakah file lengkap."
-            );
-            return;
-        }
-
-        $sisa->update(['status_aktif' => 'mutasi_keluar']);
-
-        Log::info('Sinkron import: pegawai sisa batch lama dinonaktifkan', [
-            'batch_id' => $this->batch->id,
-            'jumlah' => $jumlahSisa,
-        ]);
-
-        $this->catatSinkron(
-            'dinonaktifkan',
-            $jumlahSisa,
-            $totalAktif,
-            "{$jumlahSisa} pegawai yang tidak ada di file ditandai mutasi keluar."
-        );
-    }
-
-    /**
-     * Bandingkan isi file (tally dari importer) dengan isi database.
-     * Kegagalan di sini TIDAK boleh menggagalkan import, jadi dibungkus
-     * try/catch dan hanya ditandai 'tidak_tersedia'.
-     */
-    private function jalankanRekonsiliasi(array $tally): void
-    {
-        try {
-            $hasil = (new ImportRekonsiliasi())->bandingkan($this->batch, $tally);
-
-            $this->batch->update([
-                'rekonsiliasi_status' => $hasil['status'],
-                'rekonsiliasi' => $hasil,
-            ]);
-
-            if ($hasil['status'] === 'selisih') {
-                Log::warning('Rekonsiliasi import: ada selisih file vs database', [
-                    'batch_id' => $this->batch->id,
-                    'total' => $hasil['total'],
-                    'jumlah_selisih' => count($hasil['selisih']),
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Rekonsiliasi import gagal dihitung', [
-                'batch_id' => $this->batch->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            $this->batch->update(['rekonsiliasi_status' => 'tidak_tersedia']);
-        }
-    }
-
-    /**
-     * Simpan hasil sinkron di batch supaya terlihat di halaman Import
-     * dan Riwayat Import (tidak perlu membuka laravel.log).
-     */
-    private function catatSinkron(string $status, ?int $jumlahSisa, ?int $totalAktif, string $catatan): void
-    {
-        $this->batch->update([
-            'sinkron_status' => $status,
-            'sinkron_jumlah_sisa' => $jumlahSisa,
-            'sinkron_total_aktif' => $totalAktif,
-            'sinkron_catatan' => mb_substr($catatan, 0, 250),
-        ]);
-    }
-
-    /**
-     * Simpan snapshot rekap untuk periode batch ini. Kegagalan di sini
-     * tidak boleh menggagalkan import (data pegawai sudah tersimpan),
-     * jadi hanya dicatat di log.
-     */
-    private function bekukanRekap(): void
-    {
-        if (blank($this->batch->periode)) {
-            return;
-        }
-
-        try {
-            (new RekapSnapshotService())->bekukan($this->batch->periode);
-        } catch (\Throwable $e) {
-            Log::error('Gagal membekukan rekap periode import', [
-                'batch_id' => $this->batch->id,
-                'periode' => $this->batch->periode,
-                'error' => $e->getMessage(),
-            ]);
         }
     }
 }

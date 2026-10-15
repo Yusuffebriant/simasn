@@ -103,6 +103,14 @@ function PeringatanData({ refreshKey }) {
                             )}
                         </p>
                         <p className="mt-1">{p.pesan}</p>
+                        {p.tautan?.href && (
+                            <a
+                                href={p.tautan.href}
+                                className="inline-block mt-2 font-semibold underline"
+                            >
+                                {p.tautan.label}
+                            </a>
+                        )}
                     </div>
                 );
             })}

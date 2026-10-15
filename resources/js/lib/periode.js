@@ -13,7 +13,7 @@ export function getCurrentPeriode() {
     return `${now.getFullYear()}-${bulan}`;
 }
 
-const BULAN_NAMA = [
+export const BULAN_NAMA = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
     "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];

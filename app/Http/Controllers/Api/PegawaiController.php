@@ -4,8 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PegawaiResource;
+use App\Models\Instansi;
 use App\Models\Pegawai;
+use App\Models\PegawaiDetail;
+use App\Support\KelengkapanPegawai;
+use App\Support\RekapCache;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class PegawaiController extends Controller
 {
@@ -15,6 +20,10 @@ class PegawaiController extends Controller
             'status_kepegawaian' => ['nullable', 'in:PNS,PPPK,PPPK_PW,LAINNYA'],
             'status_perkawinan' => ['nullable', 'in:KAWIN,BELUM_KAWIN,CERAI_HIDUP,CERAI_MATI,JANDA,DUDA,KOSONG'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            // Seleksi kelengkapan data: belum|lengkap, atau satu isian yang kosong.
+            'kelengkapan' => ['nullable', 'in:belum,lengkap'],
+            'kosong' => ['nullable', 'in:' . implode(',', array_keys(KelengkapanPegawai::ATURAN))],
+            'batch' => ['nullable', 'integer'],
         ]);
 
         // 'detail' dimuat agar status perkawinan ikut tampil tanpa N+1.
@@ -40,6 +49,18 @@ class PegawaiController extends Controller
             } else {
                 $query->whereHas('detail', fn ($d) => $d->where('status_perkawinan', $request->status_perkawinan));
             }
+        }
+
+        if ($request->filled('batch')) {
+            $query->where('raw_import_id', $request->integer('batch'));
+        }
+
+        if ($request->filled('kosong')) {
+            KelengkapanPegawai::terapkanBelumLengkap($query, $request->kosong);
+        } elseif ($request->kelengkapan === 'belum') {
+            KelengkapanPegawai::terapkanBelumLengkap($query);
+        } elseif ($request->kelengkapan === 'lengkap') {
+            KelengkapanPegawai::terapkanLengkap($query);
         }
 
         if ($request->filled('search')) {
@@ -76,11 +97,35 @@ class PegawaiController extends Controller
             'agama_id' => ['sometimes', 'nullable', 'exists:agama,id'],
             'pendidikan_id' => ['sometimes', 'nullable', 'exists:pendidikan,id'],
             'status_aktif' => ['sometimes', 'in:aktif,pensiun,mutasi_keluar,meninggal'],
+            'status_perkawinan' => ['sometimes', 'nullable', 'in:KAWIN,BELUM_KAWIN,CERAI_HIDUP,CERAI_MATI,JANDA,DUDA'],
+            'tanggal_lahir' => ['sometimes', 'nullable', 'date'],
+            'jenis_kedudukan' => ['sometimes', 'nullable', 'in:FUNGSIONAL,PELAKSANA,STRUKTURAL'],
         ]);
 
-        $pegawai->update($validated);
+        // Kolom unit berisi nama perangkat daerah; jaga tetap sama dengan
+        // instansi yang dipilih admin.
+        if (isset($validated['instansi_id'])) {
+            $validated['unit'] = Instansi::find($validated['instansi_id'])?->nama;
+        }
 
-        return response()->json($pegawai->fresh(['instansi', 'golonganRuang', 'eselon']));
+        // status_perkawinan tersimpan di pegawai_detail, bukan di tabel pegawai.
+        $pegawai->update(Arr::except($validated, ['status_perkawinan']));
+
+        if (array_key_exists('status_perkawinan', $validated)) {
+            PegawaiDetail::updateOrCreate(
+                ['pegawai_id' => $pegawai->id],
+                ['status_perkawinan' => $validated['status_perkawinan']]
+            );
+        }
+
+        // Data berubah: hapus cache rekap supaya dashboard ikut diperbarui.
+        RekapCache::bump();
+
+        // Bentuk respons SAMA dengan index()/show() (dibungkus "data"), karena
+        // DaftarPegawai.jsx membaca body.data untuk memperbarui barisnya.
+        return new PegawaiResource(
+            $pegawai->fresh(['instansi', 'golonganRuang', 'eselon', 'agama', 'pendidikan', 'detail'])
+        );
     }
 
     public function destroy(Pegawai $pegawai)

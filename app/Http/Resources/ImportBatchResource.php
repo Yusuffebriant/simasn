@@ -17,11 +17,8 @@ class ImportBatchResource extends JsonResource
             'total_baris' => $this->total_baris,
             'berhasil' => $this->berhasil,
             'gagal' => $this->gagal,
-            'sinkron_status' => $this->sinkron_status,
-            'sinkron_jumlah_sisa' => $this->sinkron_jumlah_sisa,
-            'sinkron_total_aktif' => $this->sinkron_total_aktif,
-            'sinkron_catatan' => $this->sinkron_catatan,
-            'rekonsiliasi_status' => $this->rekonsiliasi_status,
+            'jumlah_dihapus' => $this->jumlah_dihapus,
+            'jumlah_dilindungi' => $this->jumlah_dilindungi,
             'diupload_oleh' => $this->uploader?->name,
             'dibuat_pada' => $this->created_at?->format('Y-m-d H:i'),
         ];

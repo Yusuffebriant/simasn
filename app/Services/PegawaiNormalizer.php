@@ -14,7 +14,7 @@ class PegawaiNormalizer
 {
     public function isRowValid(array $row): array
     {
-        $nip = $this->bersihkanRumus($row['NIP'] ?? null);
+        $nip = trim((string) ($row['NIP'] ?? ''));
         $nik = $this->normalisasiNik($row['NIK'] ?? null);
         $nama = trim((string) ($row['NAMA'] ?? ''));
 
@@ -25,6 +25,12 @@ class PegawaiNormalizer
         // Teks ini dibandingkan persis oleh PegawaiImport, jangan diubah.
         if (is_numeric($nama)) {
             return [false, 'Baris terdeteksi sebagai index palsu, bukan data pegawai'];
+        }
+
+        // NIK harus 16 digit. NIK rusak (kurang/lebih digit, salah ketik)
+        // ditolak dan dicatat, bukan diam-diam dianggap pegawai baru.
+        if ($nik !== null && strlen($nik) !== 16) {
+            return [false, 'NIK tidak valid (harus 16 digit, terbaca ' . strlen($nik) . ' digit): ' . $nik];
         }
 
         return [true, null];
@@ -47,58 +53,20 @@ class PegawaiNormalizer
     }
 
     /**
-     * Status kepegawaian yang dikenali: PNS, PPPK, PPPK Paruh Waktu.
-     * Selain itu masuk ke LAINNYA (NABAN, Pegawai Titipan, dan status apa
-     * pun yang belum dikenal), jadi baris tidak ditolak dan jumlah pegawai
-     * tetap lengkap. Nama aslinya disimpan di kolom status_lainnya
-     * (lihat resolveStatusLainnya) supaya tetap kelihatan di rincian.
-     *
-     * Hanya status yang benar-benar kosong (atau '-') yang dikembalikan
-     * null, dan barisnya ditolak lewat import_batch_errors.
+     * Nilai tak dikenal -> null, dan baris ditolak lewat import_batch_errors
+     * (TIDAK lagi dipaksa jadi 'PNS').
      */
     public function resolveStatusKepegawaian(?string $raw): ?string
     {
         $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
 
-        if ($key === '' || $key === '-') {
-            return null;
-        }
-
         return match ($key) {
             'PNS' => 'PNS',
             'PPPK' => 'PPPK',
             'PPPK PARUH WAKTU' => 'PPPK_PW',
-            default => 'LAINNYA',
+            'NABAN', 'PEGAWAI TITIPAN' => 'LAINNYA',
+            default => null,
         };
-    }
-
-    /**
-     * Nama asli status untuk pegawai berstatus LAINNYA, supaya bisa
-     * disebutkan rinci (Dashboard, halaman PPPK Paruh Waktu):
-     *   - NABAN                  -> 'NABAN'
-     *   - Pegawai Titipan        -> 'Pegawai Titipan'
-     *   - status lain tak dikenal -> teks aslinya (Huruf Awal Kapital)
-     * Status PNS / PPPK / PPPK Paruh Waktu -> null (bukan LAINNYA).
-     */
-    public function resolveStatusLainnya(?string $raw): ?string
-    {
-        $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
-
-        if ($key === '' || $key === '-' || in_array($key, ['PNS', 'PPPK', 'PPPK PARUH WAKTU'], true)) {
-            return null;
-        }
-
-        if ($key === 'NABAN') {
-            return 'NABAN';
-        }
-
-        if (str_contains($key, 'TITIP')) {
-            return 'Pegawai Titipan';
-        }
-
-        // Status lain yang belum dikenal: simpan teks aslinya apa adanya
-        // (dipotong 50 karakter sesuai kolom) supaya terlihat di rincian.
-        return mb_substr(mb_convert_case(mb_strtolower($key), MB_CASE_TITLE), 0, 50);
     }
 
     /**
@@ -434,25 +402,9 @@ class PegawaiNormalizer
         };
     }
 
-    /**
-     * Kolom Excel yang diformat sebagai teks sering berisi rumus
-     * seperti ="08122711195". Maatwebsite membacanya apa adanya
-     * (tanpa WithCalculatedFormulas), jadi bungkus =" " dibuang di sini.
-     */
-    private function bersihkanRumus($val): string
-    {
-        $val = trim((string) $val);
-
-        if (str_starts_with($val, '=')) {
-            $val = trim($val, '=" ');
-        }
-
-        return $val;
-    }
-
     private function cleanZero($val): ?string
     {
-        $val = $this->bersihkanRumus($val);
+        $val = trim((string) $val);
 
         return ($val === '' || $val === '0' || $val === '-')
             ? null
@@ -534,20 +486,14 @@ class PegawaiNormalizer
             );
         }
 
-        $nip = $this->bersihkanRumus($row['NIP'] ?? null);
+        $nip = trim((string) ($row['NIP'] ?? ''));
         $nik = $this->normalisasiNik($row['NIK'] ?? null);
 
-        // Isi kolom sumber ini BEDA per status (terbukti dari selisihnya dengan
-        // tanggal lahir di data):
-        // - PNS dan PPPK_PW  : batas usia pensiun (lahir + 58/60 tahun)
-        //                      -> tanggal_pensiun
-        // - PPPK dan LAINNYA : tanggal kontrak -> tanggal_selesai_kontrak
-        // tanggal_selesai_kontrak untuk PPPK_PW sengaja dikosongkan sampai ada
-        // data kontrak asli (tanggal mulai/selesai dan nomor SK).
+        // PNS -> tanggal pensiun. PPPK/PPPK_PW/LAINNYA -> tanggal selesai kontrak.
         $tanggalAkhir = $this->toDate(
             $row['TGL_PENSIUN_ATAU_TGL_SELESAI_KONTRAK'] ?? $row['TGL_PENSIUN'] ?? null
         );
-        $isPensiun = in_array($statusKepegawaian, ['PNS', 'PPPK_PW'], true);
+        $isPns = $statusKepegawaian === 'PNS';
 
         $pegawai = [
             'nip' => $nip === '' ? null : $nip,   // WAJIB null, bukan '' (kolom unique)
@@ -562,9 +508,6 @@ class PegawaiNormalizer
             'jenis_kelamin' => $this->resolveJenisKelamin($row['JENIS_KELAMIN'] ?? null),
 
             'status_kepegawaian' => $statusKepegawaian,
-            'status_lainnya' => $statusKepegawaian === 'LAINNYA'
-                ? $this->resolveStatusLainnya($row['STATUS_KEPEGAWAIAN'] ?? null)
-                : null,
 
             'golongan_ruang_id' => $this->resolveGolonganRuang(
                 $row['PANGKAT_GOLRU'] ?? null,
@@ -588,22 +531,19 @@ class PegawaiNormalizer
 
             'tmt_pangkat' => $this->toDate($row['PANGKAT_TMT'] ?? null),
 
-            'tanggal_pensiun' => $isPensiun ? $tanggalAkhir : null,
-            'tanggal_selesai_kontrak' => $isPensiun ? null : $tanggalAkhir,
+            'tanggal_pensiun' => $isPns ? $tanggalAkhir : null,
+            'tanggal_selesai_kontrak' => $isPns ? null : $tanggalAkhir,
 
             'status_aktif' => $this->resolveStatusAktif($row['KEDUDUKAN_KEPEGAWAIAN'] ?? null),
         ];
 
-        $rt = $this->cleanZero($row['RT'] ?? null);
-        $rw = $this->cleanZero($row['RW'] ?? null);
-        $rtRw = ($rt || $rw)
-            ? 'RT ' . ($rt ?? '-') . '/RW ' . ($rw ?? '-')
-            : null;
-
         $alamatParts = array_filter([
             $row['ALAMAT'] ?? null,
 
-            $rtRw,
+            isset($row['RT'], $row['RW'])
+                ? 'RT ' . $this->cleanZero($row['RT'])
+                    . '/RW ' . $this->cleanZero($row['RW'])
+                : null,
 
             $row['KELURAHAN'] ?? null,
             $row['KECAMATAN'] ?? null,
