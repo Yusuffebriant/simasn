@@ -672,9 +672,8 @@ function BarisPegawai({ p, nomor, opsi, menyimpan = false, onEdit, onHapus, onSa
 
     return (
         <tr
-            className={`border-b last:border-0 align-top transition-opacity ${
-                menyimpan ? "opacity-50 pointer-events-none" : ""
-            }`}
+            className={`border-b last:border-0 align-top transition-opacity ${menyimpan ? "opacity-50 pointer-events-none" : ""
+                }`}
         >
             <td className="py-3 pr-3 text-gray-500">{nomor}</td>
 
@@ -883,7 +882,8 @@ export default function DaftarPegawai() {
     const [agamaList, setAgamaList] = useState([]);
     const [pendidikanList, setPendidikanList] = useState([]);
     const [eselonList, setEselonList] = useState([]);
-    const [instansiId, setInstansiId] = useState("");
+    // Bisa datang dari URL (tautan "Lihat pegawai" di daftar perangkat daerah yang kurang).
+    const [instansiId, setInstansiId] = useState(() => paramUrl("instansi_id"));
     const [editRow, setEditRow] = useState(null);
     const [hapusRow, setHapusRow] = useState(null);
     const [notice, setNotice] = useState("");

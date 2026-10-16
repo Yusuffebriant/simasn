@@ -184,13 +184,18 @@ class PeringatanDataService
             'peringatan',
             'Data pegawai belum lengkap',
             "Ada pegawai aktif yang isiannya masih kosong. Terbanyak: {$rincian}. "
-                . 'Buka Daftar Pegawai untuk melengkapinya.',
+                . 'Cukup periksa perangkat daerah yang tercantum di bawah, lalu lengkapi lewat Daftar Pegawai.',
             $ringkasan['total_belum_lengkap'],
-            ['label' => 'Lengkapi sekarang', 'href' => '/admin?tab=pegawai&kelengkapan=belum']
+            ['label' => 'Lengkapi sekarang', 'href' => '/admin?tab=pegawai&kelengkapan=belum'],
+            $ringkasan['per_instansi'] ?? []
         );
     }
 
-    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null): array
+    /**
+     * @param array|null $rincianInstansi Perangkat daerah yang punya kekurangan
+     *        (khusus peringatan data belum lengkap), lihat KelengkapanPegawai::perInstansi().
+     */
+    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null, ?array $rincianInstansi = null): array
     {
         return [
             'kode' => $kode,
@@ -199,6 +204,7 @@ class PeringatanDataService
             'pesan' => $pesan,
             'jumlah' => $jumlah,
             'tautan' => $tautan,
+            'rincian_instansi' => $rincianInstansi,
         ];
     }
 

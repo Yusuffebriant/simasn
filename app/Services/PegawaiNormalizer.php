@@ -53,20 +53,62 @@ class PegawaiNormalizer
     }
 
     /**
-     * Nilai tak dikenal -> null, dan baris ditolak lewat import_batch_errors
-     * (TIDAK lagi dipaksa jadi 'PNS').
+     * Status kepegawaian yang dikenali: PNS, PPPK, PPPK Paruh Waktu.
+     * Status lain (NABAN, Pegawai Titipan, dan apa pun yang belum dikenal)
+     * masuk ke LAINNYA, jadi barisnya tetap tersimpan dan jumlah pegawai
+     * tetap lengkap. Nama rincinya diatur resolveStatusLainnya().
+     *
+     * Hanya status yang benar-benar kosong (atau '-') yang dikembalikan
+     * null, dan barisnya ditolak lewat import_batch_errors karena tidak ada
+     * yang bisa diklasifikasikan. Status tak dikenal TIDAK dipaksa jadi 'PNS'.
      */
     public function resolveStatusKepegawaian(?string $raw): ?string
     {
         $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
 
+        if ($key === '' || $key === '-') {
+            return null;
+        }
+
         return match ($key) {
             'PNS' => 'PNS',
             'PPPK' => 'PPPK',
             'PPPK PARUH WAKTU' => 'PPPK_PW',
-            'NABAN', 'PEGAWAI TITIPAN' => 'LAINNYA',
-            default => null,
+            default => 'LAINNYA',
         };
+    }
+
+    /**
+     * Nama rinci untuk pegawai berstatus LAINNYA, supaya bisa disebutkan
+     * di Dashboard (kartu Status Kepegawaian) dan di export:
+     *   - NABAN                -> 'NABAN'
+     *   - Pegawai Titipan      -> 'Pegawai Titipan'
+     *   - status lain apa pun  -> 'Lainnya'
+     * Status PNS / PPPK / PPPK Paruh Waktu -> null (bukan LAINNYA).
+     *
+     * Tanpa nilai ini kolom pegawai.status_lainnya kosong, dan rincian
+     * NABAN / Pegawai Titipan di dashboard tampil 0 walau datanya ada
+     * (RekapService::rincianStatusLainnya mengelompokkan per kolom itu).
+     * Label harus persis 'NABAN' dan 'Pegawai Titipan'.
+     */
+    public function resolveStatusLainnya(?string $raw): ?string
+    {
+        $key = preg_replace('/\s+/', ' ', strtoupper(trim((string) $raw)));
+
+        if ($key === '' || $key === '-' || in_array($key, ['PNS', 'PPPK', 'PPPK PARUH WAKTU'], true)) {
+            return null;
+        }
+
+        if ($key === 'NABAN') {
+            return 'NABAN';
+        }
+
+        if (str_contains($key, 'TITIP')) {
+            return 'Pegawai Titipan';
+        }
+
+        // Status lain yang tidak dikenal cukup ditulis 'Lainnya'.
+        return 'Lainnya';
     }
 
     /**
@@ -480,9 +522,10 @@ class PegawaiNormalizer
         );
 
         if ($statusKepegawaian === null) {
+            // Hanya terjadi bila kolom benar-benar kosong / '-'. Status yang
+            // tidak dikenal sudah otomatis jadi LAINNYA (lihat resolveStatusKepegawaian).
             throw new \InvalidArgumentException(
-                'STATUS_KEPEGAWAIAN tidak dikenali: '
-                . ($row['STATUS_KEPEGAWAIAN'] ?? '(kosong)')
+                'STATUS_KEPEGAWAIAN kosong, wajib diisi (PNS, PPPK, PPPK Paruh Waktu, NABAN, Pegawai Titipan, dst)'
             );
         }
 
@@ -508,6 +551,10 @@ class PegawaiNormalizer
             'jenis_kelamin' => $this->resolveJenisKelamin($row['JENIS_KELAMIN'] ?? null),
 
             'status_kepegawaian' => $statusKepegawaian,
+            // Nama asli untuk status LAINNYA (NABAN / Pegawai Titipan); null untuk PNS/PPPK/PPPK PW.
+            'status_lainnya' => $statusKepegawaian === 'LAINNYA'
+                ? $this->resolveStatusLainnya($row['STATUS_KEPEGAWAIAN'] ?? null)
+                : null,
 
             'golongan_ruang_id' => $this->resolveGolonganRuang(
                 $row['PANGKAT_GOLRU'] ?? null,

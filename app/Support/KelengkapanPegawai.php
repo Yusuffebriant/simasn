@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Pegawai;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Aturan "data pegawai lengkap" di SATU tempat.
@@ -142,7 +143,77 @@ class KelengkapanPegawai
             'total_pegawai' => $dasar()->count(),
             'total_belum_lengkap' => self::terapkanBelumLengkap($dasar())->count(),
             'per_kolom' => $perKolom,
+            // Perangkat daerah mana saja yang punya pegawai belum lengkap.
+            'per_instansi' => self::perInstansi($batchId),
         ];
+    }
+
+    /**
+     * Daftar perangkat daerah yang punya pegawai aktif BELUM LENGKAP, supaya
+     * admin cukup mengecek perangkat daerah yang kurang saja, tidak perlu
+     * menyisir seluruh Daftar Pegawai.
+     *
+     * Hanya perangkat daerah yang punya kekurangan yang dimuat, urut dari
+     * yang paling banyak kurang. Pegawai tanpa perangkat daerah dikelompokkan
+     * sebagai "Tanpa perangkat daerah" (instansi_id = null).
+     *
+     * Aturan "belum lengkap" sama persis dengan ATURAN di atas (termasuk
+     * pembatasan per status kepegawaian), jadi angkanya selalu sama dengan
+     * hasil filter di Daftar Pegawai.
+     *
+     * @return array<int, array{
+     *     instansi_id: ?int, instansi: string, total_pegawai: int,
+     *     belum_lengkap: int, rincian: array<int, array{kunci:string,label:string,jumlah:int}>
+     * }>
+     */
+    public static function perInstansi(?int $batchId = null): array
+    {
+        $dasar = fn (): Builder => Pegawai::query()
+            ->where('pegawai.status_aktif', 'aktif')
+            ->when($batchId, fn (Builder $q) => $q->where('pegawai.raw_import_id', $batchId));
+
+        // Hitung jumlah pegawai dari query $q per instansi_id (null jadi 0).
+        $hitung = fn (Builder $q): array => $q
+            ->select('pegawai.instansi_id', DB::raw('COUNT(*) as jumlah'))
+            ->groupBy('pegawai.instansi_id')
+            ->get()
+            ->mapWithKeys(fn ($r) => [(int) $r->instansi_id => (int) $r->jumlah])
+            ->all();
+
+        $nama = DB::table('instansi')->pluck('nama', 'id');
+
+        $total = $hitung($dasar());
+        $belum = $hitung(self::terapkanBelumLengkap($dasar()));
+
+        // Isian apa saja yang kosong di tiap perangkat daerah.
+        $rincianPerInstansi = [];
+        foreach (self::ATURAN as $kunci => $aturan) {
+            foreach ($hitung(self::terapkanBelumLengkap($dasar(), $kunci)) as $id => $jumlah) {
+                $rincianPerInstansi[$id][] = [
+                    'kunci' => $kunci,
+                    'label' => $aturan['label'],
+                    'jumlah' => $jumlah,
+                ];
+            }
+        }
+
+        $hasil = [];
+        foreach ($belum as $id => $jumlahBelum) {
+            $rincian = $rincianPerInstansi[$id] ?? [];
+            usort($rincian, fn ($a, $b) => $b['jumlah'] <=> $a['jumlah']);
+
+            $hasil[] = [
+                'instansi_id' => $id ?: null,
+                'instansi' => $id ? ($nama[$id] ?? "Perangkat daerah #{$id}") : 'Tanpa perangkat daerah',
+                'total_pegawai' => $total[$id] ?? 0,
+                'belum_lengkap' => $jumlahBelum,
+                'rincian' => $rincian,
+            ];
+        }
+
+        usort($hasil, fn ($a, $b) => [$b['belum_lengkap'], $a['instansi']] <=> [$a['belum_lengkap'], $b['instansi']]);
+
+        return $hasil;
     }
 
     private static function kondisi(string $kunci): Closure

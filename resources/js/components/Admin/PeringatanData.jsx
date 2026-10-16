@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
+import KurangPerInstansi from "./KurangPerInstansi";
 
 const GAYA = {
     bahaya: {
@@ -103,6 +104,7 @@ function PeringatanData({ refreshKey }) {
                             )}
                         </p>
                         <p className="mt-1">{p.pesan}</p>
+                        <KurangPerInstansi daftar={p.rincian_instansi} />
                         {p.tautan?.href && (
                             <a
                                 href={p.tautan.href}

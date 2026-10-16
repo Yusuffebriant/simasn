@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import KurangPerInstansi from "../Admin/KurangPerInstansi";
 
 function ImportResult({ result, onRestart }) {
 
@@ -243,6 +244,11 @@ function ImportResult({ result, onRestart }) {
                                         </a>
                                     ))}
                                 </div>
+
+                                <KurangPerInstansi
+                                    daftar={kelengkapan.per_instansi}
+                                    linkDasar={linkLengkapi}
+                                />
 
                                 <a
                                     href={linkLengkapi}
