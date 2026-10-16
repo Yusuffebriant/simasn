@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\PeriodeController;
 use App\Http\Controllers\Api\RekapController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\PerubahanBulananController;
+use App\Http\Controllers\Api\IndeksKumulatifController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PegawaiController;
 use App\Http\Controllers\Api\ReferensiController;
@@ -324,6 +325,9 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/perubahan-pegawai/{periode}', [PerubahanBulananController::class, 'show']);
         Route::get('/perubahan-pegawai/{periode}/export', [PerubahanBulananController::class, 'export']);
         Route::delete('/imports/{batch}', [ImportController::class, 'destroy']);
+
+        // ---- INDEKS KUMULATIF (Januari s.d. bulan terakhir diupload) ----
+        Route::get('/indeks-kumulatif', [IndeksKumulatifController::class, 'index']);
 
         // ---- PEGAWAI CRUD ----
         Route::apiResource('pegawai', PegawaiController::class)

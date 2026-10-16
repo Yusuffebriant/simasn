@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pegawai;
 use App\Services\ImportRekonsiliasi;
+use App\Services\RekapSnapshotService;
 use App\Services\PerubahanPegawaiService;
 
 class ProcessPegawaiImport implements ShouldQueue
@@ -215,6 +216,20 @@ class ProcessPegawaiImport implements ShouldQueue
                 ] as $rekapKey
             ) {
                 Cache::forget("{$rekapKey}.{$this->batch->periode}");
+            }
+
+            // Bekukan rekap periode ini sebagai arsip bulanan. Menu Indeks
+            // Kumulatif membaca arsip ini untuk membandingkan Januari s.d.
+            // bulan yang baru diupload, jadi harus ada tiap import selesai
+            // (sebelumnya hanya terbentuk lewat "php artisan rekap:bekukan").
+            // Kegagalan di sini tidak boleh membatalkan import yang datanya
+            // sudah masuk.
+            if ($this->batch->berhasil > 0) {
+                try {
+                    app(RekapSnapshotService::class)->bekukan($this->batch->periode);
+                } catch (\Throwable $e) {
+                    Log::warning("Import batch {$this->batch->id}: gagal membekukan rekap periode {$this->batch->periode}: " . $e->getMessage());
+                }
             }
         } catch (\Throwable $e) {
             $this->batch->update([

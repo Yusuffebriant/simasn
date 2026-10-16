@@ -6,6 +6,7 @@ import Rekapitulasi from "./Rekapitulasi";
 import ExportLaporan from "./ExportLaporan";
 import DaftarPegawai from "./DaftarPegawai";
 import PerubahanBulanan from "./PerubahanBulanan";
+import IndeksKumulatif from "./IndeksKumulatif";
 import PeringatanData from "../../components/Admin/PeringatanData";
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
     { key: "riwayat", label: "Riwayat Import", component: RiwayatImport },
     { key: "rekap", label: "Rekapitulasi", component: Rekapitulasi },
     { key: "pegawai", label: "Daftar Pegawai", component: DaftarPegawai },
+    { key: "indeks", label: "Indeks Kumulatif", component: IndeksKumulatif },
     { key: "perubahan", label: "Perubahan Pegawai", component: PerubahanBulanan },
     { key: "export", label: "Export Laporan", component: ExportLaporan },
 ];
