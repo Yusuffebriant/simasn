@@ -126,14 +126,12 @@ function PreviewExcel({
                 )}
 
                 {periode && aktif && periode < aktif && (
-                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
                         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                         <span>
                             Periode yang dipilih lebih lama dari data yang sedang
-                            berlaku. Import ini akan menggantikan data sekarang
-                            dengan data lama, dan catatan perubahannya akan
-                            terbaca terbalik. Lanjutkan hanya jika memang
-                            disengaja.
+                            berlaku, jadi import ditolak. Pilih periode yang sama
+                            atau lebih baru.
                         </span>
                     </div>
                 )}
@@ -208,8 +206,14 @@ function PreviewExcel({
 
                 <button
                     onClick={next}
-                    disabled={!periode}
-                    title={periode ? "" : "Pilih bulan dan tahun dulu"}
+                    disabled={!periode || (aktif && periode < aktif)}
+                    title={
+                        !periode
+                            ? "Pilih bulan dan tahun dulu"
+                            : aktif && periode < aktif
+                                ? "Periode lebih lama dari data yang sedang berlaku"
+                                : ""
+                    }
                     className="px-5 py-2 bg-[#006A4E] text-white rounded disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     Lanjut Import

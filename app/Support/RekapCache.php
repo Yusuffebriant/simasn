@@ -85,7 +85,7 @@ class RekapCache
                 ->first();
 
             if ($beku !== null) {
-                return $beku->payload;
+                return UrutanInstansi::untukArsip($name, $beku->payload);
             }
         }
 

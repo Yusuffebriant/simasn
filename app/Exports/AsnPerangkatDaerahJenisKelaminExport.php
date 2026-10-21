@@ -81,27 +81,27 @@ class AsnPerangkatDaerahJenisKelaminExport implements FromArray, WithEvents
     ];
 
     protected static array $lembagaLainList = [
-        'satpol_pp' => 'Satuan Polisi Pamong Praja',
         'inspektorat' => 'Inspektorat',
-        'setwan' => 'Sekretariat DPRD',
         'rsud' => 'RSUD Kota Yogyakarta',
+        'satpol_pp' => 'Satuan Polisi Pamong Praja',
+        'setwan' => 'Sekretariat DPRD',
     ];
 
     protected static array $kemantrenList = [
-        'TEGALREJO',
-        'JETIS',
-        'GONDOKUSUMAN',
         'DANUREJAN',
         'GEDONGTENGEN',
-        'NGAMPILAN',
-        'WIROBRAJAN',
-        'MANTRIJERON',
-        'KRATON',
+        'GONDOKUSUMAN',
         'GONDOMANAN',
-        'PAKUALAMAN',
-        'MERGANGSAN',
-        'UMBULHARJO',
+        'JETIS',
         'KOTAGEDE',
+        'KRATON',
+        'MANTRIJERON',
+        'MERGANGSAN',
+        'NGAMPILAN',
+        'PAKUALAMAN',
+        'TEGALREJO',
+        'UMBULHARJO',
+        'WIROBRAJAN',
     ];
 
     public function __construct()

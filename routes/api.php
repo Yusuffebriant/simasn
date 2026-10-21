@@ -328,6 +328,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
         // ---- INDEKS KUMULATIF (Januari s.d. bulan terakhir diupload) ----
         Route::get('/indeks-kumulatif', [IndeksKumulatifController::class, 'index']);
+        Route::get('/indeks-kumulatif/export', [IndeksKumulatifController::class, 'export']);
 
         // ---- PEGAWAI CRUD ----
         Route::apiResource('pegawai', PegawaiController::class)

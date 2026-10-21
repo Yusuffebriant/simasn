@@ -29,20 +29,20 @@ class PppkKemantrenPendidikanExport implements FromArray, WithEvents
     protected array $rows;
 
     protected static array $kemantrenList = [
-        'TEGALREJO',
-        'JETIS',
-        'GONDOKUSUMAN',
         'DANUREJAN',
         'GEDONGTENGEN',
-        'NGAMPILAN',
-        'WIROBRAJAN',
-        'MANTRIJERON',
-        'KRATON',
+        'GONDOKUSUMAN',
         'GONDOMANAN',
-        'PAKUALAMAN',
-        'MERGANGSAN',
-        'UMBULHARJO',
+        'JETIS',
         'KOTAGEDE',
+        'KRATON',
+        'MANTRIJERON',
+        'MERGANGSAN',
+        'NGAMPILAN',
+        'PAKUALAMAN',
+        'TEGALREJO',
+        'UMBULHARJO',
+        'WIROBRAJAN',
     ];
 
     // Label kolom pakai chartLabel dari PENDIDIKAN_LIST (pendidikanList.js),

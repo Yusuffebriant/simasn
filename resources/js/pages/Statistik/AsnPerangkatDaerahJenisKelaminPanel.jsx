@@ -50,16 +50,16 @@ const BADAN_LIST = [
 ];
 
 const LEMBAGA_LAIN_LIST = [
-    { key: "satpol_pp", label: "Satuan Polisi Pamong Praja" },
     { key: "inspektorat", label: "Inspektorat" },
-    { key: "setwan", label: "Sekretariat DPRD" },
     { key: "rsud", label: "RSUD Kota Yogyakarta" },
+    { key: "satpol_pp", label: "Satuan Polisi Pamong Praja" },
+    { key: "setwan", label: "Sekretariat DPRD" },
 ];
 
 const KEMANTREN_LIST = [
-    "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
-    "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
-    "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
+    "DANUREJAN", "GEDONGTENGEN", "GONDOKUSUMAN", "GONDOMANAN", "JETIS",
+    "KOTAGEDE", "KRATON", "MANTRIJERON", "MERGANGSAN", "NGAMPILAN",
+    "PAKUALAMAN", "TEGALREJO", "UMBULHARJO", "WIROBRAJAN",
 ];
 
 // Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris Kemantren.
@@ -151,7 +151,7 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
                 if (!cancelled) {
                     setError(
                         err?.message ||
-                            "Gagal memuat data ASN Perangkat Daerah berdasarkan jenis kelamin."
+                        "Gagal memuat data ASN Perangkat Daerah berdasarkan jenis kelamin."
                     );
                 }
             } finally {
@@ -187,86 +187,86 @@ function AsnPerangkatDaerahJenisKelaminPanel() {
     // yang dihitung tapi disembunyikan dari tabel.
     const groupRows = pd
         ? [
-              {
-                  label: "Sekretariat Daerah & Bagian",
-                  ...sumGroup(["sekretariat_daerah", ...BAGIAN_LIST.map((b) => b.key)]),
-              },
-              { label: "Dinas", ...sumGroup(DINAS_LIST.map((d) => d.key)) },
-              { label: "Badan Daerah", ...sumGroup(BADAN_LIST.map((b) => b.key)) },
-              { label: "Lembaga Lain", ...sumGroup(LEMBAGA_LAIN_LIST.map((l) => l.key)) },
-              {
-                  label: "Kemantren",
-                  laki_laki: pd.kemantren?.laki_laki || 0,
-                  perempuan: pd.kemantren?.perempuan || 0,
-                  total: pd.kemantren?.total || 0,
-              },
-              {
-                  label: "Lainnya / Belum Terpetakan",
-                  laki_laki: pd.lainnya?.laki_laki || 0,
-                  perempuan: pd.lainnya?.perempuan || 0,
-                  total: pd.lainnya?.total || 0,
-              },
-          ]
+            {
+                label: "Sekretariat Daerah & Bagian",
+                ...sumGroup(["sekretariat_daerah", ...BAGIAN_LIST.map((b) => b.key)]),
+            },
+            { label: "Dinas", ...sumGroup(DINAS_LIST.map((d) => d.key)) },
+            { label: "Badan Daerah", ...sumGroup(BADAN_LIST.map((b) => b.key)) },
+            { label: "Lembaga Lain", ...sumGroup(LEMBAGA_LAIN_LIST.map((l) => l.key)) },
+            {
+                label: "Kemantren",
+                laki_laki: pd.kemantren?.laki_laki || 0,
+                perempuan: pd.kemantren?.perempuan || 0,
+                total: pd.kemantren?.total || 0,
+            },
+            {
+                label: "Lainnya / Belum Terpetakan",
+                laki_laki: pd.lainnya?.laki_laki || 0,
+                perempuan: pd.lainnya?.perempuan || 0,
+                total: pd.lainnya?.total || 0,
+            },
+        ]
         : [];
 
     const sekretariatRows = pd
         ? [
-              {
-                  label: "Sekretariat Daerah",
-                  laki_laki: pd.sekretariat_daerah.laki_laki,
-                  perempuan: pd.sekretariat_daerah.perempuan,
-                  total: pd.sekretariat_daerah.total,
-              },
-              ...BAGIAN_LIST.map((b) => ({
-                  label: b.label,
-                  laki_laki: pd[b.key].laki_laki,
-                  perempuan: pd[b.key].perempuan,
-                  total: pd[b.key].total,
-              })),
-          ]
+            {
+                label: "Sekretariat Daerah",
+                laki_laki: pd.sekretariat_daerah.laki_laki,
+                perempuan: pd.sekretariat_daerah.perempuan,
+                total: pd.sekretariat_daerah.total,
+            },
+            ...BAGIAN_LIST.map((b) => ({
+                label: b.label,
+                laki_laki: pd[b.key].laki_laki,
+                perempuan: pd[b.key].perempuan,
+                total: pd[b.key].total,
+            })),
+        ]
         : [];
 
     const dinasRows = pd
         ? DINAS_LIST.map((d) => ({
-              label: d.label,
-              laki_laki: pd[d.key].laki_laki,
-              perempuan: pd[d.key].perempuan,
-              total: pd[d.key].total,
-          }))
+            label: d.label,
+            laki_laki: pd[d.key].laki_laki,
+            perempuan: pd[d.key].perempuan,
+            total: pd[d.key].total,
+        }))
         : [];
 
     const badanRows = pd
         ? BADAN_LIST.map((b) => ({
-              label: b.label,
-              laki_laki: pd[b.key].laki_laki,
-              perempuan: pd[b.key].perempuan,
-              total: pd[b.key].total,
-          }))
+            label: b.label,
+            laki_laki: pd[b.key].laki_laki,
+            perempuan: pd[b.key].perempuan,
+            total: pd[b.key].total,
+        }))
         : [];
 
     const lembagaLainRows = pd
         ? LEMBAGA_LAIN_LIST.map((l) => ({
-              label: l.label,
-              laki_laki: pd[l.key].laki_laki,
-              perempuan: pd[l.key].perempuan,
-              total: pd[l.key].total,
-          }))
+            label: l.label,
+            laki_laki: pd[l.key].laki_laki,
+            perempuan: pd[l.key].perempuan,
+            total: pd[l.key].total,
+        }))
         : [];
 
     const kemantrenRows = pd
         ? KEMANTREN_LIST.map((nama) => {
-              const detail = pd.kemantren.detail?.[nama] || {
-                  total: 0,
-                  laki_laki: 0,
-                  perempuan: 0,
-              };
-              return {
-                  label: `Kemantren ${toTitleCase(nama)}`,
-                  laki_laki: detail.laki_laki,
-                  perempuan: detail.perempuan,
-                  total: detail.total,
-              };
-          })
+            const detail = pd.kemantren.detail?.[nama] || {
+                total: 0,
+                laki_laki: 0,
+                perempuan: 0,
+            };
+            return {
+                label: `Kemantren ${toTitleCase(nama)}`,
+                laki_laki: detail.laki_laki,
+                perempuan: detail.perempuan,
+                total: detail.total,
+            };
+        })
         : [];
 
     return (

@@ -431,16 +431,28 @@ class PegawaiNormalizer
         )->id;
     }
 
+    /**
+     * Kosong dianggap aktif (kolom memang sering tidak diisi). Nilai terisi
+     * yang tidak dikenal DITOLAK (InvalidArgumentException), supaya barisnya
+     * masuk import_batch_errors dan tidak diam-diam dihitung sebagai aktif.
+     */
     public function resolveStatusAktif(?string $raw): string
     {
         $val = strtoupper(trim((string) $raw));
+
+        if ($val === '') {
+            return 'aktif';
+        }
 
         return match ($val) {
             'AKTIF' => 'aktif',
             'PENSIUN' => 'pensiun',
             'MUTASI KELUAR', 'MUTASI' => 'mutasi_keluar',
             'MENINGGAL' => 'meninggal',
-            default => 'aktif',
+            default => throw new \InvalidArgumentException(
+                "KEDUDUKAN_KEPEGAWAIAN \"" . trim((string) $raw) . "\" tidak dikenali "
+                . '(yang dikenali: AKTIF, PENSIUN, MUTASI KELUAR, MENINGGAL)'
+            ),
         };
     }
 

@@ -34,20 +34,20 @@ class AsnKemantrenPendidikanExport implements FromArray, WithEvents
     // HARUS sama persis (nama & urutan) dengan KEMANTREN_LIST di
     // resources/js/pages/Statistik/AsnKemantrenPendidikanPanel.jsx.
     protected static array $kemantrenList = [
-        'TEGALREJO',
-        'JETIS',
-        'GONDOKUSUMAN',
         'DANUREJAN',
         'GEDONGTENGEN',
-        'NGAMPILAN',
-        'WIROBRAJAN',
-        'MANTRIJERON',
-        'KRATON',
+        'GONDOKUSUMAN',
         'GONDOMANAN',
-        'PAKUALAMAN',
-        'MERGANGSAN',
-        'UMBULHARJO',
+        'JETIS',
         'KOTAGEDE',
+        'KRATON',
+        'MANTRIJERON',
+        'MERGANGSAN',
+        'NGAMPILAN',
+        'PAKUALAMAN',
+        'TEGALREJO',
+        'UMBULHARJO',
+        'WIROBRAJAN',
     ];
 
     // Label kolom memakai chartLabel dari PENDIDIKAN_LIST

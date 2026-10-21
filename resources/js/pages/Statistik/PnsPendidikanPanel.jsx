@@ -1,19 +1,79 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { Download, LoaderCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import { ErrorBox } from "./components/StatUi";
-import ExportExcelButton from "./components/ExportExcelButton";
-import { PENDIDIKAN_LIST } from "./pendidikanList";
+import KelurahanRekapTable from "./components/KelurahanRekapTable";
 
-// PNS Berdasarkan Tingkat Pendidikan dan Jenis Kelamin (hanya PNS aktif
-// — lihat statistikPnsPendidikan() di StatistikService). Tabelnya
-// mengikuti pola yang sama seperti StrukturalPanel/FungsionalPanel &
-// tabel Rekapitulasi ASN di halaman Admin: No / label / L / P / Total,
-// dengan baris Total di tfoot.
-function PnsPendidikanPanel() {
+// Ambil nama file dari header Content-Disposition kalau ada, dengan
+// fallback ke nama default — pola sama seperti filenameFromResponse() di
+// RekapGolonganTable.jsx.
+function filenameFromResponse(res, fallback) {
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
+
+// PNS Kelurahan, dikelompokkan berdasarkan Kemantren induknya (5.03.019).
+// Scope: PNS aktif (status_kepegawaian = 'PNS') — lihat statistikPnsKelurahan()
+// di StatistikService & endpoint GET /statistik/pns-kelurahan. Ditampilkan
+// sebagai tabel rekap (satu baris per Kelurahan, dikelompokkan per
+// Kemantren dengan baris subtotal), mengikuti bentuk & layout kolom
+// PnsKelurahanExport.php (No, Kemantren, Kelurahan, L, P, Jumlah PNS) —
+// menggantikan tampilan card & grafik sebelumnya. Rincian gender diambil
+// dari kelurahan_gender pada response (sebelumnya cuma dipakai export
+// Excel, sekarang juga dipakai tabel ini).
+const KEMANTREN_KELURAHAN_MAP = {
+    DANUREJAN: ["BAUSASRAN", "SURYATMAJAN", "TEGALPANGGUNG"],
+    GEDONGTENGEN: ["PRINGGOKUSUMAN", "SOSROMENDURAN"],
+    GONDOKUSUMAN: ["BACIRO", "DEMANGAN", "KLITREN", "KOTABARU", "TERBAN"],
+    GONDOMANAN: ["NGUPASAN", "PRAWIRODIRJAN"],
+    JETIS: ["BUMIJO", "COKRODININGRATAN", "GOWONGAN"],
+    KOTAGEDE: ["PRENGGAN", "PURBAYAN", "REJOWINANGUN"],
+    KRATON: ["KADIPATEN", "PANEMBAHAN", "PATEHAN"],
+    MANTRIJERON: ["GEDONGKIWO", "MANTRIJERON", "SURYODININGRATAN"],
+    MERGANGSAN: ["BRONTOKUSUMAN", "KEPARAKAN", "WIROGUNAN"],
+    NGAMPILAN: ["NGAMPILAN", "NOTOPRAJAN"],
+    PAKUALAMAN: ["GUNUNGKETUR", "PURWOKINANTI"],
+    TEGALREJO: ["BENER", "KARANGWARU", "KRICAK", "TEGALREJO"],
+    UMBULHARJO: [
+        "GIWANGAN", "MUJAMUJU", "PANDEYAN", "SEMAKI", "SOROSUTAN", "TAHUNAN", "WARUNGBOTO",
+    ],
+    WIROBRAJAN: ["PAKUNCEN", "PATANGPULUHAN", "WIROBRAJAN"],
+};
+
+function PnsKelurahanPanel() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [exporting, setExporting] = useState(false);
+
+    async function handleExport() {
+        setExporting(true);
+        setError(null);
+
+        try {
+            const res = await apiFetch("/statistik/pns-kelurahan/export");
+
+            if (!res.ok) {
+                throw new Error("Gagal mengekspor data PNS Kelurahan.");
+            }
+
+            const blob = await res.blob();
+            const filename = filenameFromResponse(res, "pns-kelurahan.xlsx");
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err?.message || "Gagal mengekspor data PNS Kelurahan.");
+        } finally {
+            setExporting(false);
+        }
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -23,22 +83,22 @@ function PnsPendidikanPanel() {
             setError(null);
 
             try {
-                const res = await apiFetch("/statistik/pns-pendidikan");
+                const res = await apiFetch("/statistik/pns-kelurahan");
 
                 if (!res.ok) {
-                    throw new Error(
-                        "Gagal memuat data PNS berdasarkan tingkat pendidikan."
-                    );
+                    throw new Error("Gagal memuat data PNS Kelurahan.");
                 }
 
                 const json = await res.json();
-                if (!cancelled) setData(json.data);
+                // StatistikPnsKelurahanController mengembalikan hasil service
+                // apa adanya (tanpa pembungkus { success, data }) — sama
+                // seperti controller *Kemantren lain. Dibaca toleran (json.data
+                // ?? json) supaya panel tidak pernah tampil kosong walau
+                // controllernya belum/tidak dibungkus { data }.
+                if (!cancelled) setData(json.data ?? json);
             } catch (err) {
                 if (!cancelled) {
-                    setError(
-                        err?.message ||
-                            "Gagal memuat data PNS berdasarkan tingkat pendidikan."
-                    );
+                    setError(err?.message || "Gagal memuat data PNS Kelurahan.");
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -51,88 +111,44 @@ function PnsPendidikanPanel() {
         };
     }, []);
 
-    // Baris tabel: satu baris per jenjang pendidikan (SD s.d. S3), tiap
-    // baris punya total, laki_laki, perempuan (langsung dari respons API).
-    const rows = data
-        ? PENDIDIKAN_LIST.map((p) => ({
-              key: p.key,
-              label: p.label,
-              ...data[p.key],
-          }))
-        : [];
-
-    const totalLakiLaki = rows.reduce((sum, r) => sum + (r.laki_laki || 0), 0);
-    const totalPerempuan = rows.reduce((sum, r) => sum + (r.perempuan || 0), 0);
-    const totalJumlah = data ? data.jumlah_pns : 0;
-
     return (
-        <div className="bg-white p-6 rounded-xl shadow">
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <div>
-                    <h3 className="text-lg font-bold text-[#172033]">
-                        PNS Berdasarkan Tingkat Pendidikan dan Jenis Kelamin
-                    </h3>
+                    <h2 className="text-[#172033] font-semibold text-lg">
+                        PNS Kelurahan
+                    </h2>
                     <p className="text-sm text-gray-500">
-                        Data PNS aktif per tingkat pendidikan, dipecah menurut jenis kelamin.
+                        {data
+                            ? `Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin. Jumlah PNS Kelurahan: ${data.jumlah_pns_kelurahan?.toLocaleString("id-ID")}.`
+                            : "Data PNS per Kelurahan, dikelompokkan menurut Kemantren dan jenis kelamin."}
                     </p>
                 </div>
 
-                <ExportExcelButton
-                    path="/statistik/pns-pendidikan/export"
-                    filename="pns-pendidikan.xlsx"
-                    errorMessage="Gagal mengekspor data PNS berdasarkan tingkat pendidikan."
-                    disabled={loading || !data}
-                    onError={setError}
-                />
+                <button
+                    onClick={handleExport}
+                    disabled={exporting || loading || !data}
+                    className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
+                >
+                    {exporting ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                        <Download size={16} />
+                    )}
+                    Export Excel
+                </button>
             </div>
 
-            {error && <ErrorBox message={error} />}
-
-            {loading && !data ? (
-                <div className="flex items-center justify-center gap-2 text-gray-500 py-12 text-sm">
-                    <LoaderCircle className="animate-spin" size={18} />
-                    Memuat data...
-                </div>
-            ) : data ? (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm border border-gray-200">
-                        <thead>
-                            <tr className="bg-gray-50">
-                                <th className="border px-3 py-2 text-left">No</th>
-                                <th className="border px-3 py-2 text-left">Tingkat Pendidikan</th>
-                                <th className="border px-2 py-2 text-center">L</th>
-                                <th className="border px-2 py-2 text-center">P</th>
-                                <th className="border px-2 py-2 text-center">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((row, i) => (
-                                <tr key={row.key} className="hover:bg-gray-50">
-                                    <td className="border px-3 py-2">{i + 1}</td>
-                                    <td className="border px-3 py-2">{row.label}</td>
-                                    <td className="border px-2 py-2 text-center">{row.laki_laki || 0}</td>
-                                    <td className="border px-2 py-2 text-center">{row.perempuan || 0}</td>
-                                    <td className="border px-2 py-2 text-center font-medium">{row.total || 0}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr className="bg-gray-100 font-bold">
-                                <td colSpan={2} className="border px-3 py-2">Total</td>
-                                <td className="border px-2 py-2 text-center">{totalLakiLaki}</td>
-                                <td className="border px-2 py-2 text-center">{totalPerempuan}</td>
-                                <td className="border px-2 py-2 text-center">{totalJumlah}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            ) : (
-                <div className="text-center text-gray-400 py-12 text-sm">
-                    Tidak ada data untuk ditampilkan.
-                </div>
-            )}
+            <KelurahanRekapTable
+                kemantrenKelurahanMap={KEMANTREN_KELURAHAN_MAP}
+                data={data}
+                jumlahKey="jumlah_pns_kelurahan"
+                rowLabelSuffix="PNS"
+                loading={loading}
+                error={error}
+            />
         </div>
     );
 }
 
-export default PnsPendidikanPanel;
+export default PnsKelurahanPanel;

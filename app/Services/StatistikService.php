@@ -2085,20 +2085,20 @@ class StatistikService
         // 14 Kemantren — pola nama instansi 'KEMANTREN <NAMA>' sudah
         // diverifikasi di statistikAsnKemantrenPendidikan().
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         $perangkatDaerah = [];
@@ -2242,20 +2242,20 @@ class StatistikService
     public function statistikAsnKemantrenPendidikan(?string $periode = null): array
     {
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
@@ -2378,20 +2378,20 @@ class StatistikService
     public function statistikPnsKemantrenPendidikan(?string $periode = null): array
     {
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
@@ -2529,20 +2529,20 @@ class StatistikService
     public function statistikPppkKemantrenPendidikan(?string $periode = null): array
     {
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         $pendidikanList = ['SD', 'SLTP', 'SLTA', 'D I', 'D II', 'D III', 'D IV', 'S1', 'S2', 'S3'];
@@ -2684,20 +2684,20 @@ class StatistikService
     public function statistikPnsKemantrenGolongan(?string $periode = null): array
     {
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         $rows = Pegawai::asnPenuh()
@@ -2843,20 +2843,20 @@ class StatistikService
     public function statistikPppkKemantrenGolongan(?string $periode = null): array
     {
         $kemantrenList = [
-            'TEGALREJO',
-            'JETIS',
-            'GONDOKUSUMAN',
             'DANUREJAN',
             'GEDONGTENGEN',
-            'NGAMPILAN',
-            'WIROBRAJAN',
-            'MANTRIJERON',
-            'KRATON',
+            'GONDOKUSUMAN',
             'GONDOMANAN',
-            'PAKUALAMAN',
-            'MERGANGSAN',
-            'UMBULHARJO',
+            'JETIS',
             'KOTAGEDE',
+            'KRATON',
+            'MANTRIJERON',
+            'MERGANGSAN',
+            'NGAMPILAN',
+            'PAKUALAMAN',
+            'TEGALREJO',
+            'UMBULHARJO',
+            'WIROBRAJAN',
         ];
 
         // Daftar kode golongan PPPK, urut sesuai GolonganRuangSeeder dan
@@ -2982,23 +2982,22 @@ class StatistikService
 public function statistikPnsKelurahan(?string $periode = null): array
 {
     $kemantrenKelurahanMap = [
-        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
-        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
-        'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
-        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
-        'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
-        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
-        'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
-        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
-        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+        'DANUREJAN' => ['BAUSASRAN', 'SURYATMAJAN', 'TEGALPANGGUNG'],
+        'GEDONGTENGEN' => ['PRINGGOKUSUMAN', 'SOSROMENDURAN'],
+        'GONDOKUSUMAN' => ['BACIRO', 'DEMANGAN', 'KLITREN', 'KOTABARU', 'TERBAN'],
         'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
-        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
-        'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'KOTAGEDE' => ['PRENGGAN', 'PURBAYAN', 'REJOWINANGUN'],
+        'KRATON' => ['KADIPATEN', 'PANEMBAHAN', 'PATEHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'MANTRIJERON', 'SURYODININGRATAN'],
+        'MERGANGSAN' => ['BRONTOKUSUMAN', 'KEPARAKAN', 'WIROGUNAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'PAKUALAMAN' => ['GUNUNGKETUR', 'PURWOKINANTI'],
+        'TEGALREJO' => ['BENER', 'KARANGWARU', 'KRICAK', 'TEGALREJO'],
         'UMBULHARJO' => [
-            'SEMAKI', 'MUJAMUJU', 'TAHUNAN', 'WARUNGBOTO',
-            'PANDEYAN', 'SOROSUTAN', 'GIWANGAN',
+            'GIWANGAN', 'MUJAMUJU', 'PANDEYAN', 'SEMAKI', 'SOROSUTAN', 'TAHUNAN', 'WARUNGBOTO',
         ],
-        'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+        'WIROBRAJAN' => ['PAKUNCEN', 'PATANGPULUHAN', 'WIROBRAJAN'],
     ];
 
     $rows = Pegawai::asnPenuh()
@@ -3112,23 +3111,22 @@ public function statistikPnsKelurahan(?string $periode = null): array
 public function statistikPppkKelurahan(?string $periode = null): array
 {
     $kemantrenKelurahanMap = [
-        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
-        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
-        'GONDOKUSUMAN' => ['DEMANGAN', 'KOTABARU', 'KLITREN', 'BACIRO', 'TERBAN'],
-        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
-        'GEDONGTENGEN' => ['SOSROMENDURAN', 'PRINGGOKUSUMAN'],
-        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
-        'WIROBRAJAN' => ['PAKUNCEN', 'WIROBRAJAN', 'PATANGPULUHAN'],
-        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
-        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
+        'DANUREJAN' => ['BAUSASRAN', 'SURYATMAJAN', 'TEGALPANGGUNG'],
+        'GEDONGTENGEN' => ['PRINGGOKUSUMAN', 'SOSROMENDURAN'],
+        'GONDOKUSUMAN' => ['BACIRO', 'DEMANGAN', 'KLITREN', 'KOTABARU', 'TERBAN'],
         'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
-        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
-        'MERGANGSAN' => ['KEPARAKAN', 'WIROGUNAN', 'BRONTOKUSUMAN'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'KOTAGEDE' => ['PRENGGAN', 'PURBAYAN', 'REJOWINANGUN'],
+        'KRATON' => ['KADIPATEN', 'PANEMBAHAN', 'PATEHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'MANTRIJERON', 'SURYODININGRATAN'],
+        'MERGANGSAN' => ['BRONTOKUSUMAN', 'KEPARAKAN', 'WIROGUNAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'PAKUALAMAN' => ['GUNUNGKETUR', 'PURWOKINANTI'],
+        'TEGALREJO' => ['BENER', 'KARANGWARU', 'KRICAK', 'TEGALREJO'],
         'UMBULHARJO' => [
-            'SEMAKI', 'MUJAMUJU', 'TAHUNAN', 'WARUNGBOTO',
-            'PANDEYAN', 'SOROSUTAN', 'GIWANGAN',
+            'GIWANGAN', 'MUJAMUJU', 'PANDEYAN', 'SEMAKI', 'SOROSUTAN', 'TAHUNAN', 'WARUNGBOTO',
         ],
-        'KOTAGEDE' => ['REJOWINANGUN', 'PRENGGAN', 'PURBAYAN'],
+        'WIROBRAJAN' => ['PAKUNCEN', 'PATANGPULUHAN', 'WIROBRAJAN'],
     ];
 
     $rows = Pegawai::asnPenuh()

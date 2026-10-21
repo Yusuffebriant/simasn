@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Support\UrutanInstansi;
 
 class RekapService
 {
@@ -67,7 +68,7 @@ class RekapService
                 $data['jml_pria'] + $data['jml_wanita'];
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     public function rekapPendidikan(?string $periode = null): array
@@ -165,7 +166,7 @@ class RekapService
                 $data['jml_pria'] + $data['jml_wanita'] + $data['tidak_dikenali'];
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     public function rekapGolongan(?string $periode = null): array
@@ -288,7 +289,7 @@ class RekapService
             $data['pppk_total'] = array_sum($data['pppk']);
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     public function rekapJabatan(?string $periode = null): array
@@ -358,7 +359,7 @@ class RekapService
                 + $data['fungsional_tertentu'];
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     /**
@@ -1219,7 +1220,7 @@ class RekapService
             $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     /**
@@ -1271,7 +1272,7 @@ class RekapService
             $data['jml_total'] = $data['jml_pria'] + $data['jml_wanita'];
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     /**
@@ -1371,7 +1372,7 @@ class RekapService
             $data['pppk_total'] = array_sum($pppkAgg);
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     /**
@@ -1473,7 +1474,7 @@ class RekapService
             $data['pppk_total'] = array_sum($pppkAgg);
         }
 
-        return array_values($perInstansi);
+        return UrutanInstansi::abjad(array_values($perInstansi));
     }
 
     private const NAKES_LIST = [
@@ -1513,20 +1514,22 @@ class RekapService
      * tabel alamat_wilayah.
      */
     private const KEMANTREN_KELURAHAN_MAP = [
-        'MANTRIJERON' => ['GEDONGKIWO', 'SURYODININGRATAN', 'MANTRIJERON'],
-        'KRATON' => ['PATEHAN', 'PANEMBAHAN', 'KADIPATEN'],
-        'MERGANGSAN' => ['BRONTOKUSUMAN', 'WIROGUNAN', 'KEPARAKAN'],
-        'UMBULHARJO' => ['GIWANGAN', 'SOROSUTAN', 'PANDEYAN', 'WARUNGBOTO', 'TAHUNAN', 'MUJA-MUJU', 'SEMAKI'],
-        'KOTAGEDE' => ['PRENGGAN', 'PURBAYAN', 'REJOWINANGUN'],
-        'GONDOKUSUMAN' => ['BACIRO', 'DEMANGAN', 'KLITREN', 'KOTABARU', 'TERBAN'],
-        'DANUREJAN' => ['SURYATMAJAN', 'TEGALPANGGUNG', 'BAUSASRAN'],
-        'PAKUALAMAN' => ['PURWOKINANTI', 'GUNUNGKETUR'],
-        'GONDOMANAN' => ['PRAWIRODIRJAN', 'NGUPASAN'],
-        'NGAMPILAN' => ['NOTOPRAJAN', 'NGAMPILAN'],
-        'WIROBRAJAN' => ['PATANGPULUHAN', 'WIROBRAJAN', 'PAKUNCEN'],
+        'DANUREJAN' => ['BAUSASRAN', 'SURYATMAJAN', 'TEGALPANGGUNG'],
         'GEDONGTENGEN' => ['PRINGGOKUSUMAN', 'SOSROMENDURAN'],
-        'JETIS' => ['BUMIJO', 'GOWONGAN', 'COKRODININGRATAN'],
-        'TEGALREJO' => ['KRICAK', 'KARANGWARU', 'TEGALREJO', 'BENER'],
+        'GONDOKUSUMAN' => ['BACIRO', 'DEMANGAN', 'KLITREN', 'KOTABARU', 'TERBAN'],
+        'GONDOMANAN' => ['NGUPASAN', 'PRAWIRODIRJAN'],
+        'JETIS' => ['BUMIJO', 'COKRODININGRATAN', 'GOWONGAN'],
+        'KOTAGEDE' => ['PRENGGAN', 'PURBAYAN', 'REJOWINANGUN'],
+        'KRATON' => ['KADIPATEN', 'PANEMBAHAN', 'PATEHAN'],
+        'MANTRIJERON' => ['GEDONGKIWO', 'MANTRIJERON', 'SURYODININGRATAN'],
+        'MERGANGSAN' => ['BRONTOKUSUMAN', 'KEPARAKAN', 'WIROGUNAN'],
+        'NGAMPILAN' => ['NGAMPILAN', 'NOTOPRAJAN'],
+        'PAKUALAMAN' => ['GUNUNGKETUR', 'PURWOKINANTI'],
+        'TEGALREJO' => ['BENER', 'KARANGWARU', 'KRICAK', 'TEGALREJO'],
+        'UMBULHARJO' => [
+            'GIWANGAN', 'MUJA-MUJU', 'PANDEYAN', 'SEMAKI', 'SOROSUTAN', 'TAHUNAN', 'WARUNGBOTO',
+        ],
+        'WIROBRAJAN' => ['PAKUNCEN', 'PATANGPULUHAN', 'WIROBRAJAN'],
     ];
 
     /**

@@ -23,7 +23,7 @@ use Spatie\Activitylog\Models\Activity;
  *  - catatan perubahan pegawai, dan catatan baris gagal
  *  - rekap beku (snapshot) periode ini, kalau tidak ada import lain
  *    dengan periode yang sama
- *  - file cadangan sebelum import, dan file upload yang tersisa
+ *  - file upload yang tersisa (CSV cadangan sebelum import TIDAK dihapus)
  *  - job import yang masih antre untuk batch ini
  *  - cache rekap
  *
@@ -60,7 +60,6 @@ class ImportBatchCleaner
     {
         $batchId = $batch->id;
         $periode = $batch->periode;
-        $backupPath = $batch->backup_path;
 
         // Job antre (belum/tidak lagi dikerjakan) milik batch ini.
         $jobAntre = $this->jobBatch($batch)->reject(fn ($j) => $this->masihReserved($j));
@@ -101,9 +100,6 @@ class ImportBatchCleaner
         });
 
         // File dihapus setelah database beres (kalau transaksi gagal, file tetap ada).
-        if ($backupPath) {
-            Storage::delete($backupPath);
-        }
         foreach ($fileUpload as $path) {
             Storage::delete($path);
         }
@@ -125,14 +121,13 @@ class ImportBatchCleaner
     /**
      * Hitung data sisa: data yang tidak terhubung ke riwayat import mana pun
      * (mis. pegawai dari riwayat yang dulu dihapus saat aplikasi belum
-     * menghapus total).
+     * menghapus total). File CSV cadangan sengaja tidak ikut dihitung/dihapus.
      */
     public function hitungSisa(): array
     {
         return [
             'pegawai' => Pegawai::withTrashed()->whereNull('raw_import_id')->count(),
             'snapshot' => RekapSnapshotData::whereNotIn('periode', $this->periodeAda())->count(),
-            'file_cadangan' => count($this->fileCadanganYatim()),
             'file_upload' => count($this->fileUploadYatim()),
         ];
     }
@@ -143,7 +138,7 @@ class ImportBatchCleaner
      */
     public function hapusSisa(): array
     {
-        $hasil = ['pegawai' => 0, 'snapshot' => 0, 'file_cadangan' => 0, 'file_upload' => 0];
+        $hasil = ['pegawai' => 0, 'snapshot' => 0, 'file_upload' => 0];
 
         DB::transaction(function () use (&$hasil) {
             $hasil['pegawai'] = $this->hapusPegawai(
@@ -161,10 +156,6 @@ class ImportBatchCleaner
             }
         });
 
-        foreach ($this->fileCadanganYatim() as $path) {
-            Storage::delete($path);
-            $hasil['file_cadangan']++;
-        }
         foreach ($this->fileUploadYatim() as $path) {
             Storage::delete($path);
             $hasil['file_upload']++;
@@ -202,14 +193,6 @@ class ImportBatchCleaner
     private function periodeAda(): array
     {
         return ImportBatch::query()->pluck('periode')->unique()->values()->all();
-    }
-
-    /** File backups/* yang tidak dipakai batch mana pun. */
-    private function fileCadanganYatim(): array
-    {
-        $dipakai = ImportBatch::query()->whereNotNull('backup_path')->pluck('backup_path')->all();
-
-        return array_values(array_diff(Storage::files('backups'), $dipakai));
     }
 
     /** File imports/* yang tidak dirujuk job antre mana pun. */

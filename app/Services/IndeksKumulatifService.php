@@ -31,6 +31,71 @@ class IndeksKumulatifService
         'jfu' => ['label' => 'JF Pelaksana (JFU)', 'snapshot' => 'jf-pelaksana', 'metode' => 'rekapJfPelaksana'],
     ];
 
+    /**
+     * Ubah deret jumlah per bulan menjadi nilai sesuai $mode:
+     *  - jumlah    : jumlah apa adanya
+     *  - selisih   : jumlah bulan ini - jumlah bulan sebelumnya
+     *  - kumulatif : jumlah bulan ini - jumlah bulan pertama
+     *  - indeks    : berantai, indeks bulan lalu x (jumlah bulan ini / jumlah
+     *                bulan lalu), bulan pertama = 100
+     *
+     * Bulan tanpa data (null) dilewati; pembanding "bulan lalu" adalah bulan
+     * terdekat sebelumnya yang punya data. Aturannya HARUS sama dengan
+     * hitungDeret() di resources/js/pages/Admin/IndeksKumulatif.jsx.
+     *
+     * @param  array<int, int|null>  $nilai
+     * @return array<int, int|float|null>
+     */
+    public static function hitungDeret(array $nilai, string $mode): array
+    {
+        $awal = null;
+        foreach ($nilai as $v) {
+            if ($v !== null) {
+                $awal = $v;
+                break;
+            }
+        }
+
+        $sebelumnya = null;
+        $indeksSebelumnya = null;
+        $hasil = [];
+
+        foreach ($nilai as $v) {
+            if ($v === null) {
+                $hasil[] = null;
+                continue;
+            }
+
+            $h = null;
+
+            if ($mode === 'jumlah') {
+                $h = $v;
+            } elseif ($mode === 'selisih') {
+                $h = $sebelumnya === null ? null : $v - $sebelumnya;
+            } elseif ($mode === 'kumulatif') {
+                $h = $v - $awal;
+            } elseif ($mode === 'indeks' && $awal > 0) {
+                if ($sebelumnya === null) {
+                    $idx = 100.0;
+                } elseif ($sebelumnya > 0 && $indeksSebelumnya !== null) {
+                    $idx = $indeksSebelumnya * ($v / $sebelumnya);
+                } else {
+                    // Jumlah bulan lalu 0: tidak bisa dibagi, hitung langsung
+                    // terhadap bulan pertama (hasilnya sama secara matematis).
+                    $idx = ($v / $awal) * 100;
+                }
+
+                $indeksSebelumnya = $idx;
+                $h = $idx;
+            }
+
+            $sebelumnya = $v;
+            $hasil[] = $h;
+        }
+
+        return $hasil;
+    }
+
     /** Tahun-tahun yang punya data (import selesai atau snapshot), terbaru dulu. */
     public function tahunTersedia(): array
     {
@@ -153,8 +218,9 @@ class IndeksKumulatifService
     }
 
     /**
-     * Gabungkan agregat tiap bulan menjadi baris-per-kategori. Urutan
-     * kategori mengikuti urutan kemunculan di payload (= urutan laporan).
+     * Gabungkan agregat tiap bulan menjadi baris-per-kategori, diurutkan
+     * menurut abjad (A-Z, tidak membedakan huruf besar/kecil). Pengurutan
+     * dilakukan di sini supaya tampilan di layar dan file Excel pasti sama.
      * Bulan tanpa data bernilai null; kategori yang tidak muncul di bulan
      * yang ada datanya bernilai 0.
      */
@@ -167,8 +233,13 @@ class IndeksKumulatifService
             }
         }
 
+        // Kunci array angka (mis. "1") otomatis menjadi int di PHP, jadi
+        // dipaksa string dulu sebelum diurutkan.
+        $urut = array_map('strval', array_keys($kategori));
+        usort($urut, 'strnatcasecmp');
+
         $baris = [];
-        foreach (array_keys($kategori) as $nama) {
+        foreach ($urut as $nama) {
             $baris[] = [
                 'nama' => (string) $nama,
                 'nilai' => array_map(

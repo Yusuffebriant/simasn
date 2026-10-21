@@ -11,13 +11,13 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pegawai;
 use App\Services\ImportRekonsiliasi;
 use App\Services\RekapSnapshotService;
 use App\Services\PerubahanPegawaiService;
+use App\Support\RekapCache;
 
 class ProcessPegawaiImport implements ShouldQueue
 {
@@ -186,38 +186,6 @@ class ProcessPegawaiImport implements ShouldQueue
                 'total_baris' => $this->batch->berhasil + $this->batch->gagal,
             ]);
 
-            // Hapus cache rekap setelah seluruh proses import selesai.
-            //
-            // FIX: sebelumnya hanya 3 key (agama/pendidikan/jabatan) yang
-            // dihapus, padahal RekapController meng-cache SEMUA endpoint
-            // rekap (termasuk dashboard) per periode selama 10 menit. Ini
-            // yang menyebabkan angka di Dashboard (mis. kartu Generasi,
-            // tabel Usia, grafik Golongan, dll.) bisa tampak "salah
-            // hitung"/tidak konsisten segera setelah import baru selesai —
-            // padahal cuma menyajikan data cache lama sampai TTL-nya habis.
-            // Sekarang semua key rekap per periode ikut dihapus supaya
-            // seluruh halaman rekap langsung menampilkan data terbaru.
-            foreach (
-                [
-                    'rekap.dashboard',
-                    'rekap.agama',
-                    'rekap.pendidikan',
-                    'rekap.jabatan',
-                    'rekap.golongan',
-                    'rekap.eselon-golongan-gender',
-                    'rekap.nakes',
-                    'rekap.sd',
-                    'rekap.smp',
-                    'rekap.kecamatan',
-                    'rekap.struktur-golongan',
-                    'rekap.struktur-eselon',
-                    'rekap.jf-tertentu',
-                    'rekap.jf-pelaksana',
-                ] as $rekapKey
-            ) {
-                Cache::forget("{$rekapKey}.{$this->batch->periode}");
-            }
-
             // Bekukan rekap periode ini sebagai arsip bulanan. Menu Indeks
             // Kumulatif membaca arsip ini untuk membandingkan Januari s.d.
             // bulan yang baru diupload, jadi harus ada tiap import selesai
@@ -242,6 +210,14 @@ class ProcessPegawaiImport implements ShouldQueue
             // Hapus file sementara setelah selesai diproses
             // (berhasil ataupun gagal)
             Storage::delete($this->filePath);
+
+            // Ganti versi cache rekap supaya SEMUA cache rekap lama tidak
+            // terpakai lagi (menggantikan daftar Cache::forget manual yang
+            // dulu melewatkan beberapa key). Di finally, jadi berlaku juga
+            // kalau import gagal di tengah jalan dan data sudah sebagian
+            // berubah. Setelah pembekuan snapshot, supaya periodeAktif()
+            // yang baru ikut terbaca.
+            RekapCache::bump();
         }
     }
 }

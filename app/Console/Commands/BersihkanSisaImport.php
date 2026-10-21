@@ -10,7 +10,7 @@ class BersihkanSisaImport extends Command
 {
     protected $signature = 'import:bersihkan-sisa {--force : Lewati pertanyaan konfirmasi}';
 
-    protected $description = 'Hapus permanen data pegawai dan file sisa yang tidak terhubung ke riwayat import mana pun';
+    protected $description = 'Hapus permanen data pegawai dan file upload sisa yang tidak terhubung ke riwayat import mana pun';
 
     public function handle(ImportBatchCleaner $cleaner): int
     {
@@ -25,7 +25,6 @@ class BersihkanSisaImport extends Command
         $this->table(['Data sisa', 'Jumlah'], [
             ['Pegawai tanpa riwayat import', $sisa['pegawai']],
             ['Rekap beku periode tanpa import', $sisa['snapshot']],
-            ['File cadangan yatim', $sisa['file_cadangan']],
             ['File upload yatim', $sisa['file_upload']],
         ]);
 
@@ -43,8 +42,8 @@ class BersihkanSisaImport extends Command
         $hasil = $cleaner->hapusSisa();
 
         $this->info(sprintf(
-            'Selesai: %d pegawai, %d rekap beku, %d file cadangan, %d file upload dihapus.',
-            $hasil['pegawai'], $hasil['snapshot'], $hasil['file_cadangan'], $hasil['file_upload']
+            'Selesai: %d pegawai, %d rekap beku, %d file upload dihapus. (CSV cadangan tidak dihapus.)',
+            $hasil['pegawai'], $hasil['snapshot'], $hasil['file_upload']
         ));
 
         return self::SUCCESS;

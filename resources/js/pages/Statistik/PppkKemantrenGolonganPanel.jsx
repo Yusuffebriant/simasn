@@ -17,9 +17,9 @@ import ExportExcelButton from "./components/ExportExcelButton";
 // PppkKemantrenPendidikanPanel.jsx — menggantikan tampilan card & grafik
 // sebelumnya. Kolomnya banyak, jadi tabel digeser horizontal.
 const KEMANTREN_LIST = [
-    "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
-    "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
-    "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
+    "DANUREJAN", "GEDONGTENGEN", "GONDOKUSUMAN", "GONDOMANAN", "JETIS",
+    "KOTAGEDE", "KRATON", "MANTRIJERON", "MERGANGSAN", "NGAMPILAN",
+    "PAKUALAMAN", "TEGALREJO", "UMBULHARJO", "WIROBRAJAN",
 ];
 
 // Kolom golongan PPPK per kode, urut & selengkap GolonganRuangSeeder
@@ -76,7 +76,7 @@ function PppkKemantrenGolonganPanel() {
                 if (!cancelled) {
                     setError(
                         err?.message ||
-                            "Gagal memuat data PPPK Kemantren berdasarkan golongan dan jenis kelamin."
+                        "Gagal memuat data PPPK Kemantren berdasarkan golongan dan jenis kelamin."
                     );
                 }
             } finally {
@@ -95,21 +95,21 @@ function PppkKemantrenGolonganPanel() {
     // Jumlah L/P/Total — pola sama seperti row di PnsKemantrenGolonganPanel.jsx.
     const rows = data
         ? KEMANTREN_LIST.map((nama) => {
-              const kemantren = data.kemantren[nama] || {
-                  total: 0,
-                  laki_laki: {},
-                  perempuan: {},
-              };
+            const kemantren = data.kemantren[nama] || {
+                total: 0,
+                laki_laki: {},
+                perempuan: {},
+            };
 
-              return {
-                  label: toTitleCase(nama),
-                  laki_laki: kemantren.laki_laki,
-                  perempuan: kemantren.perempuan,
-                  jumlah_laki_laki: kemantren.laki_laki?.total || 0,
-                  jumlah_perempuan: kemantren.perempuan?.total || 0,
-                  jumlah_total: kemantren.total || 0,
-              };
-          })
+            return {
+                label: toTitleCase(nama),
+                laki_laki: kemantren.laki_laki,
+                perempuan: kemantren.perempuan,
+                jumlah_laki_laki: kemantren.laki_laki?.total || 0,
+                jumlah_perempuan: kemantren.perempuan?.total || 0,
+                jumlah_total: kemantren.total || 0,
+            };
+        })
         : [];
 
     return (

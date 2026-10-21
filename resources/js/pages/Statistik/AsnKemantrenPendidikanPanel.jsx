@@ -16,9 +16,9 @@ import { PENDIDIKAN_LIST } from "./pendidikanList";
 // pola sama seperti RekapKategoriTable di halaman Rekapitulasi ASN Admin
 // (baris = instansi, kolom = kategori), bukan grid StatCard per jenjang.
 const KEMANTREN_LIST = [
-    "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
-    "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
-    "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
+    "DANUREJAN", "GEDONGTENGEN", "GONDOKUSUMAN", "GONDOMANAN", "JETIS",
+    "KOTAGEDE", "KRATON", "MANTRIJERON", "MERGANGSAN", "NGAMPILAN",
+    "PAKUALAMAN", "TEGALREJO", "UMBULHARJO", "WIROBRAJAN",
 ];
 
 // Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris Kemantren.
@@ -55,7 +55,7 @@ function AsnKemantrenPendidikanPanel() {
                 if (!cancelled) {
                     setError(
                         err?.message ||
-                            "Gagal memuat data ASN Kemantren berdasarkan tingkat pendidikan."
+                        "Gagal memuat data ASN Kemantren berdasarkan tingkat pendidikan."
                     );
                 }
             } finally {
@@ -74,12 +74,12 @@ function AsnKemantrenPendidikanPanel() {
     // Total baris (jumlah seluruh jenjang untuk Kemantren tsb).
     const rows = data
         ? KEMANTREN_LIST.map((nama) => {
-              const perPendidikan = PENDIDIKAN_LIST.map(
-                  (p) => data.pendidikan[p.key]?.kemantren?.[nama] || 0
-              );
-              const totalBaris = perPendidikan.reduce((sum, v) => sum + v, 0);
-              return { nama, perPendidikan, totalBaris };
-          })
+            const perPendidikan = PENDIDIKAN_LIST.map(
+                (p) => data.pendidikan[p.key]?.kemantren?.[nama] || 0
+            );
+            const totalBaris = perPendidikan.reduce((sum, v) => sum + v, 0);
+            return { nama, perPendidikan, totalBaris };
+        })
         : [];
 
     // Total per kolom (jenjang pendidikan), dijumlah dari seluruh baris

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { LoaderCircle, AlertTriangle } from "lucide-react";
+import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { BULAN_NAMA, formatPeriodeLabel } from "../../lib/periode";
 
@@ -27,8 +27,8 @@ const MODE_TABS = [
     },
     {
         key: "indeks",
-        label: "Indeks (Jan = 100)",
-        hint: "Jumlah bulan tersebut dibanding bulan pertama, bulan pertama = 100.",
+        label: "Indeks",
+        hint: "Dihitung berantai: indeks bulan lalu × (jumlah bulan ini ÷ jumlah bulan lalu). Bulan pertama = 100.",
     },
 ];
 
@@ -45,6 +45,7 @@ const fmtIndeks = (n) =>
 function hitungDeret(nilai, mode) {
     const awal = nilai.find((v) => v !== null);
     let sebelumnya = null;
+    let indeksSebelumnya = null;
 
     return nilai.map((v) => {
         if (v === null) return null;
@@ -60,7 +61,17 @@ function hitungDeret(nilai, mode) {
             const d = v - awal;
             hasil = { teks: fmtSelisih(d), arah: Math.sign(d) };
         } else if (mode === "indeks" && awal > 0) {
-            const idx = (v / awal) * 100;
+            // Rumus berjalan: indeks bulan ini = indeks bulan lalu x (jumlah
+            // bulan ini / jumlah bulan lalu). Bulan pertama = 100. Kalau
+            // jumlah bulan lalu 0 (tidak bisa dibagi), dihitung langsung
+            // terhadap bulan pertama; hasilnya tetap sama secara matematis.
+            let idx;
+            if (sebelumnya === null) idx = 100;
+            else if (sebelumnya > 0 && indeksSebelumnya !== null) {
+                idx = indeksSebelumnya * (v / sebelumnya);
+            } else idx = (v / awal) * 100;
+
+            indeksSebelumnya = idx;
             hasil = { teks: fmtIndeks(idx), arah: Math.sign(idx - 100) };
         }
 
@@ -91,6 +102,7 @@ export default function IndeksKumulatif() {
     const [mode, setMode] = useState("jumlah");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         let batal = false;
@@ -129,9 +141,60 @@ export default function IndeksKumulatif() {
         };
     }, [tahun]);
 
+    async function handleExport() {
+        setExporting(true);
+        setError("");
+
+        try {
+            const res = await apiFetch(
+                `/indeks-kumulatif/export?tahun=${encodeURIComponent(tahun)}`
+            );
+
+            if (!res.ok) {
+                let pesan = "Gagal mengekspor indeks kumulatif.";
+                try {
+                    pesan = (await res.json()).message || pesan;
+                } catch {
+                    // respons bukan JSON, pakai pesan bawaan
+                }
+                throw new Error(pesan);
+            }
+
+            const blob = await res.blob();
+            const disposition = res.headers.get("Content-Disposition") || "";
+            const cocok = disposition.match(/filename="?([^"]+)"?/i);
+            const namaFile = cocok ? cocok[1] : `indeks-kumulatif-${tahun}.xlsx`;
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = namaFile;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err.message || "Gagal mengekspor indeks kumulatif.");
+        } finally {
+            setExporting(false);
+        }
+    }
+
     const bulan = data?.bulan ?? [];
     const tabel = data?.dimensi?.[dimensi];
     const modeAktif = MODE_TABS.find((m) => m.key === mode);
+
+    // Bulan pertama yang punya data = patokan indeks (biasanya Januari).
+    const idxAwal = bulan.findIndex((b) => b.sumber !== "kosong");
+    const namaAwal =
+        idxAwal >= 0
+            ? BULAN_NAMA[parseInt(bulan[idxAwal].periode.slice(5, 7), 10) - 1].slice(0, 3)
+            : "Jan";
+    const namaAwalPenuh =
+        idxAwal >= 0
+            ? BULAN_NAMA[parseInt(bulan[idxAwal].periode.slice(5, 7), 10) - 1]
+            : "Januari";
+    const labelMode = (m) => (m.key === "indeks" ? `Indeks (${namaAwal} = 100)` : m.label);
 
     const baris = useMemo(
         () =>
@@ -165,20 +228,35 @@ export default function IndeksKumulatif() {
                     </p>
                 </div>
 
-                <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Tahun</label>
-                    <select
-                        value={tahun || ""}
-                        onChange={(e) => setTahun(e.target.value)}
-                        className="border p-2 rounded text-sm bg-white text-gray-700 min-w-[8rem]"
-                        aria-label="Pilih tahun"
+                <div className="flex items-end gap-3">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Tahun</label>
+                        <select
+                            value={tahun || ""}
+                            onChange={(e) => setTahun(e.target.value)}
+                            className="border p-2 rounded text-sm bg-white text-gray-700 min-w-[8rem]"
+                            aria-label="Pilih tahun"
+                        >
+                            {opsiTahun.map((t) => (
+                                <option key={t} value={t}>
+                                    {t}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={handleExport}
+                        disabled={exporting || loading || bulan.length === 0}
+                        className="flex items-center gap-2 bg-[#006A4E] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#005a41]"
                     >
-                        {opsiTahun.map((t) => (
-                            <option key={t} value={t}>
-                                {t}
-                            </option>
-                        ))}
-                    </select>
+                        {exporting ? (
+                            <LoaderCircle className="animate-spin" size={16} />
+                        ) : (
+                            <Download size={16} />
+                        )}
+                        Export Excel
+                    </button>
                 </div>
             </div>
 
@@ -188,8 +266,8 @@ export default function IndeksKumulatif() {
                         key={d.key}
                         onClick={() => setDimensi(d.key)}
                         className={`px-4 py-1.5 rounded-full text-sm font-semibold border ${dimensi === d.key
-                                ? "bg-[#006A4E] border-[#006A4E] text-white"
-                                : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                            ? "bg-[#006A4E] border-[#006A4E] text-white"
+                            : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
                             }`}
                     >
                         {d.label}
@@ -203,11 +281,11 @@ export default function IndeksKumulatif() {
                         key={m.key}
                         onClick={() => setMode(m.key)}
                         className={`px-3 py-1 rounded text-xs font-semibold border ${mode === m.key
-                                ? "bg-[#E7F1FB] border-[#006A4E] text-[#006A4E]"
-                                : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                            ? "bg-[#E7F1FB] border-[#006A4E] text-[#006A4E]"
+                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
                             }`}
                     >
-                        {m.label}
+                        {labelMode(m)}
                     </button>
                 ))}
                 <span className="text-xs text-gray-500 ml-1">{modeAktif.hint}</span>
@@ -286,6 +364,84 @@ export default function IndeksKumulatif() {
                     </table>
                 </div>
             )}
+
+            <details open className="mt-5 border rounded-lg bg-gray-50 p-4 text-sm text-gray-700">
+                <summary className="font-semibold cursor-pointer">
+                    Keterangan: cara menghitung indeks kumulatif
+                </summary>
+
+                <div className="mt-3 space-y-3">
+                    <p>
+                        Angka diambil dari arsip rekap tiap bulan (ASN aktif: PNS + PPPK), dari
+                        Januari sampai bulan terakhir yang sudah diupload. Bulan yang belum
+                        diupload ditulis "–" dan dilewati dalam perhitungan.
+                    </p>
+
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>
+                            <b>Jumlah</b>: jumlah ASN aktif pada bulan tersebut.
+                        </li>
+                        <li>
+                            <b>Selisih per Bulan</b>: jumlah bulan ini − jumlah bulan lalu.
+                        </li>
+                        <li>
+                            <b>Kumulatif</b>: jumlah bulan ini − jumlah {namaAwalPenuh} (bulan
+                            pertama).
+                        </li>
+                        <li>
+                            <b>Indeks</b>: indeks bulan lalu × (jumlah bulan ini ÷ jumlah bulan
+                            lalu). {namaAwalPenuh} = 100. Hasilnya sama dengan jumlah bulan ini ÷
+                            jumlah {namaAwalPenuh} × 100.
+                        </li>
+                    </ul>
+
+                    <p>
+                        Indeks di atas 100 berarti jumlah naik dibanding {namaAwalPenuh}, di bawah
+                        100 berarti turun. Selisihnya dari 100 adalah persen perubahan (110 = naik
+                        10%, 90 = turun 10%).
+                    </p>
+
+                    <div className="overflow-x-auto">
+                        <table className="text-xs border bg-white">
+                            <caption className="text-left text-gray-500 pb-1">
+                                Contoh angka (bukan data asli)
+                            </caption>
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="border px-3 py-1 text-left">Bulan</th>
+                                    <th className="border px-3 py-1 text-right">Jumlah</th>
+                                    <th className="border px-3 py-1 text-right">Selisih per bulan</th>
+                                    <th className="border px-3 py-1 text-right">Kumulatif</th>
+                                    <th className="border px-3 py-1 text-right">Indeks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[
+                                    ["Bulan 1", "50", "–", "0", "100,0"],
+                                    ["Bulan 2", "55", "+5", "+5", "110,0"],
+                                    ["Bulan 3", "45", "−10", "−5", "90,0"],
+                                    ["Bulan 4", "60", "+15", "+10", "120,0"],
+                                ].map((baris) => (
+                                    <tr key={baris[0]}>
+                                        {baris.map((sel, i) => (
+                                            <td
+                                                key={i}
+                                                className={`border px-3 py-1 ${i === 0 ? "" : "text-right tabular-nums"}`}
+                                            >
+                                                {sel}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Bulan 3: indeks = 110 × (45 ÷ 55) = 90,0. Bulan 4: indeks = 90 × (60 ÷
+                            45) = 120,0.
+                        </p>
+                    </div>
+                </div>
+            </details>
         </div>
     );
 }

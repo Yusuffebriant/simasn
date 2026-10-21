@@ -14,9 +14,9 @@ import { PENDIDIKAN_LIST } from "./pendidikanList";
 // PnsKemantrenPendidikanPanel.jsx — menggantikan tampilan card & grafik
 // sebelumnya.
 const KEMANTREN_LIST = [
-    "TEGALREJO", "JETIS", "GONDOKUSUMAN", "DANUREJAN", "GEDONGTENGEN",
-    "NGAMPILAN", "WIROBRAJAN", "MANTRIJERON", "KRATON", "GONDOMANAN",
-    "PAKUALAMAN", "MERGANGSAN", "UMBULHARJO", "KOTAGEDE",
+    "DANUREJAN", "GEDONGTENGEN", "GONDOKUSUMAN", "GONDOMANAN", "JETIS",
+    "KOTAGEDE", "KRATON", "MANTRIJERON", "MERGANGSAN", "NGAMPILAN",
+    "PAKUALAMAN", "TEGALREJO", "UMBULHARJO", "WIROBRAJAN",
 ];
 
 // Judul rapi ("TEGALREJO" -> "Tegalrejo") untuk label baris tabel.
@@ -62,7 +62,7 @@ function PppkKemantrenPendidikanPanel() {
                 if (!cancelled) {
                     setError(
                         err?.message ||
-                            "Gagal memuat data PPPK Kemantren berdasarkan tingkat pendidikan."
+                        "Gagal memuat data PPPK Kemantren berdasarkan tingkat pendidikan."
                     );
                 }
             } finally {
@@ -84,31 +84,31 @@ function PppkKemantrenPendidikanPanel() {
     // jenjang pendidikan) — sama seperti PnsKemantrenPendidikanPanel.jsx.
     const rows = data
         ? KEMANTREN_LIST.map((nama) => {
-              const laki_laki = {};
-              const perempuan = {};
-              let jumlah_laki_laki = 0;
-              let jumlah_perempuan = 0;
+            const laki_laki = {};
+            const perempuan = {};
+            let jumlah_laki_laki = 0;
+            let jumlah_perempuan = 0;
 
-              PENDIDIKAN_LIST.forEach((p) => {
-                  const jenjang = data.pendidikan[p.key];
-                  const l = jenjang?.laki_laki?.kemantren?.[nama] || 0;
-                  const pr = jenjang?.perempuan?.kemantren?.[nama] || 0;
+            PENDIDIKAN_LIST.forEach((p) => {
+                const jenjang = data.pendidikan[p.key];
+                const l = jenjang?.laki_laki?.kemantren?.[nama] || 0;
+                const pr = jenjang?.perempuan?.kemantren?.[nama] || 0;
 
-                  laki_laki[p.key] = l;
-                  perempuan[p.key] = pr;
-                  jumlah_laki_laki += l;
-                  jumlah_perempuan += pr;
-              });
+                laki_laki[p.key] = l;
+                perempuan[p.key] = pr;
+                jumlah_laki_laki += l;
+                jumlah_perempuan += pr;
+            });
 
-              return {
-                  label: toTitleCase(nama),
-                  laki_laki,
-                  perempuan,
-                  jumlah_laki_laki,
-                  jumlah_perempuan,
-                  jumlah_total: jumlah_laki_laki + jumlah_perempuan,
-              };
-          })
+            return {
+                label: toTitleCase(nama),
+                laki_laki,
+                perempuan,
+                jumlah_laki_laki,
+                jumlah_perempuan,
+                jumlah_total: jumlah_laki_laki + jumlah_perempuan,
+            };
+        })
         : [];
 
     return (

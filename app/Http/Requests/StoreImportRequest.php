@@ -16,6 +16,7 @@ class StoreImportRequest extends FormRequest
         return [
             'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
             'periode' => ['required', 'date_format:Y-m'],
+            'konfirmasi_penurunan' => ['sometimes', 'boolean'],
         ];
     }
 

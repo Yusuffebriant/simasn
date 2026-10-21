@@ -44,7 +44,11 @@ class PeringatanDataTest extends TestCase
             'nama' => $nama,
             'instansi_id' => $this->instansi->id,
             'jenis_kelamin' => 'L',
-            'status_kepegawaian' => 'PNS',
+            // LAINNYA: hanya wajib jenis kelamin, tanggal lahir, dan perangkat daerah
+            // (lihat KelengkapanPegawai::ATURAN). Dengan PNS, fixture ini dianggap
+            // belum lengkap (agama, pendidikan, golongan, dst. kosong) sehingga
+            // peringatan data_belum_lengkap membuat 'ok' jadi false.
+            'status_kepegawaian' => 'LAINNYA',
             'jabatan' => 'Staff',
             'status_aktif' => 'aktif',
             'tanggal_lahir' => $lahir,

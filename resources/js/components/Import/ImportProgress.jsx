@@ -56,102 +56,180 @@ function CircleProgress({ percent }) {
 
 function ImportProgress({ file, periode, setResult, next, back }) {
 
-    const [phase, setPhase] = useState("uploading"); // uploading | polling | error
+    const [phase, setPhase] = useState("uploading"); // uploading | konfirmasi | polling | error
     const [error, setError] = useState("");
+    const [pratinjau, setPratinjau] = useState(null);
     const [progress, setProgress] = useState({ done: 0, total: 0 });
     const pollTimer = useRef(null);
     const startedRef = useRef(false); // cegah upload dobel akibat React.StrictMode (dev-only double-invoke useEffect)
+
+    // konfirmasi = true setelah admin menyetujui penurunan jumlah pegawai.
+    async function kirim(konfirmasi = false) {
+
+        if (!file || !periode) {
+            setError("File atau periode tidak ditemukan. Silakan ulangi dari awal.");
+            setPhase("error");
+            return;
+        }
+
+        setPhase("uploading");
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("periode", periode);
+            if (konfirmasi) {
+                formData.append("konfirmasi_penurunan", "1");
+            }
+
+            const uploadRes = await apiFetch("/imports", {
+                method: "POST",
+                body: formData,
+            });
+
+            // Server menahan upload: jumlah pegawai di file turun jauh.
+            if (uploadRes.status === 409) {
+                const body = await uploadRes.json();
+                if (body.perlu_konfirmasi && body.pratinjau) {
+                    setPratinjau(body.pratinjau);
+                    setPhase("konfirmasi");
+                    return;
+                }
+                throw new Error(body.message || "Import ditolak oleh server.");
+            }
+
+            if (uploadRes.status === 422) {
+                const body = await uploadRes.json();
+                throw new Error(
+                    body.message || "Validasi gagal. Periksa file dan periode."
+                );
+            }
+
+            if (uploadRes.status === 429) {
+                throw new Error("Terlalu banyak percobaan, coba lagi nanti.");
+            }
+
+            if (uploadRes.status === 403) {
+                throw new Error("Anda tidak berhak melakukan import data.");
+            }
+
+            if (!uploadRes.ok) {
+                throw new Error("Gagal mengunggah file. Coba lagi.");
+            }
+
+            const { batch_id } = await uploadRes.json();
+
+            setPhase("polling");
+            poll(batch_id);
+
+        } catch (err) {
+            setError(err.message);
+            setPhase("error");
+        }
+    }
+
+    async function poll(batchId) {
+
+        try {
+            const res = await apiFetch(`/imports/${batchId}`);
+
+            if (!res.ok) {
+                throw new Error("Gagal memeriksa status import.");
+            }
+
+            const data = await res.json();
+
+            if (data.status === "diproses") {
+                setProgress({
+                    done: (data.berhasil ?? 0) + (data.gagal ?? 0),
+                    total: data.total_baris ?? 0,
+                });
+                pollTimer.current = setTimeout(() => poll(batchId), POLL_INTERVAL_MS);
+                return;
+            }
+
+            // status: selesai | gagal
+            setProgress((p) => ({ ...p, done: p.total }));
+            setResult(data);
+            next();
+
+        } catch (err) {
+            setError(err.message);
+            setPhase("error");
+        }
+    }
 
     useEffect(() => {
         if (startedRef.current) return;
         startedRef.current = true;
 
-        async function startImport() {
-
-            if (!file || !periode) {
-                setError("File atau periode tidak ditemukan. Silakan ulangi dari awal.");
-                setPhase("error");
-                return;
-            }
-
-            try {
-                const formData = new FormData();
-                formData.append("file", file);
-                formData.append("periode", periode);
-
-                const uploadRes = await apiFetch("/imports", {
-                    method: "POST",
-                    body: formData,
-                });
-
-                if (uploadRes.status === 422) {
-                    const body = await uploadRes.json();
-                    throw new Error(
-                        body.message || "Validasi gagal. Periksa file dan periode."
-                    );
-                }
-
-                if (uploadRes.status === 429) {
-                    throw new Error("Terlalu banyak percobaan, coba lagi nanti.");
-                }
-
-                if (uploadRes.status === 403) {
-                    throw new Error("Anda tidak berhak melakukan import data.");
-                }
-
-                if (!uploadRes.ok) {
-                    throw new Error("Gagal mengunggah file. Coba lagi.");
-                }
-
-                const { batch_id } = await uploadRes.json();
-
-                setPhase("polling");
-                poll(batch_id);
-
-            } catch (err) {
-                setError(err.message);
-                setPhase("error");
-            }
-        }
-
-        async function poll(batchId) {
-
-            try {
-                const res = await apiFetch(`/imports/${batchId}`);
-
-                if (!res.ok) {
-                    throw new Error("Gagal memeriksa status import.");
-                }
-
-                const data = await res.json();
-
-                if (data.status === "diproses") {
-                    setProgress({
-                        done: (data.berhasil ?? 0) + (data.gagal ?? 0),
-                        total: data.total_baris ?? 0,
-                    });
-                    pollTimer.current = setTimeout(() => poll(batchId), POLL_INTERVAL_MS);
-                    return;
-                }
-
-                // status: selesai | gagal
-                setProgress((p) => ({ ...p, done: p.total }));
-                setResult(data);
-                next();
-
-            } catch (err) {
-                setError(err.message);
-                setPhase("error");
-            }
-        }
-
-        startImport();
+        kirim(false);
 
         return () => {
             if (pollTimer.current) clearTimeout(pollTimer.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    if (phase === "konfirmasi" && pratinjau) {
+        const angka = (n) => (n ?? 0).toLocaleString("id-ID");
+
+        return (
+            <div className="bg-white rounded-xl shadow p-8">
+                <div className="flex items-center gap-3 text-amber-700 mb-4">
+                    <AlertTriangle />
+                    <h2 className="text-xl font-bold">
+                        Jumlah pegawai turun jauh
+                    </h2>
+                </div>
+
+                <p className="text-gray-700 mb-4">
+                    Import ini <strong>mengganti total</strong> data pegawai.
+                    Pegawai yang tidak ada di file akan dihapus permanen dan
+                    tidak bisa dikembalikan dari sistem.
+                </p>
+
+                <ul className="mb-4 space-y-1 text-gray-800">
+                    <li>
+                        Pegawai di sistem sekarang:{" "}
+                        <strong>{angka(pratinjau.jumlah_sekarang)}</strong>
+                    </li>
+                    <li>
+                        Baris valid di file ini:{" "}
+                        <strong>{angka(pratinjau.jumlah_file)}</strong>
+                    </li>
+                    <li>
+                        Perkiraan berkurang:{" "}
+                        <strong>
+                            {angka(pratinjau.penurunan)} pegawai (
+                            {pratinjau.persen_penurunan}%)
+                        </strong>{" "}
+                        - melewati batas {pratinjau.ambang_persen}%
+                    </li>
+                </ul>
+
+                <p className="text-sm text-gray-500 mb-6">
+                    Kalau file ini seharusnya berisi semua pegawai, kemungkinan
+                    file salah atau terpotong. Cek dulu sebelum melanjutkan.
+                </p>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={back}
+                        className="px-5 py-3 bg-gray-300 rounded-lg"
+                    >
+                        Batalkan
+                    </button>
+                    <button
+                        onClick={() => kirim(true)}
+                        className="px-5 py-3 bg-red-600 text-white rounded-lg"
+                    >
+                        Saya yakin, ganti data
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (phase === "error") {
         return (
