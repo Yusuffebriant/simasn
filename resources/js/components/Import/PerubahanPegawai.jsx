@@ -6,6 +6,15 @@ import ExportExcelButton from "../../pages/Statistik/components/ExportExcelButto
 // Catatan perubahan pegawai dibanding import sebelumnya:
 // ringkasan per jenis (pensiun, naik pangkat, pegawai baru, ...) + daftar nama.
 // Sumber: GET /imports/{batch}/perubahan  dan  /imports/{batch}/perubahan/export
+function bulanTeks(periode) {
+    if (!periode || !/^\d{4}-\d{2}$/.test(periode)) return "";
+    const [tahun, bulan] = periode.split("-").map(Number);
+    return new Date(tahun, bulan - 1, 1).toLocaleDateString("id-ID", {
+        month: "long",
+        year: "numeric",
+    });
+}
+
 function PerubahanPegawai({ batchId }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -96,10 +105,9 @@ function PerubahanPegawai({ batchId }) {
                 <div>
                     <h3 className="text-lg font-bold">Perubahan Pegawai</h3>
                     <p className="text-sm text-gray-500">
-                        Periode {data.periode}
-                        {data.pembanding
-                            ? ` dibanding import sebelumnya (periode ${data.pembanding.periode})`
-                            : ""}
+                        {bulanTeks(data.pembanding?.periode)
+                            ? `Data ${bulanTeks(data.pembanding.periode)} \u2192 ${bulanTeks(data.periode)}`
+                            : `Data ${bulanTeks(data.periode) || "-"}`}
                         {" "}&middot; {data.total.toLocaleString("id-ID")} perubahan tercatat
                     </p>
                 </div>

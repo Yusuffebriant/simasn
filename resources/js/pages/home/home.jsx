@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
 import {
     Bar,
     BarChart,
@@ -13,6 +14,71 @@ import {
 import Sidebar from "../../components/Sidebar";
 import { isLoggedIn, getUser, apiFetch } from "../../lib/api";
 import ExportExcelButton from "../Statistik/components/ExportExcelButton";
+
+const LABEL_TIDAK_AKTIF = {
+    meninggal: "meninggal",
+    mutasi_keluar: "mutasi keluar",
+    pensiun: "pensiun",
+    tidak_diketahui: "status tidak diketahui",
+};
+
+// Menjelaskan kenapa jumlah di dashboard bisa lebih sedikit daripada jumlah
+// baris di Excel. Hanya jumlah (tanpa nama): dashboard ini publik. Rincian
+// nama ada di layar hasil import (admin). Tidak tampil bila tidak ada selisih.
+function CatatanData({ catatan }) {
+    if (!catatan) return null;
+
+    const tidakAktif = catatan.tidak_aktif?.jumlah ?? 0;
+    const diLuar = catatan.di_luar_cakupan ?? 0;
+    if (tidakAktif === 0 && diLuar === 0) return null;
+
+    const fmt = (n) => Number(n ?? 0).toLocaleString("id-ID");
+    const rincian = Object.entries(catatan.tidak_aktif?.rincian ?? {})
+        .map(([k, n]) => `${fmt(n)} ${LABEL_TIDAK_AKTIF[k] ?? k}`)
+        .join(", ");
+
+    return (
+        <div
+            role="note"
+            className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"
+        >
+            <div className="flex items-start gap-3">
+                <Info size={18} className="mt-0.5 shrink-0" />
+                <div>
+                    <p className="font-semibold">
+                        Catatan: jumlah di dashboard bisa lebih sedikit daripada jumlah baris di Excel
+                    </p>
+                    <p className="mt-1">
+                        Dashboard hanya menghitung pegawai berstatus aktif. Dari{" "}
+                        {fmt(catatan.total_tersimpan)} pegawai yang tersimpan,{" "}
+                        <b>{fmt(catatan.dihitung)}</b> dihitung di dashboard ini.
+                    </p>
+                    <ul className="mt-2 list-disc pl-5 space-y-0.5">
+                        {tidakAktif > 0 && (
+                            <li>
+                                {fmt(tidakAktif)} pegawai tidak berstatus aktif ({rincian}), sehingga
+                                tidak ikut dihitung.
+                            </li>
+                        )}
+                        {diLuar > 0 && (
+                            <li>
+                                {fmt(diLuar)} pegawai berstatus aktif tetapi di luar cakupan dashboard
+                                ini
+                                {catatan.total_dashboard
+                                    ? " (status kepegawaiannya belum terisi)."
+                                    : " (PPPK Paruh Waktu dan Lainnya; keduanya dihitung di Dashboard Total)."}
+                            </li>
+                        )}
+                    </ul>
+                    <p className="mt-2 text-xs text-blue-700">
+                        Rincian nama pegawai yang tidak berstatus aktif dapat dilihat admin pada layar
+                        hasil import.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // Dipakai dua halaman dengan tampilan yang sama persis:
 // - "/"                -> Dashboard       (PNS + PPPK)
@@ -171,6 +237,8 @@ function Home({
 
                 {data && (
                     <>
+                        <CatatanData catatan={data.catatan_data} />
+
                         {/* Total Pegawai */}
                         <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                             <TotalCard

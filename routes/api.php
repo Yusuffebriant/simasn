@@ -326,9 +326,19 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/perubahan-pegawai/{periode}/export', [PerubahanBulananController::class, 'export']);
         Route::delete('/imports/{batch}', [ImportController::class, 'destroy']);
 
-        // ---- INDEKS KUMULATIF (Januari s.d. bulan terakhir diupload) ----
+        // ---- INDEKS KUMULATIF (rekap agregat; rentang periode pilihan) ----
         Route::get('/indeks-kumulatif', [IndeksKumulatifController::class, 'index']);
         Route::get('/indeks-kumulatif/export', [IndeksKumulatifController::class, 'export']);
+
+        // ---- INDEKS KUMULATIF: perubahan individual per pegawai (snapshot) ----
+        // Rute statis ditaruh sebelum rute berparameter apa pun.
+        Route::get('/indeks-kumulatif/periode', [IndeksKumulatifController::class, 'periode']);
+        Route::get('/indeks-kumulatif/instansi', [IndeksKumulatifController::class, 'instansi']);
+        Route::get('/indeks-kumulatif/perubahan/ringkasan', [IndeksKumulatifController::class, 'ringkasan']);
+        Route::get('/indeks-kumulatif/perubahan/deret', [IndeksKumulatifController::class, 'deret']);
+        Route::get('/indeks-kumulatif/perubahan/pegawai', [IndeksKumulatifController::class, 'riwayatPegawai']);
+        Route::get('/indeks-kumulatif/perubahan/export', [IndeksKumulatifController::class, 'exportPerubahan']);
+        Route::get('/indeks-kumulatif/perubahan', [IndeksKumulatifController::class, 'perubahan']);
 
         // ---- PEGAWAI CRUD ----
         Route::apiResource('pegawai', PegawaiController::class)

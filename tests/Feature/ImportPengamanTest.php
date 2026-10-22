@@ -63,7 +63,7 @@ class ImportPengamanTest extends TestCase
         }
     }
 
-    public function test_periode_lebih_lama_ditolak(): void
+    public function test_periode_lebih_lama_diterima(): void
     {
         Queue::fake();
         $this->batchSelesai('2026-10');
@@ -71,9 +71,9 @@ class ImportPengamanTest extends TestCase
         $this->actingAs($this->user, 'sanctum')->postJson('/api/imports', [
             'file' => $this->file(),
             'periode' => '2026-09',
-        ])->assertStatus(422);
+        ])->assertStatus(202);
 
-        Queue::assertNothingPushed();
+        Queue::assertPushed(\App\Jobs\ProcessPegawaiImport::class);
     }
 
     public function test_periode_sama_dengan_periode_aktif_diterima(): void

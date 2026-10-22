@@ -6,6 +6,7 @@ use App\Models\ImportBatch;
 use App\Models\ImportBatchError;
 use App\Models\ImportPerubahan;
 use App\Models\Pegawai;
+use App\Models\PegawaiSnapshotPeriode;
 use App\Models\RekapSnapshot;
 use App\Models\RekapSnapshotData;
 use App\Support\RekapCache;
@@ -96,6 +97,10 @@ class ImportBatchCleaner
                     }
                     $lama->delete();
                 }
+
+                // Snapshot individual periode ini ikut dibuang; periode sebelum
+                // dan sesudahnya disambung kembali (riwayat dihitung ulang).
+                app(PegawaiSnapshotService::class)->hapusPeriode($periode);
             }
         });
 
@@ -153,6 +158,12 @@ class ImportBatchCleaner
                     Storage::delete($lama->file_path);
                 }
                 $lama->delete();
+            }
+
+            // Snapshot individual yang periodenya sudah tidak punya import.
+            $service = app(PegawaiSnapshotService::class);
+            foreach (PegawaiSnapshotPeriode::whereNotIn('periode', $periode)->pluck('periode') as $yatim) {
+                $service->hapusPeriode($yatim);
             }
         });
 

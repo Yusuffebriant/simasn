@@ -19,9 +19,14 @@ class RekapService
     {
         $agamaList = ['Islam', 'Kristen', 'Katholik', 'Hindu', 'Budha'];
 
+        // Agama di luar lima kolom laporan (Konghucu) dan yang belum diisi
+        // tidak boleh hilang dari hitungan. Kolom laporan tetap lima (sesuai
+        // format laporan), jadi keduanya dicatat terpisah di 'lainnya'.
+        $lainnyaList = ['Konghucu', 'Tidak diketahui'];
+
         $rows = Pegawai::asnPenuh()
             ->join('instansi', 'instansi.id', '=', 'pegawai.instansi_id')
-            ->join('agama', 'agama.id', '=', 'pegawai.agama_id')
+            ->leftJoin('agama', 'agama.id', '=', 'pegawai.agama_id')
             ->select(
                 'instansi.id as instansi_id',
                 'instansi.nama as instansi_nama',
@@ -48,6 +53,7 @@ class RekapService
                     'instansi' => $row->instansi_nama,
                     'pria' => array_fill_keys($agamaList, 0),
                     'wanita' => array_fill_keys($agamaList, 0),
+                    'lainnya' => array_fill_keys($lainnyaList, 0),
                 ];
             }
 
@@ -55,18 +61,28 @@ class RekapService
                 ? 'pria'
                 : 'wanita';
 
-            if (in_array($row->agama_nama, $agamaList)) {
-                $perInstansi[$id][$kelompok][$row->agama_nama]
-                    = (int) $row->jumlah;
+            // Dijumlahkan (+=), bukan ditimpa: nilai jenis_kelamin selain
+            // 'L' semuanya masuk 'wanita' dan bisa lebih dari satu baris.
+            if (in_array($row->agama_nama, $agamaList, true)) {
+                $perInstansi[$id][$kelompok][$row->agama_nama] += (int) $row->jumlah;
+            } elseif ($row->agama_nama === 'Konghucu') {
+                $perInstansi[$id]['lainnya']['Konghucu'] += (int) $row->jumlah;
+            } else {
+                // Kosong, "-", atau nama agama yang tidak dikenali.
+                $perInstansi[$id]['lainnya']['Tidak diketahui'] += (int) $row->jumlah;
             }
         }
 
         foreach ($perInstansi as &$data) {
             $data['jml_pria'] = array_sum($data['pria']);
             $data['jml_wanita'] = array_sum($data['wanita']);
+            // Total laporan = hanya lima kolom agama (format laporan tetap).
             $data['jml_total'] =
                 $data['jml_pria'] + $data['jml_wanita'];
+            // ASN aktif yang tidak masuk lima kolom di atas.
+            $data['jml_lainnya'] = array_sum($data['lainnya']);
         }
+        unset($data);
 
         return UrutanInstansi::abjad(array_values($perInstansi));
     }
@@ -816,6 +832,10 @@ class RekapService
         // kedua dashboard, karena kartu Status Kepegawaian tampil di keduanya.
         $hasil['rincian_lainnya'] = $this->rincianStatusLainnya();
 
+        // Catatan selisih terhadap jumlah baris di Excel (hanya jumlah, tanpa
+        // nama: endpoint dashboard publik).
+        $hasil['catatan_data'] = $this->catatanData($termasukParuhWaktu);
+
         // Dashboard Total: grafik Golongan yang jumlahnya = Total Pegawai.
         // 'BELUM DIISI' (PNS/PPPK tanpa golongan) hanya muncul kalau ada.
         if ($termasukParuhWaktu) {
@@ -830,6 +850,61 @@ class RekapService
         }
 
         return $hasil;
+    }
+
+    /**
+     * Menjelaskan kenapa jumlah di dashboard bisa lebih sedikit daripada
+     * jumlah baris di Excel. Seluruh pegawai tersimpan dibagi tiga yang
+     * saling lepas, sehingga dihitung + tidak_aktif + di_luar_cakupan =
+     * total_tersimpan:
+     *  - dihitung        : berstatus aktif dan termasuk cakupan dashboard ini
+     *  - tidak_aktif     : status_aktif bukan 'aktif' (meninggal, mutasi
+     *                      keluar, pensiun), apa pun status kepegawaiannya
+     *  - di_luar_cakupan : aktif tetapi bukan cakupan dashboard ini (mis.
+     *                      PPPK Paruh Waktu & Lainnya pada Dashboard biasa)
+     * Hanya jumlah yang dikembalikan, tanpa nama/NIP.
+     */
+    public function catatanData(bool $termasukParuhWaktu = false): array
+    {
+        $statusCakupan = $termasukParuhWaktu
+            ? ['PNS', 'PPPK', 'PPPK_PW', 'LAINNYA']
+            : ['PNS', 'PPPK'];
+
+        $rows = Pegawai::select('status_aktif', 'status_kepegawaian', DB::raw('COUNT(*) as jumlah'))
+            ->groupBy('status_aktif', 'status_kepegawaian')
+            ->get();
+
+        $total = 0;
+        $dihitung = 0;
+        $diLuarCakupan = 0;
+        $tidakAktif = [];
+
+        foreach ($rows as $r) {
+            $n = (int) $r->jumlah;
+            $total += $n;
+
+            if ($r->status_aktif === 'aktif') {
+                in_array($r->status_kepegawaian, $statusCakupan, true)
+                    ? $dihitung += $n
+                    : $diLuarCakupan += $n;
+            } else {
+                $kunci = $r->status_aktif ?: 'tidak_diketahui';
+                $tidakAktif[$kunci] = ($tidakAktif[$kunci] ?? 0) + $n;
+            }
+        }
+
+        ksort($tidakAktif);
+
+        return [
+            'total_tersimpan' => $total,
+            'dihitung' => $dihitung,
+            'tidak_aktif' => [
+                'jumlah' => array_sum($tidakAktif),
+                'rincian' => $tidakAktif,
+            ],
+            'di_luar_cakupan' => $diLuarCakupan,
+            'total_dashboard' => $termasukParuhWaktu,
+        ];
     }
 
     /**

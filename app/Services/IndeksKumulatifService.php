@@ -19,6 +19,12 @@ use App\Support\RekapCache;
  *
  * Service ini hanya mengembalikan JUMLAH per bulan. Selisih bulanan,
  * kumulatif, dan indeks dihitung di tampilan dari angka yang sama.
+ *
+ * PENTING: semua angka di sini adalah AGREGAT (statistik jumlah per kategori).
+ * Selisih agregat BUKAN jumlah perpindahan individual pegawai. Perpindahan
+ * JFT <-> JFU dan perubahan atribut individual dihitung dari snapshot
+ * individual (lihat PerbandinganPeriodeService), bukan dari selisih total
+ * JFT dan JFU di sini.
  */
 class IndeksKumulatifService
 {
@@ -35,53 +41,65 @@ class IndeksKumulatifService
      * Ubah deret jumlah per bulan menjadi nilai sesuai $mode:
      *  - jumlah    : jumlah apa adanya
      *  - selisih   : jumlah bulan ini - jumlah bulan sebelumnya
-     *  - kumulatif : jumlah bulan ini - jumlah bulan pertama
+     *  - kumulatif : jumlah bulan ini - jumlah periode dasar
      *  - indeks    : berantai, indeks bulan lalu x (jumlah bulan ini / jumlah
-     *                bulan lalu), bulan pertama = 100
+     *                bulan lalu), periode dasar = 100
+     *
+     * $dasar = urutan (mulai 0) periode dasar di deret. NULL = bulan pertama
+     * yang punya data (perilaku lama). Bulan sebelum periode dasar tidak
+     * punya nilai kumulatif/indeks. Kalau periode dasar sendiri kosong (null)
+     * atau berjumlah 0, kumulatif/indeks tidak dihitung (tidak ada pembagian
+     * dengan nol; hasilnya null, bukan 0).
      *
      * Bulan tanpa data (null) dilewati; pembanding "bulan lalu" adalah bulan
-     * terdekat sebelumnya yang punya data. Aturannya HARUS sama dengan
-     * hitungDeret() di resources/js/pages/Admin/IndeksKumulatif.jsx.
+     * terdekat sebelumnya yang punya data. Data kosong TIDAK dianggap 0.
+     * Aturannya HARUS sama dengan hitungDeret() di resources/js/lib/indeks.js.
      *
      * @param  array<int, int|null>  $nilai
      * @return array<int, int|float|null>
      */
-    public static function hitungDeret(array $nilai, string $mode): array
+    public static function hitungDeret(array $nilai, string $mode, ?int $dasar = null): array
     {
-        $awal = null;
-        foreach ($nilai as $v) {
-            if ($v !== null) {
-                $awal = $v;
-                break;
+        $nilai = array_values($nilai);
+
+        if ($dasar === null) {
+            foreach ($nilai as $i => $v) {
+                if ($v !== null) {
+                    $dasar = $i;
+                    break;
+                }
             }
         }
+
+        $awal = $dasar === null ? null : ($nilai[$dasar] ?? null);
 
         $sebelumnya = null;
         $indeksSebelumnya = null;
         $hasil = [];
 
-        foreach ($nilai as $v) {
+        foreach ($nilai as $i => $v) {
             if ($v === null) {
                 $hasil[] = null;
                 continue;
             }
 
             $h = null;
+            $mulaiDariDasar = $dasar !== null && $i >= $dasar;
 
             if ($mode === 'jumlah') {
                 $h = $v;
             } elseif ($mode === 'selisih') {
                 $h = $sebelumnya === null ? null : $v - $sebelumnya;
             } elseif ($mode === 'kumulatif') {
-                $h = $v - $awal;
-            } elseif ($mode === 'indeks' && $awal > 0) {
-                if ($sebelumnya === null) {
+                $h = ($awal !== null && $mulaiDariDasar) ? $v - $awal : null;
+            } elseif ($mode === 'indeks' && $awal !== null && $awal > 0 && $mulaiDariDasar) {
+                if ($i === $dasar) {
                     $idx = 100.0;
                 } elseif ($sebelumnya > 0 && $indeksSebelumnya !== null) {
                     $idx = $indeksSebelumnya * ($v / $sebelumnya);
                 } else {
                     // Jumlah bulan lalu 0: tidak bisa dibagi, hitung langsung
-                    // terhadap bulan pertama (hasilnya sama secara matematis).
+                    // terhadap periode dasar (hasilnya sama secara matematis).
                     $idx = ($v / $awal) * 100;
                 }
 
@@ -111,6 +129,7 @@ class IndeksKumulatifService
             ->all();
     }
 
+    /** Januari s.d. bulan terakhir yang diupload pada $tahun (perilaku lama). */
     public function susun(string $tahun): array
     {
         $aktif = RekapCache::periodeAktif();
@@ -134,6 +153,8 @@ class IndeksKumulatifService
             return [
                 'tahun' => $tahun,
                 'periode_aktif' => $aktif,
+                'awal' => null,
+                'akhir' => null,
                 'bulan' => [],
                 'dimensi' => [],
             ];
@@ -147,35 +168,40 @@ class IndeksKumulatifService
             $daftarPeriode[] = sprintf('%s-%02d', $tahun, $m);
         }
 
-        $namaSnapshot = array_column(self::DIMENSI, 'snapshot');
-        $beku = RekapSnapshotData::whereIn('periode', $daftarPeriode)
-            ->whereIn('nama', $namaSnapshot)
-            ->get()
-            ->keyBy(fn ($r) => $r->periode . '|' . $r->nama);
+        return ['tahun' => $tahun] + $this->susunDaftar($daftarPeriode, $aktif);
+    }
 
-        $rekap = new RekapService();
+    /**
+     * Rentang periode pilihan pengguna ($awal s.d. $akhir, boleh lintas
+     * tahun). Periode awal = periode dasar untuk mode Kumulatif dan Indeks.
+     */
+    public function susunRentang(string $awal, string $akhir): array
+    {
+        $daftarPeriode = PerbandinganPeriodeService::daftarBulan($awal, $akhir);
+
+        return ['tahun' => substr($awal, 0, 4)] + $this->susunDaftar($daftarPeriode, RekapCache::periodeAktif());
+    }
+
+    /**
+     * @param  string[]  $daftarPeriode  YYYY-MM berurutan
+     */
+    private function susunDaftar(array $daftarPeriode, ?string $aktif): array
+    {
+        ['agregat' => $agregat, 'asal' => $asal] = $this->bangunAgregat($daftarPeriode, $aktif);
+
+        // Periode yang pernah punya import selesai: kalau arsip rekapnya tidak
+        // ada, itu "tanpa arsip" (bukan "tidak ada data").
+        $adaImport = ImportBatch::where('status', 'selesai')
+            ->whereIn('periode', $daftarPeriode)
+            ->pluck('periode')
+            ->flip();
+
         $bulan = [];
-        $agregat = []; // [dimensi][indeks bulan] => array kategori => jumlah | null
-
         foreach ($daftarPeriode as $i => $periode) {
-            $sumber = 'kosong';
-
-            foreach (self::DIMENSI as $key => $def) {
-                $payload = $beku->get($periode . '|' . $def['snapshot'])?->payload;
-                $dariSnapshot = $payload !== null;
-
-                if ($payload === null && $periode === $aktif) {
-                    $payload = $rekap->{$def['metode']}($periode);
-                }
-
-                $agregat[$key][$i] = $payload === null ? null : $this->agregat($payload);
-
-                if ($payload !== null) {
-                    $sumber = $dariSnapshot && $sumber !== 'langsung' ? 'arsip' : 'langsung';
-                }
-            }
-
-            $bulan[] = ['periode' => $periode, 'sumber' => $sumber];
+            $bulan[] = [
+                'periode' => $periode,
+                'sumber' => $this->tentukanSumber($asal[$i], $adaImport->has($periode)),
+            ];
         }
 
         $dimensi = [];
@@ -184,11 +210,88 @@ class IndeksKumulatifService
         }
 
         return [
-            'tahun' => $tahun,
             'periode_aktif' => $aktif,
+            'awal' => $daftarPeriode[0] ?? null,
+            'akhir' => $daftarPeriode[count($daftarPeriode) - 1] ?? null,
             'bulan' => $bulan,
             'dimensi' => $dimensi,
         ];
+    }
+
+    /**
+     * Kumpulkan agregat tiap dimensi untuk setiap periode, sekaligus mencatat
+     * dari mana angkanya berasal.
+     *
+     * Prioritas sumber per dimensi dan periode:
+     *  1) snapshot beku (rekap periode lama);
+     *  2) kalau tidak ada snapshot DAN periode itu periode aktif: hitung
+     *     langsung dari data pegawai;
+     *  3) selain itu null (data tidak ada, bukan 0).
+     *
+     * @param  string[]  $daftarPeriode  YYYY-MM berurutan
+     * @return array{
+     *     agregat: array<string, array<int, array<string, int>|null>>,
+     *     asal: array<int, array<string, 'snapshot'|'langsung'|null>>
+     * }  agregat[dimensi][indeks bulan] = kategori => jumlah | null;
+     *    asal[indeks bulan][dimensi]    = asal angka (null = tidak ada data).
+     */
+    private function bangunAgregat(array $daftarPeriode, ?string $aktif): array
+    {
+        $namaSnapshot = array_column(self::DIMENSI, 'snapshot');
+        $beku = RekapSnapshotData::whereIn('periode', $daftarPeriode)
+            ->whereIn('nama', $namaSnapshot)
+            ->get()
+            ->keyBy(fn ($r) => $r->periode . '|' . $r->nama);
+
+        $rekap = new RekapService();
+        $agregat = [];
+        $asal = [];
+
+        foreach ($daftarPeriode as $i => $periode) {
+            foreach (self::DIMENSI as $key => $def) {
+                $payload = $beku->get($periode . '|' . $def['snapshot'])?->payload;
+                $asalAngka = $payload !== null ? 'snapshot' : null;
+
+                if ($payload === null && $periode === $aktif) {
+                    $payload = $rekap->{$def['metode']}($periode);
+                    $asalAngka = 'langsung';
+                }
+
+                $agregat[$key][$i] = $payload === null ? null : $this->agregat($payload);
+                $asal[$i][$key] = $asalAngka;
+            }
+        }
+
+        return ['agregat' => $agregat, 'asal' => $asal];
+    }
+
+    /**
+     * Status sumber data satu periode, dipakai tampilan untuk menandai bulan.
+     *
+     *  - 'langsung'       : minimal satu dimensi dihitung langsung dari data
+     *                       pegawai (hanya terjadi di periode aktif). Paling
+     *                       dominan: tidak turun ke 'arsip' walau dimensi lain
+     *                       berasal dari snapshot.
+     *  - 'arsip'          : tidak ada yang langsung, minimal satu dimensi dari
+     *                       snapshot beku.
+     *  - 'tanpa_snapshot' : semua dimensi kosong, tetapi periode ini pernah
+     *                       di-import. Arsip rekap gagal dibuat, jadi data
+     *                       tidak tersedia (bukan berarti jumlahnya 0).
+     *  - 'kosong'         : semua dimensi kosong dan tidak ada import.
+     *
+     * @param  array<string, 'snapshot'|'langsung'|null>  $asalDimensi  asal angka per dimensi
+     */
+    private function tentukanSumber(array $asalDimensi, bool $adaImport): string
+    {
+        if (in_array('langsung', $asalDimensi, true)) {
+            return 'langsung';
+        }
+
+        if (in_array('snapshot', $asalDimensi, true)) {
+            return 'arsip';
+        }
+
+        return $adaImport ? 'tanpa_snapshot' : 'kosong';
     }
 
     /**
@@ -212,6 +315,14 @@ class IndeksKumulatifService
             if (! empty($row['tidak_dikenali'])) {
                 $total['Tidak dikenali'] = ($total['Tidak dikenali'] ?? 0) + (int) $row['tidak_dikenali'];
             }
+
+            // Hanya ada di rekap agama: Konghucu dan agama belum diisi, yang
+            // tidak punya kolom sendiri di laporan tetapi tetap harus dihitung
+            // supaya total sama dengan jumlah ASN aktif. Arsip rekap lama
+            // (dibuat sebelum bagian ini ada) tidak punya kunci 'lainnya'.
+            foreach (($row['lainnya'] ?? []) as $kategori => $jumlah) {
+                $total[$kategori] = ($total[$kategori] ?? 0) + (int) $jumlah;
+            }
         }
 
         return $total;
@@ -223,6 +334,27 @@ class IndeksKumulatifService
      * dilakukan di sini supaya tampilan di layar dan file Excel pasti sama.
      * Bulan tanpa data bernilai null; kategori yang tidak muncul di bulan
      * yang ada datanya bernilai 0.
+     *
+     * Contoh: dua bulan, bulan kedua belum ada datanya.
+     *   $perBulan = [['Islam' => 10, 'Kristen' => 2], null]
+     *   hasil     = ['label' => 'Agama',
+     *                'kategori' => [
+     *                    ['nama' => 'Islam',   'nilai' => [10, null]],
+     *                    ['nama' => 'Kristen', 'nilai' => [2, null]],
+     *                ],
+     *                'total' => [12, null]]
+     *
+     * @param  string  $label  Judul dimensi untuk tampilan dan sheet Excel (mis. "Agama").
+     * @param  array<int, array<string, int>|null>  $perBulan  Satu elemen per bulan, urut sesuai
+     *         daftar periode: kategori => jumlah (hasil agregat()), atau null kalau bulan itu
+     *         tidak ada datanya.
+     * @return array{
+     *     label: string,
+     *     kategori: list<array{nama: string, nilai: list<int|null>}>,
+     *     total: list<int|null>
+     * }  'kategori' = satu baris per kategori (urut abjad); 'nilai' sejajar dengan $perBulan
+     *    (null = bulan tanpa data, 0 = bulan ada data tetapi kategori tidak muncul).
+     *    'total' = jumlah semua kategori per bulan, null untuk bulan tanpa data.
      */
     private function susunDimensi(string $label, array $perBulan): array
     {

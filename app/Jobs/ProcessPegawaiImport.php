@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pegawai;
 use App\Services\ImportRekonsiliasi;
+use App\Services\PegawaiSnapshotService;
 use App\Services\RekapSnapshotService;
 use App\Services\PerubahanPegawaiService;
 use App\Support\RekapCache;
@@ -197,6 +198,17 @@ class ProcessPegawaiImport implements ShouldQueue
                     app(RekapSnapshotService::class)->bekukan($this->batch->periode);
                 } catch (\Throwable $e) {
                     Log::warning("Import batch {$this->batch->id}: gagal membekukan rekap periode {$this->batch->periode}: " . $e->getMessage());
+                }
+
+                // Snapshot INDIVIDUAL pegawai periode ini + riwayat perubahan
+                // terhadap periode sebelumnya yang punya snapshot. Idempoten:
+                // impor ulang isi yang sama tidak menambah apa pun. Kegagalan
+                // di sini tidak boleh membatalkan import yang datanya sudah masuk.
+                try {
+                    $hasilSnapshot = app(PegawaiSnapshotService::class)->bangun($this->batch->periode, $this->batch, 'import');
+                    Log::info("Import batch {$this->batch->id}: snapshot individual {$this->batch->periode} {$hasilSnapshot['status']} (versi {$hasilSnapshot['versi']}, {$hasilSnapshot['jumlah_pegawai']} pegawai, {$hasilSnapshot['jumlah_perubahan']} perubahan dihitung).");
+                } catch (\Throwable $e) {
+                    Log::warning("Import batch {$this->batch->id}: gagal membuat snapshot individual periode {$this->batch->periode}: " . $e->getMessage());
                 }
             }
         } catch (\Throwable $e) {

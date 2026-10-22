@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import {
     getCurrentPeriode,
@@ -17,14 +17,14 @@ function PreviewExcel({
 }) {
 
     const sekarang = getCurrentPeriode();
-    const [tahunIni, bulanIni] = sekarang.split("-");
+    const [tahunIni] = sekarang.split("-");
 
     const [bulan, setBulan] = useState(periode ? periode.split("-")[1] : "");
     const [tahun, setTahun] = useState(periode ? periode.split("-")[0] : "");
     const [aktif, setAktif] = useState(null);
 
-    // Tahun yang bisa dipilih: 5 tahun terakhir sampai tahun ini.
-    const daftarTahun = Array.from({ length: 6 }, (_, i) => String(Number(tahunIni) - i));
+    // Tahun yang bisa dipilih: tahun depan sampai 6 tahun sebelumnya.
+    const daftarTahun = Array.from({ length: 8 }, (_, i) => String(Number(tahunIni) + 1 - i));
 
     // Periode data yang sedang berlaku (import terakhir yang selesai),
     // dipakai hanya untuk keterangan/peringatan di bawah pilihan.
@@ -42,11 +42,6 @@ function PreviewExcel({
     }, []);
 
     function pilih(b, t) {
-        // Pindah ke tahun ini: bulan yang belum terjadi dikosongkan.
-        if (t === tahunIni && b > bulanIni) {
-            b = "";
-        }
-
         setBulan(b);
         setTahun(t);
         setPeriode(b && t ? `${t}-${b}` : "");
@@ -77,9 +72,8 @@ function PreviewExcel({
                         <option value="">Pilih bulan</option>
                         {BULAN_NAMA.map((nama, i) => {
                             const kode = String(i + 1).padStart(2, "0");
-                            const lewat = tahun === tahunIni && kode > bulanIni;
                             return (
-                                <option key={kode} value={kode} disabled={lewat}>
+                                <option key={kode} value={kode}>
                                     {nama}
                                 </option>
                             );
@@ -126,12 +120,13 @@ function PreviewExcel({
                 )}
 
                 {periode && aktif && periode < aktif && (
-                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
-                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                        <Info size={16} className="mt-0.5 shrink-0" />
                         <span>
-                            Periode yang dipilih lebih lama dari data yang sedang
-                            berlaku, jadi import ditolak. Pilih periode yang sama
-                            atau lebih baru.
+                            Periode ini lebih lama dari data yang sedang
+                            berlaku. Import tetap berjalan: data pegawai akan
+                            diganti dengan isi file ini, dan perubahan antar
+                            bulan tetap bisa dilihat di menu Indeks Kumulatif.
                         </span>
                     </div>
                 )}
@@ -206,14 +201,8 @@ function PreviewExcel({
 
                 <button
                     onClick={next}
-                    disabled={!periode || (aktif && periode < aktif)}
-                    title={
-                        !periode
-                            ? "Pilih bulan dan tahun dulu"
-                            : aktif && periode < aktif
-                                ? "Periode lebih lama dari data yang sedang berlaku"
-                                : ""
-                    }
+                    disabled={!periode}
+                    title={!periode ? "Pilih bulan dan tahun dulu" : ""}
                     className="px-5 py-2 bg-[#006A4E] text-white rounded disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     Lanjut Import

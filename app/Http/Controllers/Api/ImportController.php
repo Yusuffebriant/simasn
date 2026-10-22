@@ -13,7 +13,6 @@ use App\Services\ImportBatchCleaner;
 use App\Services\ImportPengaman;
 use App\Services\PerubahanPegawaiService;
 use App\Support\KelengkapanPegawai;
-use App\Support\RekapCache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,23 +32,9 @@ class ImportController extends Controller
     {
         $periode = $request->input('periode');
 
-        // Pengaman 1: periode lebih lama dari data yang sedang berlaku ditolak.
-        // Import ini mengganti total data pegawai, jadi mengimpor periode lama
-        // akan menimpa data terbaru dengan data usang.
-        $aktif = RekapCache::periodeAktif();
-        if ($aktif !== null && $periode < $aktif) {
-            $pesan = "Periode {$periode} lebih lama dari data yang sedang berlaku ({$aktif}). "
-                . 'Import ditolak supaya data terbaru tidak tertimpa data lama.';
-
-            return response()->json([
-                'message' => $pesan,
-                'errors' => ['periode' => [$pesan]],
-            ], 422);
-        }
-
         $path = $request->file('file')->store('imports');
 
-        // Pengaman 2: pratinjau sebelum mengganti. Kalau jumlah pegawai di file
+        // Pengaman: pratinjau sebelum mengganti. Kalau jumlah pegawai di file
         // turun melewati ambang, upload ditahan sampai admin mengonfirmasi
         // (kirim ulang dengan konfirmasi_penurunan=1).
         if (! $request->boolean('konfirmasi_penurunan')) {
@@ -231,8 +216,8 @@ class ImportController extends Controller
      * data pegawai hasil import ini (+ detail & log aktivitasnya), rekap
      * beku periodenya, file cadangan/upload, dan job antre.
      * Lihat ImportBatchCleaner. Permanen, tidak bisa dibatalkan.
-     * File CSV cadangan TIDAK ikut dihapus. Batch aktif (import selesai
-     * terakhir) tidak boleh dihapus (409).
+     * File CSV cadangan TIDAK ikut dihapus. Semua import boleh dihapus,
+     * termasuk yang sedang aktif (import selesai terakhir).
      *
      * Batch berstatus "diproses":
      * - tanpa ?paksa=1 : ditolak (409) selama belum lewat 1 jam.
@@ -242,17 +227,6 @@ class ImportController extends Controller
     public function destroy(Request $request, ImportBatch $batch, ImportBatchCleaner $cleaner)
     {
         $this->authorizeBatch($batch);
-
-        // Batch AKTIF = import selesai terakhir; data pegawai yang tampil di
-        // sistem sekarang berasal darinya. Menghapusnya berarti menghapus
-        // semua data pegawai aktif, jadi dilarang (tanpa pengecualian paksa).
-        if ($batch->status === 'selesai' && $this->batchAktifId() === $batch->id) {
-            return response()->json([
-                'message' => 'Import ini sedang aktif (data pegawai sekarang berasal darinya) '
-                    . 'sehingga tidak boleh dihapus. Hapus hanya riwayat import yang lebih lama.',
-                'bisa_paksa' => false,
-            ], 409);
-        }
 
         if ($batch->status === 'diproses') {
             $macet = $batch->created_at?->lte(now()->subHour());
@@ -281,16 +255,6 @@ class ImportController extends Controller
             'message' => 'Import dan seluruh datanya berhasil dihapus.',
             'dihapus' => $hasil,
         ]);
-    }
-
-    /** ID import selesai terakhir (sama dengan aturan RekapCache::periodeAktif). */
-    protected function batchAktifId(): ?int
-    {
-        return ImportBatch::query()
-            ->where('status', 'selesai')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->value('id');
     }
 
     /**

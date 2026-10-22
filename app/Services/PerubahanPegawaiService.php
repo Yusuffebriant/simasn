@@ -120,7 +120,12 @@ class PerubahanPegawaiService
                 $lama = $foto[$id];
 
                 if (! isset($sekarang[$id])) {
-                    $simpan($this->catatanKeluar($lama, $akhirPeriode));
+                    // Yang sudah tidak aktif (meninggal / mutasi keluar / pensiun)
+                    // di data sebelumnya sudah tercatat pada bulan kejadiannya.
+                    // Hilang dari file baru bukan kejadian bulan ini, jadi dilewati.
+                    if (! $this->sudahTidakAktif($lama)) {
+                        $simpan($this->catatanKeluar($lama, $akhirPeriode));
+                    }
 
                     continue;
                 }
@@ -230,6 +235,14 @@ class PerubahanPegawaiService
         }
 
         return $hasil;
+    }
+
+    /** Status kedudukan di data sebelum import sudah bukan 'aktif'. */
+    private function sudahTidakAktif(array $lama): bool
+    {
+        $status = $this->norm($lama['status_aktif'] ?? null);
+
+        return $status !== '' && $status !== 'aktif';
     }
 
     /** Pegawai yang ada di database lama tetapi tidak ada di file baru. */

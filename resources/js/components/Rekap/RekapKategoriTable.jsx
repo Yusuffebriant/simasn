@@ -123,6 +123,9 @@ function RekapKategoriTable({
     let totalJmlPria = 0;
     let totalJmlWanita = 0;
     let totalJmlTotal = 0;
+    // ASN aktif yang tidak masuk kolom tabel (mis. Konghucu atau agama kosong).
+    let jmlLainnya = 0;
+    const rincianLainnya = {};
 
     rows.forEach((row) => {
         categories.forEach((k) => {
@@ -132,6 +135,10 @@ function RekapKategoriTable({
         totalJmlPria += row.jml_pria || 0;
         totalJmlWanita += row.jml_wanita || 0;
         totalJmlTotal += row.jml_total || 0;
+        jmlLainnya += row.jml_lainnya || 0;
+        Object.entries(row.lainnya || {}).forEach(([nama, n]) => {
+            if (n > 0) rincianLainnya[nama] = (rincianLainnya[nama] || 0) + n;
+        });
     });
 
     return (
@@ -171,6 +178,22 @@ function RekapKategoriTable({
                 <div className="flex items-center gap-3 text-red-700 bg-red-50 p-3 rounded-lg text-sm mb-4">
                     <AlertTriangle size={16} />
                     {error}
+                </div>
+            )}
+
+            {!loading && jmlLainnya > 0 && (
+                <div className="flex items-start gap-2 text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm mb-4">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                        Ada <strong>{jmlLainnya.toLocaleString("id-ID")}</strong> ASN aktif
+                        yang tidak termasuk dalam kolom tabel ini (
+                        {Object.entries(rincianLainnya)
+                            .map(([nama, n]) => `${nama} ${n}`)
+                            .join(", ")}
+                        ). Total tabel = {totalJmlTotal.toLocaleString("id-ID")}; jumlah ASN
+                        aktif seluruhnya ={" "}
+                        {(totalJmlTotal + jmlLainnya).toLocaleString("id-ID")}.
+                    </span>
                 </div>
             )}
 

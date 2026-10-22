@@ -89,6 +89,12 @@ class PerubahanBulananController extends Controller
             ->orderByDesc('periode')
             ->first();
 
+        // Bulan data yang menjadi pembanding: import selesai terakhir
+        // dengan periode sebelum bulan ini.
+        $periodePembanding = ImportBatch::where('status', 'selesai')
+            ->where('periode', '<', $periode)
+            ->max('periode');
+
         $query = ImportPerubahan::where('periode', $periode);
 
         if ($jenis = $request->query('jenis')) {
@@ -114,6 +120,8 @@ class PerubahanBulananController extends Controller
             // selesai | tanpa_pembanding | gagal | null (belum ada import / import lama)
             'status' => $this->statusPeriode($batches),
             'periode' => $periode,
+            // Perubahan dihitung dari data bulan `pembanding` ke bulan `periode`.
+            'pembanding' => $periodePembanding ? ['periode' => $periodePembanding] : null,
             'jumlah_import' => $batches->count(),
             'total' => (int) $perJenis->sum(),
             'ringkasan' => $ringkasan,

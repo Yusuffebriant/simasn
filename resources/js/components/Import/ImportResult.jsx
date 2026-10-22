@@ -3,6 +3,31 @@ import { CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import KurangPerInstansi from "../Admin/KurangPerInstansi";
 
+// Peringatan NIP / NIK dari /imports/{id}/kelengkapan (kunci "identitas").
+// "merah" = pegawai tanpa identitas sama sekali; "kuning" = perlu dicek.
+const KATEGORI_IDENTITAS = [
+    {
+        kunci: "tanpa_keduanya",
+        judul: "tidak punya NIP maupun NIK",
+        tingkat: "merah",
+    },
+    {
+        kunci: "tanpa_nip",
+        judul: "belum punya NIP (NIK terisi)",
+        tingkat: "kuning",
+    },
+    {
+        kunci: "tanpa_nik",
+        judul: "belum punya NIK (NIP terisi)",
+        tingkat: "kuning",
+    },
+    {
+        kunci: "format_tidak_valid",
+        judul: "NIP atau NIK formatnya tidak valid",
+        tingkat: "kuning",
+    },
+];
+
 function ImportResult({ result, onRestart }) {
 
     const total = result?.total_baris ?? 0;
@@ -43,6 +68,13 @@ function ImportResult({ result, onRestart }) {
     }, [idBatch, gagalTotal]);
 
     const linkLengkapi = `/admin?tab=pegawai&kelengkapan=belum&batch=${idBatch}`;
+
+    // Peringatan NIP / NIK: hanya kategori yang ada isinya yang ditampilkan.
+    const identitas = kelengkapan?.identitas;
+    const masalahIdentitas = identitas
+        ? KATEGORI_IDENTITAS.filter((k) => (identitas[k.kunci]?.jumlah ?? 0) > 0)
+        : [];
+    const identitasMerah = masalahIdentitas.some((k) => k.tingkat === "merah");
 
     return (
         <div className="bg-white rounded-xl shadow p-8">
@@ -211,6 +243,64 @@ function ImportResult({ result, onRestart }) {
                                     </li>
                                 )}
                             </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {masalahIdentitas.length > 0 && !gagalTotal && (
+                <div
+                    className={`p-4 rounded-lg text-sm mb-6 ${identitasMerah
+                        ? "bg-red-50 text-red-800"
+                        : "bg-amber-50 text-amber-800"
+                        }`}
+                >
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">
+                                Ada pegawai dengan NIP / NIK yang perlu dicek
+                            </p>
+                            <p className="mt-1">
+                                NIP kosong biasanya wajar untuk pegawai non-PNS asalkan
+                                NIK terisi. Pegawai tanpa NIP dan NIK sama sekali sebaiknya
+                                segera dilengkapi di file sumber atau lewat Daftar Pegawai.
+                            </p>
+
+                            {masalahIdentitas.map((k) => {
+                                const data = identitas[k.kunci];
+
+                                return (
+                                    <div key={k.kunci} className="mt-3">
+                                        <p className="font-semibold">
+                                            {data.jumlah.toLocaleString("id-ID")} pegawai{" "}
+                                            {k.judul}
+                                        </p>
+                                        <ul className="mt-1 list-disc pl-5 space-y-0.5">
+                                            {data.daftar.map((p, i) => (
+                                                <li key={i}>
+                                                    {p.nama}
+                                                    {p.keterangan ? ` – ${p.keterangan}` : ""}
+                                                </li>
+                                            ))}
+                                            {data.jumlah > data.daftar.length && (
+                                                <li>
+                                                    ...dan{" "}
+                                                    {(data.jumlah - data.daftar.length).toLocaleString("id-ID")}{" "}
+                                                    pegawai lainnya
+                                                </li>
+                                            )}
+                                        </ul>
+                                    </div>
+                                );
+                            })}
+
+                            {identitas?.nik_diperiksa === false && (
+                                <p className="mt-3 text-xs">
+                                    Catatan: kolom NIK tidak ditemukan di database, jadi
+                                    pemeriksaan hanya mencakup NIP.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

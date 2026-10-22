@@ -47,6 +47,15 @@ function namaBulan(periode) {
     });
 }
 
+function namaBulanPendek(periode) {
+    if (!periode) return "";
+    const [tahun, bulan] = periode.split("-").map(Number);
+    return new Date(tahun, bulan - 1, 1).toLocaleDateString("id-ID", {
+        month: "short",
+        year: "numeric",
+    });
+}
+
 const angka = (n) => (n ?? 0).toLocaleString("id-ID");
 
 function Kartu({ ikon: Ikon, judul, nilai, warna, keterangan }) {
@@ -199,7 +208,10 @@ export default function PerubahanBulanan() {
         <div className="bg-white rounded-xl shadow p-8">
             <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                 <div>
-                    <h2 className="text-xl font-bold">Perubahan Pegawai</h2>
+                    <h2 className="text-xl font-bold">
+                        Perubahan Pegawai
+                        {periode && ` \u2014 ${namaBulan(periode)}`}
+                    </h2>
                     <p className="text-sm text-gray-500 mt-1">
                         Dicatat otomatis setiap import bulanan, dibandingkan dengan
                         data sebelum import tersebut.
@@ -259,6 +271,25 @@ export default function PerubahanBulanan() {
 
             {data && data.status === "selesai" && (
                 <>
+                    <div className="flex flex-wrap items-center gap-2 mb-4 px-4 py-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-900">
+                        <Info size={16} className="shrink-0" />
+                        {data.pembanding ? (
+                            <span>
+                                Perubahan ini adalah selisih data{" "}
+                                <strong>{namaBulan(data.pembanding.periode)}</strong>
+                                {" \u2192 "}
+                                <strong>{namaBulan(data.periode)}</strong>. Pegawai
+                                yang sudah tidak aktif sejak{" "}
+                                {namaBulan(data.pembanding.periode)} tidak dihitung
+                                lagi.
+                            </span>
+                        ) : (
+                            <span>
+                                Data bulan <strong>{namaBulan(data.periode)}</strong>.
+                            </span>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                         <Kartu
                             judul={`Total perubahan ${namaBulan(data.periode)}`}
@@ -347,8 +378,20 @@ export default function PerubahanBulanan() {
                                             <th className="p-2 text-left">Nama</th>
                                             <th className="p-2 text-left">NIP</th>
                                             <th className="p-2 text-left">Unit</th>
-                                            <th className="p-2 text-left">Dari</th>
-                                            <th className="p-2 text-left">Menjadi</th>
+                                            <th className="p-2 text-left">
+                                                Dari
+                                                {data.pembanding && (
+                                                    <span className="block text-xs font-normal text-gray-500">
+                                                        ({namaBulanPendek(data.pembanding.periode)})
+                                                    </span>
+                                                )}
+                                            </th>
+                                            <th className="p-2 text-left">
+                                                Menjadi
+                                                <span className="block text-xs font-normal text-gray-500">
+                                                    ({namaBulanPendek(data.periode)})
+                                                </span>
+                                            </th>
                                             <th className="p-2 text-left">Keterangan</th>
                                         </tr>
                                     </thead>
