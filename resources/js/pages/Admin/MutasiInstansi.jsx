@@ -183,6 +183,7 @@ export default function MutasiInstansi({ periodeOpsi }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [terpilih, setTerpilih] = useState(null); // null = semua instansi (total)
+    const [sertakanPw, setSertakanPw] = useState(false); // ikut menghitung PPPK Paruh Waktu
 
     // Bawaan: enam bulan terakhir yang punya data individual.
     useEffect(() => {
@@ -202,7 +203,7 @@ export default function MutasiInstansi({ periodeOpsi }) {
             setError("");
             try {
                 const res = await apiFetch(
-                    `/indeks-kumulatif/instansi?awal=${encodeURIComponent(awal)}&akhir=${encodeURIComponent(akhir)}`
+                    `/indeks-kumulatif/instansi?awal=${encodeURIComponent(awal)}&akhir=${encodeURIComponent(akhir)}${sertakanPw ? "&paruh_waktu=1" : ""}`
                 );
                 if (!res.ok) {
                     let pesan = "Gagal memuat data perpindahan per instansi.";
@@ -233,7 +234,7 @@ export default function MutasiInstansi({ periodeOpsi }) {
         return () => {
             batal = true;
         };
-    }, [awal, akhir, rentangSah]);
+    }, [awal, akhir, rentangSah, sertakanPw]);
 
     const bulan = data?.bulan ?? [];
     const lintasTahun = new Set(bulan.map((b) => b.periode.slice(0, 4))).size > 1;
@@ -250,7 +251,7 @@ export default function MutasiInstansi({ periodeOpsi }) {
             <p className="text-sm text-gray-600 mb-4">
                 Tab ini menjawab dua pertanyaan: <b>berapa jumlah pegawai di tiap instansi setiap bulan</b>, dan{" "}
                 <b>kenapa jumlahnya berubah</b> (pindah ke/dari instansi mana, pegawai baru, atau
-                berhenti). Yang dihitung: ASN aktif (PNS + PPPK).
+                berhenti). Yang dihitung: pegawai aktif berstatus {sertakanPw ? "PNS + PPPK + PPPK Paruh Waktu" : "PNS + PPPK"}.
             </p>
 
             <div className="flex flex-wrap items-end gap-3 mb-4">
@@ -284,6 +285,14 @@ export default function MutasiInstansi({ periodeOpsi }) {
                         ))}
                     </select>
                 </div>
+                <label className="flex items-center gap-2 text-xs text-gray-700 pb-2">
+                    <input
+                        type="checkbox"
+                        checked={sertakanPw}
+                        onChange={(e) => setSertakanPw(e.target.checked)}
+                    />
+                    Sertakan PPPK Paruh Waktu
+                </label>
             </div>
 
             {opsi.length === 0 && (
@@ -447,6 +456,12 @@ export default function MutasiInstansi({ periodeOpsi }) {
                         Data per orang tersimpan otomatis setiap kali data bulanan diupload. Bulan yang diupload
                         sebelum fitur ini ada tidak punya data per orang, sehingga perpindahannya tidak bisa
                         dikarang dan ditampilkan “–”.
+                    </p>
+                    <p>
+                        Kalau “Sertakan PPPK Paruh Waktu” dicentang, pegawai yang naik dari PPPK Paruh Waktu ke
+                        PPPK atau PNS tetap dihitung di instansinya, tidak dianggap berhenti atau pegawai baru.
+                        Tanpa centang, perpindahan status seperti itu terbaca sebagai berhenti atau baru karena
+                        PPPK Paruh Waktu tidak ikut dihitung.
                     </p>
                 </div>
             </details>

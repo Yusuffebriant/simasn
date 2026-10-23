@@ -23,7 +23,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
  * Isinya (semua dihitung dari angka yang SAMA dengan sheet lain):
  *  - Ringkasan singkat (2-3 baris) di paling atas.
  *  A. Kesimpulan per kelompok: kategori yang naik/turun (maks. 3 terbesar).
- *  B. Jumlah ASN per kelompok (agama, pendidikan, golongan, JFT, JFU).
+ *  B. Jumlah ASN per kelompok (agama, pendidikan, golongan, JFT, JFU, status kepegawaian).
  *  C. Rincian jumlah ASN per kategori (awal, akhir, selisih, persen).
  *  D. Pegawai masuk, keluar, dan berubah (dihitung per orang dari catatan
  *     import: pegawai baru, pensiun, meninggal, mutasi, naik pangkat, dst).
@@ -189,7 +189,7 @@ class IndeksKumulatifRingkasanExport implements FromArray, WithTitle, WithEvents
 
         $this->tambah(['B. JUMLAH ASN PER KELOMPOK']);
         $this->judul[] = count($this->rows);
-        $this->tambah(['ASN aktif = PNS dan PPPK berstatus aktif. PPPK paruh waktu dan CPNS tidak termasuk, jadi angkanya bisa lebih kecil dari total di Dashboard Total.']);
+        $this->tambah(['ASN aktif = PNS dan PPPK berstatus aktif. Kelompok Status Kepegawaian juga menghitung PPPK Paruh Waktu, jadi totalnya lebih besar. Pada kelompok lain PPPK paruh waktu dan CPNS tidak termasuk, sehingga angkanya bisa lebih kecil dari total di Dashboard Total.']);
         $this->teks[] = count($this->rows);
         $this->tambah(['Indeks: 100 berarti sama dengan bulan awal. Di atas 100 berarti naik, di bawah 100 berarti turun (97,5 = turun 2,5%). JFT dan JFU hanya mencakup ASN jabatan fungsional, jadi totalnya lebih kecil dari kelompok lain.']);
         $this->teks[] = count($this->rows);

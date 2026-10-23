@@ -43,20 +43,21 @@ class IndeksKumulatifController extends Controller
             'tahun' => ['nullable', 'regex:/^\d{4}$/'],
             'awal' => ['nullable', 'regex:' . self::POLA_PERIODE, 'required_with:akhir'],
             'akhir' => ['nullable', 'regex:' . self::POLA_PERIODE, 'required_with:awal'],
+            'paruh_waktu' => ['nullable', 'boolean'],
         ]);
 
         if ($request->filled('awal')) {
             [$awal, $akhir] = $this->rentang($request);
 
             return response()->json(
-                $service->susunRentang($awal, $akhir) + ['tahun_tersedia' => $service->tahunTersedia()]
+                $service->susunRentang($awal, $akhir, $request->boolean('paruh_waktu')) + ['tahun_tersedia' => $service->tahunTersedia()]
             );
         }
 
         $tahun = $this->tahun($request);
 
         return response()->json(
-            $service->susun($tahun) + ['tahun_tersedia' => $service->tahunTersedia()]
+            $service->susun($tahun, $request->boolean('paruh_waktu')) + ['tahun_tersedia' => $service->tahunTersedia()]
         );
     }
 
@@ -66,16 +67,17 @@ class IndeksKumulatifController extends Controller
             'tahun' => ['nullable', 'regex:/^\d{4}$/'],
             'awal' => ['nullable', 'regex:' . self::POLA_PERIODE, 'required_with:akhir'],
             'akhir' => ['nullable', 'regex:' . self::POLA_PERIODE, 'required_with:awal'],
+            'paruh_waktu' => ['nullable', 'boolean'],
         ]);
 
         $awal = $akhir = null;
         if ($request->filled('awal')) {
             [$awal, $akhir] = $this->rentang($request);
             $tahun = substr($awal, 0, 4);
-            $data = $service->susunRentang($awal, $akhir);
+            $data = $service->susunRentang($awal, $akhir, $request->boolean('paruh_waktu'));
         } else {
             $tahun = $this->tahun($request);
-            $data = $service->susun($tahun);
+            $data = $service->susun($tahun, $request->boolean('paruh_waktu'));
         }
 
         // Tanpa data tidak ada yang bisa diexport (sheet kosong membingungkan).
@@ -91,7 +93,7 @@ class IndeksKumulatifController extends Controller
 
         $nama = $awal !== null ? "indeks-kumulatif-{$awal}-sd-{$akhir}.xlsx" : "indeks-kumulatif-{$tahun}.xlsx";
 
-        return Excel::download(new IndeksKumulatifExport($tahun, $awal, $akhir), $nama);
+        return Excel::download(new IndeksKumulatifExport($tahun, $awal, $akhir, $request->boolean('paruh_waktu')), $nama);
     }
 
     // ------------------------------------------------------------------
@@ -106,9 +108,10 @@ class IndeksKumulatifController extends Controller
     /** Jumlah ASN aktif per instansi tiap bulan + penjelasan perpindahannya. */
     public function instansi(Request $request, MutasiInstansiService $service)
     {
+        $request->validate(['paruh_waktu' => ['nullable', 'boolean']]);
         [$awal, $akhir] = $this->rentang($request);
 
-        return response()->json($service->susun($awal, $akhir));
+        return response()->json($service->susun($awal, $akhir, $request->boolean('paruh_waktu')));
     }
 
     public function ringkasan(Request $request, PerbandinganPeriodeService $service)
@@ -227,6 +230,9 @@ class IndeksKumulatifController extends Controller
             'q' => ['nullable', 'string', 'max:100'],
             'unit' => ['nullable', 'string', 'max:200'],
             'verifikasi' => ['nullable', 'boolean'],
+            'atribut' => ['nullable', Rule::in(array_keys(PerubahanAtribut::ATRIBUT))],
+            'dari' => ['nullable', 'string', 'max:60'],
+            'ke' => ['nullable', 'string', 'max:60'],
         ]);
 
         return [
@@ -234,6 +240,9 @@ class IndeksKumulatifController extends Controller
             'q' => $request->query('q') ?: null,
             'unit' => $request->query('unit') ?: null,
             'verifikasi' => $request->boolean('verifikasi'),
+            'atribut' => $request->query('atribut') ?: null,
+            'dari' => $request->query('dari') ?: null,
+            'ke' => $request->query('ke') ?: null,
         ];
     }
 

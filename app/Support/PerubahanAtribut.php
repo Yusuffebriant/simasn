@@ -29,14 +29,14 @@ class PerubahanAtribut
         'jabatan' => ['label' => 'Nama jabatan', 'kategori' => 'jabatan'],
         'eselon' => ['label' => 'Eselon', 'kategori' => 'jabatan'],
         'golongan' => ['label' => 'Pangkat/golongan', 'kategori' => 'pangkat_golongan'],
-        'tmt_pangkat' => ['label' => 'TMT pangkat', 'kategori' => 'pangkat_golongan'],
+        'tmt_pangkat' => ['label' => 'TMT pangkat (tanggal mulai pangkat)', 'kategori' => 'pangkat_golongan'],
         'instansi' => ['label' => 'Instansi', 'kategori' => 'unit_kerja'],
         'unit' => ['label' => 'Unit kerja', 'kategori' => 'unit_kerja'],
         'sub_unit' => ['label' => 'Sub unit kerja', 'kategori' => 'unit_kerja'],
         'pendidikan' => ['label' => 'Pendidikan', 'kategori' => 'pendidikan'],
         'status_kepegawaian' => ['label' => 'Status kepegawaian', 'kategori' => 'status_kepegawaian'],
         'status_lainnya' => ['label' => 'Rincian status (NABAN/Titipan)', 'kategori' => 'status_kepegawaian'],
-        'status_aktif' => ['label' => 'Kedudukan (aktif/pensiun/dst)', 'kategori' => 'status_kepegawaian'],
+        'status_aktif' => ['label' => 'Kedudukan pegawai (aktif, pensiun, dll.)', 'kategori' => 'status_kepegawaian'],
         'tanggal_pensiun' => ['label' => 'Tanggal pensiun', 'kategori' => 'status_kepegawaian'],
         'tanggal_selesai_kontrak' => ['label' => 'Tanggal selesai kontrak', 'kategori' => 'status_kepegawaian'],
         'nama' => ['label' => 'Nama', 'kategori' => 'identitas'],
@@ -53,15 +53,36 @@ class PerubahanAtribut
         'status_kepegawaian' => 'Status kepegawaian',
         'identitas' => 'Identitas',
         'data_pribadi' => 'Data pribadi',
-        'keberadaan' => 'Keberadaan di snapshot',
+        'keberadaan' => 'Ada atau tidaknya di data',
     ];
 
     public const JENIS = [
         'ubah' => 'Berubah',
         'terisi' => 'Terisi (sebelumnya kosong)',
         'dikosongkan' => 'Menjadi kosong',
-        'tidak_ditemukan' => 'Tidak ditemukan di snapshot berikutnya',
-        'muncul' => 'Muncul di snapshot (belum ada di sebelumnya)',
+        'tidak_ditemukan' => 'Tidak ada lagi di data bulan berikutnya',
+        'muncul' => 'Baru muncul di data (belum ada di bulan sebelumnya)',
+    ];
+
+    /** Kode status_kepegawaian di database => nama yang tampil. */
+    public const STATUS_LABEL = [
+        'PNS' => 'PNS',
+        'PPPK' => 'PPPK',
+        'PPPK_PW' => 'PPPK Paruh Waktu',
+        'LAINNYA' => 'Lainnya',
+    ];
+
+    /**
+     * Tingkat status untuk menentukan "naik" atau "turun":
+     * PPPK Paruh Waktu (1) -> PPPK (2) -> PNS (3). Status lain (mis. Lainnya,
+     * NABAN, Titipan) tidak punya tingkat sehingga dianggap perubahan biasa.
+     */
+    public const STATUS_TINGKAT = ['PPPK_PW' => 1, 'PPPK' => 2, 'PNS' => 3];
+
+    public const ARAH_STATUS_LABEL = [
+        'naik' => 'Naik status',
+        'turun' => 'Turun status',
+        'lain' => 'Perubahan lain',
     ];
 
     public const ATRIBUT_KEBERADAAN = '_keberadaan';
@@ -69,7 +90,7 @@ class PerubahanAtribut
     /** Atribut yang hanya muncul dari pencocokan khusus (bukan dari bandingkan()). */
     public const ATRIBUT_KHUSUS = [
         'nip' => 'NIP',
-        '_keberadaan' => 'Keberadaan di snapshot',
+        '_keberadaan' => 'Ada atau tidaknya di data',
     ];
 
     private const TANGGAL = ['tmt_pangkat', 'tanggal_lahir', 'tanggal_pensiun', 'tanggal_selesai_kontrak'];
@@ -99,6 +120,59 @@ class PerubahanAtribut
         }
 
         return $teks;
+    }
+
+    /** Nama status kepegawaian untuk tampilan (PPPK_PW -> PPPK Paruh Waktu). */
+    public static function labelStatus(?string $kode): ?string
+    {
+        if ($kode === null || trim($kode) === '') {
+            return null;
+        }
+
+        return self::STATUS_LABEL[strtoupper(trim($kode))] ?? $kode;
+    }
+
+    /** naik | turun | lain, menurut urutan PPPK Paruh Waktu -> PPPK -> PNS. */
+    public static function arahStatus(?string $dari, ?string $ke): string
+    {
+        $a = self::STATUS_TINGKAT[strtoupper(trim((string) $dari))] ?? null;
+        $b = self::STATUS_TINGKAT[strtoupper(trim((string) $ke))] ?? null;
+
+        if ($a === null || $b === null || $a === $b) {
+            return 'lain';
+        }
+
+        return $b > $a ? 'naik' : 'turun';
+    }
+
+    /**
+     * Susun daftar perpindahan status (mis. PPPK Paruh Waktu -> PPPK).
+     *
+     * @param  array<int, array{sebelum:?string,sesudah:?string,jumlah:int}>  $grup
+     * @return array<int, array{dari_kode:?string,ke_kode:?string,dari:?string,ke:?string,arah:string,arah_label:string,jumlah:int}>
+     */
+    public static function susunPerpindahanStatus(array $grup): array
+    {
+        $urut = ['naik' => 0, 'lain' => 1, 'turun' => 2];
+        $hasil = [];
+
+        foreach ($grup as $g) {
+            $arah = self::arahStatus($g['sebelum'] ?? null, $g['sesudah'] ?? null);
+
+            $hasil[] = [
+                'dari_kode' => $g['sebelum'] ?? null,
+                'ke_kode' => $g['sesudah'] ?? null,
+                'dari' => self::labelStatus($g['sebelum'] ?? null),
+                'ke' => self::labelStatus($g['sesudah'] ?? null),
+                'arah' => $arah,
+                'arah_label' => self::ARAH_STATUS_LABEL[$arah],
+                'jumlah' => (int) $g['jumlah'],
+            ];
+        }
+
+        usort($hasil, fn ($x, $y) => [$urut[$x['arah']], -$x['jumlah']] <=> [$urut[$y['arah']], -$y['jumlah']]);
+
+        return $hasil;
     }
 
     /** Perbandingan tidak peka huruf besar/kecil; NULL hanya sama dengan NULL. */
@@ -168,7 +242,7 @@ class PerubahanAtribut
 
         $alasanDasar = [];
         if (($opsi['bulan_terlewati'] ?? 0) > 0) {
-            $alasanDasar[] = $opsi['bulan_terlewati'] . ' bulan di antara kedua periode tidak punya snapshot, waktu perubahan tidak pasti';
+            $alasanDasar[] = $opsi['bulan_terlewati'] . ' bulan di antara kedua periode tidak punya data, waktu perubahan tidak pasti';
         }
         if (! empty($opsi['identitas_lemah'])) {
             $alasanDasar[] = 'NIP tidak standar atau pegawai dicocokkan lewat NIK';

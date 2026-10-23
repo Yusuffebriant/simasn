@@ -43,7 +43,7 @@ class PerubahanPegawaiExport implements FromArray, WithHeadings, ShouldAutoSize
                 $r->nama,
                 // Tanda kutip depan supaya Excel tidak mengubah NIP jadi notasi ilmiah.
                 $r->nip ? "'" . $r->nip : '',
-                $r->status_kepegawaian,
+                $r->status_label,
                 $r->unit,
                 $r->dari,
                 $r->ke,

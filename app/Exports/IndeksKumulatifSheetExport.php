@@ -95,17 +95,22 @@ class IndeksKumulatifSheetExport implements FromArray, WithTitle, WithEvents
         $awal = $this->labelBulan($this->periode[$idxAwal] ?? "{$this->tahun}-01");
         $akhir = $this->namaBulan(end($this->periode));
 
+        // Siapa yang dihitung: ASN aktif (PNS + PPPK), kecuali dimensi Status
+        // Kepegawaian yang ikut menghitung PPPK Paruh Waktu.
+        $sebutan = $this->tabel['cakupan']['sebutan'] ?? IndeksKumulatifService::CAKUPAN_ASN['sebutan'];
+        $rincian = $this->tabel['cakupan']['rincian'] ?? IndeksKumulatifService::CAKUPAN_ASN['rincian'];
+
         $this->tambah(['INDEKS KUMULATIF - ' . strtoupper($this->tabel['label'])]);
         $this->tambah($this->lintasTahun
-            ? ["Jumlah ASN aktif (PNS + PPPK), {$this->labelBulan($this->periode[0])} s.d. {$this->labelBulan(end($this->periode))}"]
-            : ["Jumlah ASN aktif (PNS + PPPK), {$this->namaBulan($this->periode[0])} s.d. {$akhir} {$this->tahun}"]);
+            ? ["Jumlah {$sebutan} ({$rincian}), {$this->labelBulan($this->periode[0])} s.d. {$this->labelBulan(end($this->periode))}"]
+            : ["Jumlah {$sebutan} ({$rincian}), {$this->namaBulan($this->periode[0])} s.d. {$akhir} {$this->tahun}"]);
         $this->tambah(['Cara membaca: lihat sheet Keterangan. Tanda "-" berarti data belum ada (bukan 0).']);
         $this->catatan = count($this->rows);
         $this->tambah([]);
 
         $def = [
-            ['jumlah', '1. JUMLAH ASN AKTIF PER BULAN', '#,##0',
-                'Banyaknya ASN aktif pada tiap bulan.'],
+            ['jumlah', '1. JUMLAH ' . strtoupper($sebutan) . ' PER BULAN', '#,##0',
+                "Banyaknya {$sebutan} pada tiap bulan."],
             ['selisih', '2. SELISIH PER BULAN (dibanding bulan sebelumnya)', '[Color10]+#,##0;[Red]-#,##0;0',
                 'Jumlah bulan ini dikurangi bulan sebelumnya. Hijau (+) bertambah, merah (-) berkurang.'],
             ['kumulatif', "3. SELISIH KUMULATIF (dibanding {$awal})", '[Color10]+#,##0;[Red]-#,##0;0',

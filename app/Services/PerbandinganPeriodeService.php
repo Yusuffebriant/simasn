@@ -159,6 +159,9 @@ class PerbandinganPeriodeService
             'kondisi' => $dapat ? $this->hitungDariBaris($this->saring($this->kondisiRows($awal, $akhir), $filter)) : null,
             'kejadian' => $dapat ? $this->hitungKejadian($this->queryKejadian($awal, $akhir, $filter)) : null,
             'opsi_unit' => $dapat ? $this->opsiUnit($awal, $akhir) : [],
+            'komposisi_status' => $dapat
+                ? ['awal' => $this->komposisiStatus($awal), 'akhir' => $this->komposisiStatus($akhir)]
+                : null,
         ];
     }
 
@@ -383,6 +386,18 @@ class PerbandinganPeriodeService
             $q->where('perlu_verifikasi', 1);
         }
 
+        if (! empty($filter['atribut'])) {
+            $q->where('atribut', $filter['atribut']);
+        }
+
+        if (! empty($filter['dari'])) {
+            $q->where('nilai_sebelum', $filter['dari']);
+        }
+
+        if (! empty($filter['ke'])) {
+            $q->where('nilai_sesudah', $filter['ke']);
+        }
+
         if (($cari = trim((string) ($filter['q'] ?? ''))) !== '') {
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $cari) . '%';
             $q->where(fn ($w) => $w->where('nama', 'like', $like)->orWhere('nip', 'like', $like));
@@ -402,6 +417,15 @@ class PerbandinganPeriodeService
                 return false;
             }
             if (! empty($filter['verifikasi']) && empty($r['perlu_verifikasi'])) {
+                return false;
+            }
+            if (! empty($filter['atribut']) && ($r['atribut'] ?? null) !== $filter['atribut']) {
+                return false;
+            }
+            if (! empty($filter['dari']) && ! PerubahanAtribut::sama($r['nilai_sebelum'] ?? null, $filter['dari'])) {
+                return false;
+            }
+            if (! empty($filter['ke']) && ! PerubahanAtribut::sama($r['nilai_sesudah'] ?? null, $filter['ke'])) {
                 return false;
             }
             if ($cari !== '' && ! str_contains(mb_strtolower($r['nama']), $cari)
@@ -428,6 +452,16 @@ class PerbandinganPeriodeService
             'tidak_ditemukan' => (int) (clone $q)->where('jenis', 'tidak_ditemukan')->count(),
             'muncul' => (int) (clone $q)->where('jenis', 'muncul')->count(),
         ];
+
+        $grupStatus = (clone $perubahan)
+            ->where('atribut', 'status_kepegawaian')->where('jenis', 'ubah')
+            ->select('nilai_sebelum', 'nilai_sesudah', DB::raw('COUNT(*) as jumlah'))
+            ->groupBy('nilai_sebelum', 'nilai_sesudah')
+            ->get()
+            ->map(fn ($r) => ['sebelum' => $r->nilai_sebelum, 'sesudah' => $r->nilai_sesudah, 'jumlah' => (int) $r->jumlah])
+            ->all();
+
+        $hasil = $this->tambahStatus($hasil, $grupStatus, $lengkap);
 
         if (! $lengkap) {
             return $hasil;
@@ -464,6 +498,17 @@ class PerbandinganPeriodeService
             'muncul' => count(array_filter($baris, fn ($r) => $r['jenis'] === 'muncul')),
         ];
 
+        $grupStatus = [];
+        foreach ($perubahan as $r) {
+            if ($r['atribut'] === 'status_kepegawaian' && $r['jenis'] === 'ubah') {
+                $k = strtoupper((string) $r['nilai_sebelum']) . '|' . strtoupper((string) $r['nilai_sesudah']);
+                $grupStatus[$k] ??= ['sebelum' => $r['nilai_sebelum'], 'sesudah' => $r['nilai_sesudah'], 'jumlah' => 0];
+                $grupStatus[$k]['jumlah']++;
+            }
+        }
+
+        $hasil = $this->tambahStatus($hasil, array_values($grupStatus), $lengkap);
+
         if (! $lengkap) {
             return $hasil;
         }
@@ -487,6 +532,43 @@ class PerbandinganPeriodeService
         return $hasil;
     }
 
+    /**
+     * Tambahkan hitungan perpindahan status (naik/turun) ke hasil ringkasan.
+     * naik_status/turun_status selalu ada; rincian per pasangan status hanya
+     * pada ringkasan lengkap.
+     */
+    private function tambahStatus(array $hasil, array $grup, bool $lengkap): array
+    {
+        $perpindahan = PerubahanAtribut::susunPerpindahanStatus($grup);
+
+        $hasil['naik_status'] = (int) array_sum(array_column(array_filter($perpindahan, fn ($p) => $p['arah'] === 'naik'), 'jumlah'));
+        $hasil['turun_status'] = (int) array_sum(array_column(array_filter($perpindahan, fn ($p) => $p['arah'] === 'turun'), 'jumlah'));
+
+        if ($lengkap) {
+            $hasil['perpindahan_status'] = $perpindahan;
+        }
+
+        return $hasil;
+    }
+
+    /** Jumlah pegawai aktif per status kepegawaian pada satu snapshot (termasuk PPPK Paruh Waktu). */
+    private function komposisiStatus(string $periode): array
+    {
+        $jumlah = DB::table('pegawai_snapshots')
+            ->where('periode', $periode)
+            ->where('status_aktif', 'aktif')
+            ->selectRaw('status_kepegawaian, COUNT(*) as jumlah')
+            ->groupBy('status_kepegawaian')
+            ->pluck('jumlah', 'status_kepegawaian');
+
+        $hasil = [];
+        foreach (PerubahanAtribut::STATUS_LABEL as $kode => $label) {
+            $hasil[] = ['kode' => $kode, 'label' => $label, 'jumlah' => (int) ($jumlah[$kode] ?? 0)];
+        }
+
+        return $hasil;
+    }
+
     private function opsiUnit(string $awal, string $akhir): array
     {
         return PegawaiPerubahanRiwayat::query()
@@ -501,6 +583,12 @@ class PerbandinganPeriodeService
             $r['kategori_label'] = PerubahanAtribut::KATEGORI[$r['kategori']] ?? $r['kategori'];
             $r['jenis_label'] = PerubahanAtribut::JENIS[$r['jenis']] ?? $r['jenis'];
             $r['perlu_verifikasi'] = (bool) ($r['perlu_verifikasi'] ?? false);
+
+            // Kode status (PPPK_PW) ditampilkan sebagai nama (PPPK Paruh Waktu).
+            if (($r['atribut'] ?? null) === 'status_kepegawaian') {
+                $r['nilai_sebelum'] = PerubahanAtribut::labelStatus($r['nilai_sebelum'] ?? null);
+                $r['nilai_sesudah'] = PerubahanAtribut::labelStatus($r['nilai_sesudah'] ?? null);
+            }
 
             return $r;
         }, $baris);

@@ -37,6 +37,12 @@ class MutasiInstansiService
 {
     public const STATUS_ASN = ['PNS', 'PPPK'];
 
+    /** Dipakai kalau pengguna memilih "Sertakan PPPK Paruh Waktu". */
+    public const STATUS_ASN_PW = ['PNS', 'PPPK', 'PPPK_PW'];
+
+    /** Status yang dihitung pada pemanggilan susun() ini. */
+    private array $statusDihitung = self::STATUS_ASN;
+
     /** Batas jumlah nama pegawai yang dikirim per bulan (agar respons tidak terlalu besar). */
     private const MAKS_RINCIAN = 3000;
 
@@ -48,8 +54,10 @@ class MutasiInstansiService
         'meninggal' => 'Meninggal dunia',
     ];
 
-    public function susun(string $awal, string $akhir): array
+    public function susun(string $awal, string $akhir, bool $sertakanParuhWaktu = false): array
     {
+        $this->statusDihitung = $sertakanParuhWaktu ? self::STATUS_ASN_PW : self::STATUS_ASN;
+
         $daftar = PerbandinganPeriodeService::daftarBulan($awal, $akhir);
         $punya = PegawaiSnapshotPeriode::whereBetween('periode', [$awal, $akhir])
             ->pluck('periode')->flip();
@@ -134,6 +142,8 @@ class MutasiInstansiService
             'akhir' => $akhir,
             'bulan' => $bulan,
             'ada_data' => $punya->isNotEmpty(),
+            'sertakan_paruh_waktu' => $sertakanParuhWaktu,
+            'cakupan' => $sertakanParuhWaktu ? 'PNS + PPPK + PPPK Paruh Waktu' : 'PNS + PPPK',
             'instansi' => $instansi,
             'total' => $this->susunTotal($instansi, $bulan),
             'rincian' => $rincian,
@@ -151,7 +161,7 @@ class MutasiInstansiService
         $baris = DB::table('pegawai_snapshots')
             ->where('periode', $periode)
             ->where('status_aktif', 'aktif')
-            ->whereIn('status_kepegawaian', self::STATUS_ASN)
+            ->whereIn('status_kepegawaian', $this->statusDihitung)
             ->selectRaw('instansi, COUNT(*) as jumlah')
             ->groupBy('instansi')
             ->get();
@@ -400,7 +410,7 @@ class MutasiInstansiService
     private function asnAktif(object $r): bool
     {
         return mb_strtolower((string) $r->status_aktif) === 'aktif'
-            && in_array(strtoupper((string) $r->status_kepegawaian), self::STATUS_ASN, true);
+            && in_array(strtoupper((string) $r->status_kepegawaian), $this->statusDihitung, true);
     }
 
     private function alasanTidakAktif(object $r): string
@@ -413,7 +423,9 @@ class MutasiInstansiService
 
         $status = str_replace('_', ' ', (string) ($r->status_kepegawaian ?: 'tidak diketahui'));
 
-        return 'Status kepegawaian menjadi ' . $status . ' (bukan PNS/PPPK)';
+        $cakupan = in_array('PPPK_PW', $this->statusDihitung, true) ? 'PNS/PPPK/PPPK Paruh Waktu' : 'PNS/PPPK';
+
+        return 'Status kepegawaian menjadi ' . $status . " (bukan {$cakupan})";
     }
 
     /** Kunci instansi tidak peka huruf besar/kecil; nama tampilan = penulisan pertama yang ditemui. */

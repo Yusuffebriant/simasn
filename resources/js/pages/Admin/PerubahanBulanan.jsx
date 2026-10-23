@@ -58,6 +58,18 @@ function namaBulanPendek(periode) {
 
 const angka = (n) => (n ?? 0).toLocaleString("id-ID");
 
+// Label status kepegawaian; PPPK Paruh Waktu diberi warna agar mudah dibedakan.
+function LencanaStatus({ kode, label }) {
+    if (!label) return "-";
+    return (
+        <span
+            className={`px-2 py-0.5 rounded text-xs font-semibold ${kode === "PPPK_PW" ? "bg-amber-50 text-amber-600" : "bg-gray-100 text-gray-700"}`}
+        >
+            {label}
+        </span>
+    );
+}
+
 function Kartu({ ikon: Ikon, judul, nilai, warna, keterangan }) {
     return (
         <div className="bg-white border rounded-xl p-5">
@@ -377,6 +389,7 @@ export default function PerubahanBulanan() {
                                             <th className="p-2 text-left">Jenis</th>
                                             <th className="p-2 text-left">Nama</th>
                                             <th className="p-2 text-left">NIP</th>
+                                            <th className="p-2 text-left">Status</th>
                                             <th className="p-2 text-left">Unit</th>
                                             <th className="p-2 text-left">
                                                 Dari
@@ -398,7 +411,7 @@ export default function PerubahanBulanan() {
                                     <tbody>
                                         {rows.length === 0 && (
                                             <tr>
-                                                <td colSpan={7} className="p-3 text-gray-500">
+                                                <td colSpan={8} className="p-3 text-gray-500">
                                                     Tidak ada data yang cocok.
                                                 </td>
                                             </tr>
@@ -414,6 +427,9 @@ export default function PerubahanBulanan() {
                                                 <td className="p-2">{r.nama}</td>
                                                 <td className="p-2 whitespace-nowrap">
                                                     {r.nip || "-"}
+                                                </td>
+                                                <td className="p-2 whitespace-nowrap">
+                                                    <LencanaStatus kode={r.status_kepegawaian} label={r.status_label} />
                                                 </td>
                                                 <td className="p-2">{r.unit || "-"}</td>
                                                 <td className="p-2">{r.dari || "-"}</td>

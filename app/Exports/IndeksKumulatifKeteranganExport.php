@@ -51,11 +51,12 @@ class IndeksKumulatifKeteranganExport implements FromArray, WithTitle, WithEvent
         $judul('Isi file');
         $rows[] = ['1. Ringkasan: kesimpulan singkat dan angka terpenting. Mulai membaca dari sini.'];
         $rows[] = ['2. Keterangan: halaman ini.'];
-        $rows[] = ['3. Sheet per kelompok (Agama, Pendidikan, Golongan Ruang, JFT, JFU): tabel lengkap per bulan.'];
+        $rows[] = ['3. Sheet per kelompok (Agama, Pendidikan, Golongan Ruang, JFT, JFU, Status Kepegawaian): tabel lengkap per bulan.'];
         $rows[] = [];
 
         $judul('Yang dimaksud ASN aktif');
-        $rows[] = ['PNS dan PPPK yang berstatus aktif. PPPK paruh waktu dan CPNS tidak dihitung. Pegawai yang sudah pensiun, meninggal, atau mutasi keluar juga tidak dihitung.'];
+        $rows[] = ['PNS dan PPPK yang berstatus aktif. CPNS tidak dihitung. Pegawai yang sudah pensiun, meninggal, atau mutasi keluar juga tidak dihitung.'];
+        $rows[] = ['PPPK paruh waktu hanya dihitung di sheet Status Kepegawaian (PNS + PPPK + PPPK Paruh Waktu). Di sheet kelompok lain PPPK paruh waktu tidak ikut, sama dengan menu Rekapitulasi.'];
         $rows[] = [];
 
         $judul('Arti keempat tabel di tiap sheet kelompok');
@@ -80,7 +81,7 @@ class IndeksKumulatifKeteranganExport implements FromArray, WithTitle, WithEvent
         $judul('Hal yang sering salah dipahami');
         $rows[] = ['- Tanda "-" berarti angka tidak tersedia (bulan belum diupload atau tidak bisa dihitung). Tanda "-" BUKAN 0 dan BUKAN berarti tidak ada perubahan.'];
         $rows[] = ["- Bulan yang tidak diupload dilewati. Perbandingan \"bulan sebelumnya\" memakai bulan terdekat yang punya data."];
-        $rows[] = ['- Total tiap kelompok bisa berbeda. Agama, Pendidikan, dan Golongan Ruang mencakup seluruh ASN aktif, sedangkan JFT dan JFU hanya mencakup ASN jabatan fungsional.'];
+        $rows[] = ['- Total tiap kelompok bisa berbeda. Agama, Pendidikan, dan Golongan Ruang mencakup seluruh ASN aktif, JFT dan JFU hanya mencakup ASN jabatan fungsional, dan Status Kepegawaian lebih besar karena ikut menghitung PPPK Paruh Waktu.'];
         $rows[] = ['- Semua angka di sini adalah jumlah per kategori, bukan perpindahan orang. Naiknya satu kategori dan turunnya kategori lain tidak selalu berarti ada orang yang berpindah antar kategori. Untuk pegawai yang masuk, keluar, atau berubah datanya, lihat bagian D di sheet Ringkasan.'];
 
         return $rows;

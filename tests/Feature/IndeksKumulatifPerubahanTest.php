@@ -330,6 +330,98 @@ class IndeksKumulatifPerubahanTest extends TestCase
         $this->assertNull($data['dimensi']['agama']['total'][0]);
     }
 
+    public function test_dimensi_status_kepegawaian_dari_snapshot_paruh_waktu(): void
+    {
+        $ringkasan = fn (int $pns, int $pppk, int $pw) => [
+            'ringkasan_status' => ['PNS' => $pns, 'PPPK' => $pppk, 'PPPK_PW' => $pw, 'LAINNYA' => 7, 'TOTAL' => $pns + $pppk + $pw + 7],
+        ];
+
+        foreach (['2026-01' => [100, 20, 5], '2026-02' => [98, 22, 9]] as $periode => [$pns, $pppk, $pw]) {
+            RekapSnapshotData::create(['periode' => $periode, 'nama' => 'paruh-waktu', 'payload' => $ringkasan($pns, $pppk, $pw), 'dibekukan_pada' => now()]);
+        }
+        // Arsip lama yang belum memuat ringkasan status: dianggap tidak ada data (bukan 0).
+        RekapSnapshotData::create(['periode' => '2026-03', 'nama' => 'paruh-waktu', 'payload' => ['per_instansi' => []], 'dibekukan_pada' => now()]);
+
+        $data = app(IndeksKumulatifService::class)->susunRentang('2026-01', '2026-03');
+        $status = $data['dimensi']['status'];
+
+        $this->assertSame('Status Kepegawaian', $status['label']);
+        $this->assertSame('pegawai aktif', $status['cakupan']['sebutan']);
+        // Tiga status saja (CPNS/Lainnya tidak ikut), urut abjad.
+        $this->assertSame(['PNS', 'PPPK', 'PPPK Paruh Waktu'], array_column($status['kategori'], 'nama'));
+        $this->assertSame([100, 98, null], $status['kategori'][0]['nilai']);
+        $this->assertSame([5, 9, null], $status['kategori'][2]['nilai']);
+        $this->assertSame([125, 129, null], $status['total']);
+
+        // Dimensi lain tetap hanya ASN aktif (PNS + PPPK).
+        $this->assertSame('ASN aktif', $data['dimensi']['agama']['cakupan']['sebutan']);
+
+        // Selisih Paruh Waktu dihitung seperti dimensi lain.
+        $this->assertSame([null, 4, null], IndeksKumulatifService::hitungDeret($status['kategori'][2]['nilai'], 'selisih', 0));
+    }
+
+    public function test_dimensi_status_periode_aktif_dihitung_langsung_termasuk_paruh_waktu(): void
+    {
+        $this->pegawai('199001012015011001', ['status_kepegawaian' => 'PNS']);
+        $this->pegawai('199001012015011002', ['status_kepegawaian' => 'PPPK']);
+        $this->pegawai('199001012015011003', ['status_kepegawaian' => 'PPPK_PW']);
+        $this->pegawai('199001012015011004', ['status_kepegawaian' => 'PPPK_PW', 'jenis_kelamin' => 'P']);
+        $this->pegawai('199001012015011005', ['status_kepegawaian' => 'PPPK_PW', 'status_aktif' => 'pensiun']);
+
+        ImportBatch::create(['nama_file' => 'okt.xlsx', 'periode' => '2026-10', 'uploaded_by' => $this->admin->id, 'status' => 'selesai']);
+
+        $data = app(IndeksKumulatifService::class)->susunRentang('2026-10', '2026-10');
+        $status = $data['dimensi']['status'];
+        $per = array_column($status['kategori'], 'nilai', 'nama');
+
+        $this->assertSame([1], $per['PNS']);
+        $this->assertSame([1], $per['PPPK']);
+        $this->assertSame([2], $per['PPPK Paruh Waktu']); // yang pensiun tidak dihitung
+        $this->assertSame([4], $status['total']);
+        $this->assertSame('langsung', $data['bulan'][0]['sumber']);
+
+        // Dimensi agama tetap hanya PNS + PPPK: paruh waktu tidak ikut.
+        $this->assertSame([2], $data['dimensi']['golongan']['total']);
+    }
+
+    public function test_perubahan_pegawai_menampilkan_status_paruh_waktu(): void
+    {
+        $batch = ImportBatch::create(['nama_file' => 'okt.xlsx', 'periode' => '2026-10', 'uploaded_by' => $this->admin->id, 'status' => 'selesai']);
+
+        $baris = \App\Models\ImportPerubahan::create([
+            'import_batch_id' => $batch->id, 'periode' => '2026-10', 'jenis' => 'ganti_status',
+            'nip' => '199001012015011003', 'nama' => 'Pegawai 003', 'unit' => 'Bidang A',
+            'status_kepegawaian' => 'PPPK', 'dari' => 'PPPK_PW', 'ke' => 'PPPK',
+        ]);
+        $baru = \App\Models\ImportPerubahan::create([
+            'import_batch_id' => $batch->id, 'periode' => '2026-10', 'jenis' => 'pegawai_baru',
+            'nip' => '199001012015011004', 'nama' => 'Pegawai 004', 'unit' => 'Bidang A',
+            'status_kepegawaian' => 'PPPK_PW', 'dari' => null, 'ke' => 'Bidang A',
+        ]);
+
+        $baris = $baris->fresh();
+        $this->assertSame('PPPK', $baris->status_label);
+        $this->assertSame('PPPK Paruh Waktu', $baris->dari);
+        $this->assertSame('PPPK', $baris->ke);
+        $this->assertSame('PPPK Paruh Waktu', $baru->fresh()->status_label);
+        $this->assertSame('PPPK Paruh Waktu', $baru->fresh()->toArray()['status_label']);
+    }
+
+    public function test_perubahan_individual_menampilkan_status_paruh_waktu(): void
+    {
+        $p = $this->pegawai(self::NIP, ['status_kepegawaian' => 'PPPK_PW']);
+        $this->snapshot->bangun('2026-01');
+        $p->update(['status_kepegawaian' => 'PPPK']);
+        $this->snapshot->bangun('2026-02');
+
+        $kondisi = collect(app(PerbandinganPeriodeService::class)->semuaKondisi('2026-01', '2026-02'))->keyBy('atribut');
+
+        $this->assertSame(
+            ['PPPK Paruh Waktu', 'PPPK'],
+            [$kondisi['status_kepegawaian']['nilai_sebelum'], $kondisi['status_kepegawaian']['nilai_sesudah']]
+        );
+    }
+
     public function test_rekap_rentang_lintas_tahun_memakai_semua_bulan(): void
     {
         $data = app(IndeksKumulatifService::class)->susunRentang('2026-11', '2027-02');
@@ -467,9 +559,11 @@ class IndeksKumulatifPerubahanTest extends TestCase
             $respons->headers->get('content-disposition')
         );
 
-        // Isi workbook: Ringkasan, Keterangan, lalu sheet per dimensi (agama = sheet ke-3).
+        // Isi workbook: Ringkasan, Keterangan, lalu sheet per dimensi (agama = sheet ke-3,
+        // Status Kepegawaian = sheet terakhir).
         $sheets = (new IndeksKumulatifExport('2026', '2026-11', '2027-02'))->sheets();
-        $this->assertCount(7, $sheets);
+        $this->assertCount(8, $sheets);
+        $this->assertSame('Status Kepegawaian', $sheets[7]->title());
         $this->assertSame('Agama', $sheets[2]->title());
 
         $baris = collect($sheets[2]->array());

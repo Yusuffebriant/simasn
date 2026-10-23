@@ -445,11 +445,11 @@ class PegawaiSnapshotService
                 'atribut' => PerubahanAtribut::ATRIBUT_KEBERADAAN,
                 'kategori' => 'keberadaan',
                 'jenis' => 'tidak_ditemukan',
-                'sebelum' => "Ada pada {$dari}",
-                'sesudah' => "Tidak ditemukan pada {$ke}",
+                'sebelum' => "Ada di data {$dari}",
+                'sesudah' => "Tidak ada di data {$ke}",
                 'tanggal_efektif' => null,
                 'perlu_verifikasi' => true,
-                'alasan' => 'Tidak ditemukan di snapshot berikutnya; penyebab (pensiun, mutasi, data terlewat) belum dapat dipastikan',
+                'alasan' => 'Tidak ada lagi di data bulan berikutnya; penyebabnya (pensiun, pindah, data terlewat, atau NIP berubah) belum bisa dipastikan',
             ]);
         }
 
@@ -459,11 +459,11 @@ class PegawaiSnapshotService
                 'atribut' => PerubahanAtribut::ATRIBUT_KEBERADAAN,
                 'kategori' => 'keberadaan',
                 'jenis' => 'muncul',
-                'sebelum' => "Tidak ada pada {$dari}",
-                'sesudah' => "Ada pada {$ke}",
+                'sebelum' => "Tidak ada di data {$dari}",
+                'sesudah' => "Ada di data {$ke}",
                 'tanggal_efektif' => null,
                 'perlu_verifikasi' => $lemah,
-                'alasan' => $lemah ? 'Identitas tidak standar atau ada bulan tanpa snapshot di antaranya' : null,
+                'alasan' => $lemah ? 'Identitas tidak standar atau ada bulan tanpa data di antaranya' : null,
             ]);
         }
 

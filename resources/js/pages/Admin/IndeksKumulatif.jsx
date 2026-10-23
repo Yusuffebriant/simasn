@@ -6,14 +6,16 @@ import { hitungDeret } from "../../lib/indeks";
 import PerubahanIndividual from "./PerubahanIndividual";
 import MutasiInstansi from "./MutasiInstansi";
 
-// Hanya lima dimensi yang dibutuhkan. Urutan & key sama dengan
-// IndeksKumulatifService::DIMENSI di backend.
+// Enam dimensi. Urutan & key sama dengan IndeksKumulatifService::DIMENSI di backend.
+// Lima pertama hanya menghitung ASN aktif (PNS + PPPK); "status" juga menghitung
+// PPPK Paruh Waktu.
 const DIMENSI_TABS = [
     { key: "agama", label: "Agama" },
     { key: "pendidikan", label: "Pendidikan" },
     { key: "golongan", label: "Golongan" },
     { key: "jft", label: "JFT" },
     { key: "jfu", label: "JFU" },
+    { key: "status", label: "Status Kepegawaian" },
 ];
 
 const MODE_TABS = [
@@ -65,6 +67,7 @@ export default function IndeksKumulatif() {
     const [awal, setAwal] = useState(""); // "" = bawaan (Januari s.d. bulan terakhir pada tahun)
     const [akhir, setAkhir] = useState("");
     const [periodeOpsi, setPeriodeOpsi] = useState([]);
+    const [sertakanPw, setSertakanPw] = useState(false); // PPPK Paruh Waktu ikut dihitung (Agama, Pendidikan)
 
     useEffect(() => {
         let batal = false;
@@ -79,11 +82,12 @@ export default function IndeksKumulatif() {
 
     // Rentang pilihan dipakai hanya kalau kedua ujungnya terisi dan berurutan.
     const rentangPilihan = awal && akhir && akhir >= awal;
-    const qsRentang = rentangPilihan
+    const qsDasar = rentangPilihan
         ? `awal=${encodeURIComponent(awal)}&akhir=${encodeURIComponent(akhir)}`
         : tahun
             ? `tahun=${encodeURIComponent(tahun)}`
             : "";
+    const qsRentang = [qsDasar, sertakanPw ? "paruh_waktu=1" : ""].filter(Boolean).join("&");
 
     useEffect(() => {
         let batal = false;
@@ -162,6 +166,9 @@ export default function IndeksKumulatif() {
     const bulan = data?.bulan ?? [];
     const tabel = data?.dimensi?.[dimensi];
     const modeAktif = MODE_TABS.find((m) => m.key === mode);
+    // Siapa yang dihitung pada dimensi terpilih (dimensi status ikut menghitung PPPK Paruh Waktu).
+    const sebutan = tabel?.cakupan?.sebutan ?? "ASN aktif";
+    const rincian = tabel?.cakupan?.rincian ?? "PNS + PPPK";
 
     // Bulan pertama yang punya data = patokan indeks (biasanya Januari).
     const tanpaData = (b) => b.sumber === "kosong" || b.sumber === "tanpa_snapshot";
@@ -215,7 +222,7 @@ export default function IndeksKumulatif() {
                     <h2 className="text-2xl font-bold">Indeks Kumulatif</h2>
                     <p className="text-sm text-gray-500">
                         {tampilan === "rekap"
-                            ? `Jumlah ASN aktif (PNS + PPPK) dari bulan ke bulan, dikelompokkan menurut agama, pendidikan, golongan, atau jabatan fungsional${rentang ? ` (${rentang})` : ""}.`
+                            ? `Jumlah ASN aktif (PNS + PPPK) dari bulan ke bulan, dikelompokkan menurut agama, pendidikan, golongan, jabatan fungsional, atau status kepegawaian (termasuk PPPK Paruh Waktu)${rentang ? ` (${rentang})` : ""}.`
                             : tampilan === "instansi"
                                 ? "Jumlah pegawai tiap instansi per bulan, beserta penjelasan siapa pindah dari dan ke instansi mana."
                                 : "Perubahan data tiap pegawai antar bulan: jabatan, pangkat, unit kerja, pendidikan, dan status."}
@@ -345,6 +352,20 @@ export default function IndeksKumulatif() {
                         ))}
                     </div>
 
+                    <label className="flex items-start gap-2 text-xs text-gray-700 mb-3">
+                        <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={sertakanPw}
+                            onChange={(e) => setSertakanPw(e.target.checked)}
+                        />
+                        <span>
+                            <b>Sertakan PPPK Paruh Waktu</b> (berlaku untuk kelompok Agama dan Pendidikan; kelompok
+                            lain tetap PNS + PPPK). Bawaannya tidak dicentang, supaya angkanya sama dengan menu
+                            Rekapitulasi.
+                        </span>
+                    </label>
+
                     <div className="flex flex-wrap items-center gap-2 mb-4">
                         <span className="text-xs font-medium text-gray-600 mr-1">Tampilkan sebagai:</span>
                         {MODE_TABS.map((m) => (
@@ -385,6 +406,18 @@ export default function IndeksKumulatif() {
                         <div className="flex items-start gap-3 text-amber-800 bg-amber-50 p-3 rounded-lg text-sm mb-4">
                             <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                             <span>Periode akhir sebelum periode awal; rentang pilihan belum dipakai.</span>
+                        </div>
+                    )}
+
+                    {sertakanPw && data?.bulan_tanpa_paruh_waktu?.length > 0 && (
+                        <div className="flex items-start gap-3 text-amber-800 bg-amber-50 p-3 rounded-lg text-sm mb-4">
+                            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                            <span>
+                                Data PPPK Paruh Waktu per agama/pendidikan belum ada untuk{" "}
+                                {data.bulan_tanpa_paruh_waktu.map((p) => formatPeriodeLabel(p)).join(", ")}. Pada
+                                kelompok Agama dan Pendidikan, bulan itu ditulis “–” (bukan 0) supaya angka tidak
+                                tercampur antara yang memuat dan yang tidak memuat Paruh Waktu.
+                            </span>
                         </div>
                     )}
 
@@ -475,7 +508,7 @@ export default function IndeksKumulatif() {
 
                         <div className="mt-3 space-y-3">
                             <p>
-                                Setiap angka adalah jumlah ASN aktif (PNS + PPPK) pada bulan itu, diambil
+                                Setiap angka adalah jumlah {sebutan} ({rincian}) pada bulan itu, diambil
                                 dari data yang diupload tiap bulan. Tanda “–” berarti data bulan itu belum
                                 ada (bukan nol), dan bulannya dilewati dalam hitungan. Baris{" "}
                                 <b>Total</b> adalah jumlah semua baris di atasnya pada bulan yang sama.

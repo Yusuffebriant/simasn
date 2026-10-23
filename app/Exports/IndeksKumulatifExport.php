@@ -25,7 +25,8 @@ class IndeksKumulatifExport implements Export, WithMultipleSheets
     public function __construct(
         protected string $tahun,
         protected ?string $awal = null,
-        protected ?string $akhir = null
+        protected ?string $akhir = null,
+        protected bool $sertakanParuhWaktu = false
     ) {}
 
     public function sheets(): array
@@ -34,8 +35,8 @@ class IndeksKumulatifExport implements Export, WithMultipleSheets
         $rentang = $this->awal !== null && $this->akhir !== null;
 
         $data = $rentang
-            ? $service->susunRentang($this->awal, $this->akhir)
-            : $service->susun($this->tahun);
+            ? $service->susunRentang($this->awal, $this->akhir, $this->sertakanParuhWaktu)
+            : $service->susun($this->tahun, $this->sertakanParuhWaktu);
         $periode = array_column($data['bulan'], 'periode');
         $dasar = $rentang ? 0 : null; // rentang pilihan: periode dasar = periode awal
 

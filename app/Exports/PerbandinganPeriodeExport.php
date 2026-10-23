@@ -140,8 +140,8 @@ class PerbandinganPeriodeExport implements Export, WithMultipleSheets
             $baris[] = ['Jumlah kejadian perubahan (atribut)', $d['kejadian_perubahan']];
             $baris[] = ['Jumlah atribut yang berubah', $d['atribut_berubah']];
             $baris[] = ['Kejadian perlu verifikasi', $d['perlu_verifikasi']];
-            $baris[] = ['Tidak ditemukan di snapshot', $d['tidak_ditemukan']];
-            $baris[] = ['Muncul di snapshot', $d['muncul']];
+            $baris[] = ['Tidak ada lagi di data bulan akhir', $d['tidak_ditemukan']];
+            $baris[] = ['Baru muncul di data', $d['muncul']];
             foreach ($d['perpindahan_jabatan'] as $p) {
                 $baris[] = ["Perpindahan {$p['dari']} -> {$p['ke']} (terkonfirmasi)", $p['jumlah']];
             }
@@ -187,7 +187,7 @@ class PerbandinganPeriodeExport implements Export, WithMultipleSheets
             ['Kejadian: semua perubahan pada tiap pasangan periode berurutan. Perubahan yang kembali ke nilai awal tetap tampil.'],
             ['Nilai sebelumnya/sesudahnya kosong = "terisi"/"menjadi kosong" dan perlu verifikasi, bukan perubahan terkonfirmasi.'],
             ['Tanggal efektif hanya diisi bila sumber data menyediakannya (TMT pangkat). Bukan tanggal impor atau tanggal snapshot.'],
-            ['Tidak ditemukan di snapshot tidak berarti pensiun/keluar; penyebabnya perlu diperiksa admin.'],
+            ['Tidak ada lagi di data bulan akhir belum tentu berarti pensiun/keluar; penyebabnya perlu diperiksa admin.'],
             ['Angka di sini adalah hitungan pegawai/atribut individual, bukan selisih jumlah agregat rekap.'],
             ['Kategori jabatan (JFT/JFU/Struktural) diturunkan dengan aturan yang sama seperti rekap: eselon II-IV = struktural; selain itu jenis kedudukan FUNGSIONAL = JFT; sisanya JFU.'],
         ];
