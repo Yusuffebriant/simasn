@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Info } from "lucide-react";
+import { Info, AlertTriangle } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import {
     getCurrentPeriode,
@@ -62,6 +62,30 @@ function PreviewExcel({
                     dengan isi file sebelum lanjut import.
                 </p>
 
+                <div className="mb-4 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                    <Info size={16} className="mt-0.5 shrink-0" />
+                    <div>
+                        <p className="font-semibold">Upload sesuai urutan bulan</p>
+                        <ul className="mt-1 list-disc pl-5 space-y-0.5">
+                            <li>
+                                Setiap upload <b>mengganti seluruh data pegawai</b> dengan
+                                isi file. Data yang berlaku di sistem adalah file yang
+                                diupload paling akhir.
+                            </li>
+                            <li>
+                                Upload dari bulan paling lama ke paling baru (misalnya
+                                Oktober dulu, lalu November). Arsip tiap bulan tersimpan,
+                                dan perubahan antar bulan dihitung otomatis.
+                            </li>
+                            <li>
+                                Jangan mengupload bulan lama setelah bulan baru, kecuali
+                                untuk koreksi. Setelah koreksi, upload ulang file bulan
+                                terbaru supaya data yang berlaku kembali benar.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div className="flex flex-wrap gap-3">
                     <select
                         value={bulan}
@@ -120,14 +144,28 @@ function PreviewExcel({
                 )}
 
                 {periode && aktif && periode < aktif && (
-                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
-                        <Info size={16} className="mt-0.5 shrink-0" />
-                        <span>
-                            Periode ini lebih lama dari data yang sedang
-                            berlaku. Import tetap berjalan: data pegawai akan
-                            diganti dengan isi file ini, dan perubahan antar
-                            bulan tetap bisa dilihat di menu Indeks Kumulatif.
-                        </span>
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-300 p-3 text-sm text-amber-900">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        <div>
+                            <p className="font-semibold">
+                                Periode ini lebih lama dari data yang sedang berlaku
+                            </p>
+                            <p className="mt-1">
+                                Import tetap berjalan, tetapi data pegawai di sistem akan
+                                diganti dengan isi file {formatPeriodeLabel(periode)}, bukan
+                                lagi {formatPeriodeLabel(aktif)}. Dashboard dan daftar pegawai
+                                akan menampilkan data bulan lama. Di Riwayat Import, &ldquo;Lihat
+                                Perubahan&rdquo; untuk upload ini dibandingkan dengan upload
+                                sebelumnya sehingga bisa terbaca terbalik (yang baru tampak
+                                hilang). Arsip dan menu Indeks Kumulatif tetap benar karena
+                                disusun menurut bulan.
+                            </p>
+                            <p className="mt-1">
+                                Kalau ini untuk koreksi, setelah selesai upload ulang file{" "}
+                                {formatPeriodeLabel(aktif)} supaya data yang berlaku kembali
+                                ke bulan terbaru.
+                            </p>
+                        </div>
                     </div>
                 )}
 

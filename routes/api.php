@@ -316,9 +316,18 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
             ->middleware('throttle:10,1,import-upload');
         Route::get('/imports/{batch}', [ImportController::class, 'show']);
         Route::get('/imports/{batch}/errors', [ImportController::class, 'errors']);
+        Route::get('/imports/{batch}/saran-perbaikan', [ImportController::class, 'saranPerbaikan']);
         Route::get('/imports/{batch}/kelengkapan', [ImportController::class, 'kelengkapan']);
         Route::get('/imports/{batch}/perubahan', [ImportController::class, 'perubahan']);
         Route::get('/imports/{batch}/perubahan/export', [ImportController::class, 'perubahanExport']);
+        Route::get('/imports/{batch}/ganda', [ImportController::class, 'ganda']);
+
+        // ---- PERAWATAN SISTEM (perintah artisan lewat layar; khusus super-admin) ----
+        Route::middleware(['role:super-admin'])->group(function () {
+            Route::get('/perawatan', [\App\Http\Controllers\Api\PerawatanController::class, 'index']);
+            Route::post('/perawatan/{kunci}/jalankan', [\App\Http\Controllers\Api\PerawatanController::class, 'jalankan'])
+                ->middleware('throttle:10,1,perawatan');
+        });
 
         // ---- PERUBAHAN PEGAWAI PER BULAN (halaman tersendiri di Admin) ----
         Route::get('/perubahan-pegawai', [PerubahanBulananController::class, 'index']);

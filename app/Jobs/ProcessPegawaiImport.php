@@ -158,7 +158,8 @@ class ProcessPegawaiImport implements ShouldQueue
             }
             unset($foto);
 
-            // Rekonsiliasi: bandingkan isi file dengan isi database. Kalau
+            // Pengecekan otomatis (rekonsiliasi): bandingkan isi file dengan hasil
+            // import periode ini. Kalau
             // jumlahnya berbeda (mis. 39 baris di Excel tapi 37 pegawai di
             // sistem), rincian baris yang saling menimpa ikut disimpan agar
             // alasannya tampil di layar hasil import. Kegagalan di sini tidak
@@ -167,9 +168,22 @@ class ProcessPegawaiImport implements ShouldQueue
                 try {
                     $rekon = (new ImportRekonsiliasi())->bandingkan($this->batch, $import->tally());
                     $rekon['ganda_detail'] = $import->gandaDetail();
+                    // Baris dengan NIK sama tetapi nama berbeda: pegawai di baris
+                    // sebelumnya tertimpa dan hilang dari database. Jumlah ini
+                    // akurat walau rincian gandanya dibatasi.
+                    $rekon['ganda_nik_beda_nama'] = $import->gandaNikBedaNamaJumlah();
                     // Pegawai tersimpan tapi tidak ikut rekap (bukan berstatus aktif).
                     $rekon['tidak_aktif_jumlah'] = $import->tidakAktifJumlah();
                     $rekon['tidak_aktif_detail'] = $import->tidakAktifDetail();
+                    // Pegawai tersimpan tapi ada isian wajib kosong, beserta sebabnya
+                    // (kolom tidak ada / sel kosong / isi tidak dikenali).
+                    $rekon['kosong_jumlah'] = $import->kosongJumlah();
+                    $rekon['kosong_detail'] = $import->kosongDetail();
+                    $rekon['kosong_ringkas'] = $import->kosongRingkas();
+                    // Sel Excel yang isinya rumus (=VLOOKUP, ="123") per kolom, supaya
+                    // admin tahu kolom mana yang harus di-Paste Values di Excel.
+                    $rekon['rumus_baris'] = $import->rumusJumlahBaris();
+                    $rekon['rumus_ringkas'] = $import->rumusRingkas();
 
                     $this->batch->update([
                         'rekonsiliasi_status' => $rekon['status'],

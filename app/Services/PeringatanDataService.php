@@ -5,8 +5,11 @@ namespace App\Services;
 use App\Models\ImportBatch;
 use App\Models\Pegawai;
 use App\Models\RekapSnapshotData;
+use App\Support\AlasanImport;
 use App\Support\KelengkapanPegawai;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Pemeriksaan kesehatan data pegawai (kondisi SAAT INI), untuk banner
@@ -122,13 +125,19 @@ class PeringatanDataService
     private function cekImportTerakhir(ImportBatch $batch, array &$peringatan): void
     {
         if ((int) $batch->gagal > 0) {
+            [$rincian, $penjelasan] = $this->uraikanBarisGagal($batch);
+
             $peringatan[] = $this->item(
                 'baris_gagal',
                 'peringatan',
                 'Import terakhir punya baris gagal',
-                "{$batch->gagal} baris di import terakhir gagal diproses, jadi belum masuk ke data. "
-                . 'Buka Riwayat Import untuk melihat daftar barisnya.',
-                (int) $batch->gagal
+                "{$batch->gagal} baris di import terakhir (periode {$batch->periode}) gagal diproses, jadi belum masuk ke data."
+                . ($rincian ? ' Alasan dan bagian file Excel yang perlu diperbaiki ada di bawah.' : ' Buka Riwayat Import untuk melihat daftar barisnya.'),
+                (int) $batch->gagal,
+                null,
+                null,
+                $rincian,
+                $penjelasan
             );
         }
 
@@ -136,11 +145,63 @@ class PeringatanDataService
             $peringatan[] = $this->item(
                 'rekonsiliasi_selisih',
                 'peringatan',
-                'Isi file tidak sama dengan isi database',
-                'Hasil rekonsiliasi import terakhir menunjukkan selisih antara file dan database '
-                . '(biasanya ada baris ganda di file). Lihat detailnya di Riwayat Import.'
+                'Isi file tidak sama dengan hasil import periode ' . $batch->periode,
+                'Pengecekan otomatis pada import periode ' . $batch->periode . ' menunjukkan selisih antara isi file '
+                . 'dan data yang berhasil masuk (biasanya ada baris ganda di file). Lihat detailnya di Riwayat Import.'
             );
         }
+    }
+
+    /**
+     * Kelompokkan baris gagal import terakhir per masalah (kolom Excel yang harus
+     * diperbaiki, jumlah, contoh baris, cara memperbaiki) dan buat kalimat yang
+     * menjelaskan kenapa jumlahnya bisa sebanyak itu. Hasilnya di-cache per batch
+     * karena daftar error batch yang sudah selesai tidak berubah.
+     *
+     * @return array{0: array, 1: ?string} [rincian, penjelasan]
+     */
+    private function uraikanBarisGagal(ImportBatch $batch): array
+    {
+        try {
+            $rincian = Cache::remember(
+                "peringatan.gagal.{$batch->id}.{$batch->gagal}",
+                now()->addHour(),
+                fn () => AlasanImport::ringkasSaran(
+                    $batch->errors()
+                        ->select('import_batch_id', 'baris_ke', 'pesan', 'data_mentah')
+                        ->orderBy('baris_ke')
+                        ->cursor(),
+                    5
+                )
+            );
+        } catch (\Throwable $e) {
+            Log::warning("Peringatan data: gagal menguraikan baris gagal batch {$batch->id}: " . $e->getMessage());
+
+            return [[], null];
+        }
+
+        if ($rincian === []) {
+            return [[], null];
+        }
+
+        $total = (int) $batch->gagal;
+        $utama = $rincian[0];
+        $persen = $total > 0 ? min(100, (int) round($utama['jumlah'] / $total * 100)) : 0;
+
+        foreach ($rincian as &$r) {
+            $r['persen'] = $total > 0 ? min(100, (int) round($r['jumlah'] / $total * 100)) : 0;
+        }
+        unset($r);
+
+        $penjelasan = ($total >= 20
+                ? 'Jumlahnya besar karena kesalahan yang sama berulang di banyak baris. '
+                : '')
+            . "Penyebab terbanyak: {$utama['judul']} (kolom {$utama['kolom']}), "
+            . number_format($utama['jumlah'], 0, ',', '.') . " baris atau {$persen}% dari yang gagal."
+            . ($persen >= 50 ? ' Memperbaiki kolom itu di file Excel akan menyelesaikan sebagian besar baris gagal.' : '')
+            . ' Satu baris bisa punya lebih dari satu masalah, jadi jumlah per masalah bisa lebih besar dari total.';
+
+        return [$rincian, $penjelasan];
     }
 
     /** Periode aktif belum punya snapshot rekap. */
@@ -195,7 +256,7 @@ class PeringatanDataService
      * @param array|null $rincianInstansi Perangkat daerah yang punya kekurangan
      *        (khusus peringatan data belum lengkap), lihat KelengkapanPegawai::perInstansi().
      */
-    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null, ?array $rincianInstansi = null): array
+    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null, ?array $rincianInstansi = null, ?array $rincianGagal = null, ?string $penjelasan = null): array
     {
         return [
             'kode' => $kode,
@@ -205,6 +266,9 @@ class PeringatanDataService
             'jumlah' => $jumlah,
             'tautan' => $tautan,
             'rincian_instansi' => $rincianInstansi,
+            // Khusus peringatan baris gagal: kelompok masalah + kalimat penjelasan.
+            'rincian_gagal' => $rincianGagal,
+            'penjelasan' => $penjelasan,
         ];
     }
 

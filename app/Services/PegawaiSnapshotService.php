@@ -441,15 +441,18 @@ class PegawaiSnapshotService
         }
 
         foreach ($hilang as $a) {
+            $petunjuk = $this->petunjukPensiun($a, $ke);
+
             $tambah($a, $a, null, [
                 'atribut' => PerubahanAtribut::ATRIBUT_KEBERADAAN,
                 'kategori' => 'keberadaan',
                 'jenis' => 'tidak_ditemukan',
                 'sebelum' => "Ada di data {$dari}",
                 'sesudah' => "Tidak ada di data {$ke}",
-                'tanggal_efektif' => null,
+                'tanggal_efektif' => $petunjuk['tanggal'] ?? null,
                 'perlu_verifikasi' => true,
-                'alasan' => 'Tidak ada lagi di data bulan berikutnya; penyebabnya (pensiun, pindah, data terlewat, atau NIP berubah) belum bisa dipastikan',
+                'alasan' => $petunjuk['alasan']
+                    ?? 'Tidak ada lagi di data bulan berikutnya; penyebabnya (pensiun, pindah, data terlewat, atau NIP berubah) belum bisa dipastikan',
             ]);
         }
 
@@ -468,6 +471,44 @@ class PegawaiSnapshotService
         }
 
         return $riwayat;
+    }
+
+    /**
+     * Petunjuk penyebab untuk pegawai yang tidak ada lagi di data bulan akhir:
+     * kalau tanggal pensiun (PNS) atau tanggal selesai kontrak (selain PNS)
+     * di data bulan awal sudah jatuh pada atau sebelum akhir bulan akhir,
+     * kemungkinan besar penyebabnya pensiun / kontrak berakhir. Ini hanya
+     * petunjuk dari tanggal di data, bukan kepastian (SIMPEG tidak memberi
+     * alasan di Excel), jadi barisnya tetap ditandai perlu dicek.
+     *
+     * @return array{alasan:string,tanggal:string}|null
+     */
+    private function petunjukPensiun(array $a, string $ke): ?array
+    {
+        $akhirBulan = \Illuminate\Support\Carbon::createFromFormat('!Y-m', $ke)->endOfMonth();
+        $pns = strtoupper((string) ($a['status_kepegawaian'] ?? '')) === 'PNS';
+
+        $tanggal = $pns ? ($a['tanggal_pensiun'] ?? null) : ($a['tanggal_selesai_kontrak'] ?? null);
+
+        if (! $tanggal || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+            return null;
+        }
+
+        $tgl = \Illuminate\Support\Carbon::parse($tanggal);
+
+        // TMT pensiun PNS tanggal 1 bulan berikutnya sudah ikut (SIMPEG mengeluarkan lebih awal).
+        if ($tgl->gt($akhirBulan->copy()->addDay())) {
+            return null;
+        }
+
+        $teks = $tgl->format('d-m-Y');
+
+        return [
+            'tanggal' => $tanggal,
+            'alasan' => $pns
+                ? "Tanggal pensiun di data lama {$teks} sudah lewat, kemungkinan besar pensiun. Pastikan statusnya di SIMPEG."
+                : "Kontrak di data lama berakhir {$teks} dan sudah lewat, kemungkinan besar kontrak selesai. Pastikan statusnya di SIMPEG.",
+        ];
     }
 
     /**

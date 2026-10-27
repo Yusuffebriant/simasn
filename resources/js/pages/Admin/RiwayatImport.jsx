@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle, AlertTriangle, X, Eye, Trash2, Users } from "lucide-react";
+import { LoaderCircle, AlertTriangle, X, Eye, Trash2, Users, Copy } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import PerubahanPegawai from "../../components/Import/PerubahanPegawai";
 
@@ -126,22 +126,18 @@ function ImportErrorsModal({ batch, onClose }) {
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="font-semibold text-sm">
                                                     Baris ke-{row.baris_ke}
+                                                    {row.data_mentah?.NAMA ? ` – ${row.data_mentah.NAMA}` : ""}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-red-700 mb-2">
-                                                {row.pesan}
+                                            <p className="text-sm text-red-700 mb-1">
+                                                <span className="font-medium">Penyebab:</span>{" "}
+                                                {row.penyebab ?? row.pesan}
                                             </p>
-                                            {row.data_mentah && (
-                                                <div className="text-xs text-gray-600 bg-white rounded p-2 overflow-x-auto">
-                                                    {Object.entries(row.data_mentah)
-                                                        .filter(([, v]) => v !== null && v !== "")
-                                                        .map(([key, value]) => (
-                                                            <span key={key} className="inline-block mr-4">
-                                                                <span className="font-medium">{key}:</span>{" "}
-                                                                {String(value)}
-                                                            </span>
-                                                        ))}
-                                                </div>
+                                            {row.saran && (
+                                                <p className="text-sm text-gray-700 mb-2">
+                                                    <span className="font-medium">Cara memperbaiki:</span>{" "}
+                                                    {row.saran}
+                                                </p>
                                             )}
                                         </div>
                                     ))}
@@ -407,6 +403,166 @@ function PerubahanModal({ batch, onClose }) {
     );
 }
 
+// Panel daftar lengkap baris ganda (NIP/NIK sama sehingga saling menimpa).
+// Sumber: GET /imports/{batch_id}/ganda. Baris "NIK sama, nama berbeda"
+// (pegawai hilang) ditampilkan paling atas dengan warna merah.
+function GandaModal({ batch, onClose }) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let batal = false;
+
+        async function load() {
+            try {
+                const res = await apiFetch(`/imports/${batch.id}/ganda`);
+
+                if (res.status === 403) {
+                    throw new Error("Anda tidak berhak melihat data import ini.");
+                }
+                if (!res.ok) {
+                    throw new Error("Gagal memuat daftar baris ganda.");
+                }
+
+                const json = await res.json();
+                if (!batal) setData(json);
+            } catch (err) {
+                if (!batal) setError(err.message);
+            } finally {
+                if (!batal) setLoading(false);
+            }
+        }
+
+        load();
+
+        return () => { batal = true; };
+    }, [batch.id]);
+
+    const daftar = data?.daftar ?? [];
+
+    return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[88vh] flex flex-col">
+                <div className="flex items-center justify-between p-5 border-b">
+                    <div>
+                        <h3 className="text-lg font-bold">Baris Ganda di File</h3>
+                        <p className="text-sm text-gray-500">
+                            {batch.nama_file} · Periode {batch.periode}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-y-auto p-5 flex-1">
+                    {loading && (
+                        <div className="flex items-center gap-3 text-gray-600">
+                            <LoaderCircle className="animate-spin" size={18} />
+                            Memuat daftar...
+                        </div>
+                    )}
+
+                    {!loading && error && (
+                        <div className="flex items-center gap-3 text-red-700 bg-red-50 p-4 rounded-lg text-sm">
+                            <AlertTriangle size={18} />
+                            {error}
+                        </div>
+                    )}
+
+                    {!loading && !error && data && (
+                        <>
+                            {!data.tersedia && (
+                                <div className="flex items-start gap-3 text-amber-800 bg-amber-50 p-4 rounded-lg text-sm mb-4">
+                                    <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                                    <p>
+                                        Import ini dibuat sebelum nama pegawai yang tertimpa dicatat,
+                                        jadi daftar di bawah belum menyebut siapa yang hilang.
+                                        Upload ulang file yang sama untuk mendapatkan daftar lengkap.
+                                    </p>
+                                </div>
+                            )}
+
+                            {data.nik_beda_nama > 0 && (
+                                <div className="flex items-start gap-3 text-red-800 bg-red-50 border border-red-200 p-4 rounded-lg text-sm mb-4">
+                                    <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                                    <p>
+                                        <b>{data.nik_beda_nama} pegawai hilang karena NIK sama dengan nama berbeda.</b>{" "}
+                                        Periksa NIK-nya di file Excel, lalu import ulang.
+                                    </p>
+                                </div>
+                            )}
+
+                            {daftar.length === 0 ? (
+                                <p className="text-gray-500 text-sm">
+                                    Tidak ada baris ganda tercatat untuk import ini.
+                                </p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm border-collapse">
+                                        <thead>
+                                            <tr className="text-left">
+                                                <th className="border-b p-2">Temuan</th>
+                                                <th className="border-b p-2">Yang hilang (tertimpa)</th>
+                                                <th className="border-b p-2">Yang tersimpan (menimpa)</th>
+                                                <th className="border-b p-2">NIK</th>
+                                                <th className="border-b p-2">Sebab</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {daftar.map((g, i) => (
+                                                <tr
+                                                    key={i}
+                                                    className={g.nik_nama_beda ? "bg-red-50" : ""}
+                                                >
+                                                    <td className="border-b p-2 align-top">
+                                                        {g.nik_nama_beda ? (
+                                                            <span className="font-semibold text-red-700">
+                                                                NIK sama, nama berbeda
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-gray-600">Ganda, nama sama</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="border-b p-2 align-top">
+                                                        <div className="font-medium">
+                                                            {g.nama_sebelumnya || "(tidak tercatat)"}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            Baris {g.baris_sebelumnya}
+                                                            {g.nip_sebelumnya ? ` · NIP ${g.nip_sebelumnya}` : ""}
+                                                        </div>
+                                                    </td>
+                                                    <td className="border-b p-2 align-top">
+                                                        <div className="font-medium">{g.nama}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            Baris {g.baris}
+                                                            {g.nip ? ` · NIP ${g.nip}` : ""}
+                                                        </div>
+                                                    </td>
+                                                    <td className="border-b p-2 align-top font-mono text-xs">
+                                                        {g.nik || "-"}
+                                                    </td>
+                                                    <td className="border-b p-2 align-top text-xs text-gray-600">
+                                                        {g.alasan}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function RiwayatImport() {
 
     const [batches, setBatches] = useState([]);
@@ -417,6 +573,7 @@ function RiwayatImport() {
     const [detailBatch, setDetailBatch] = useState(null);
     const [deleteBatch, setDeleteBatch] = useState(null);
     const [perubahanBatch, setPerubahanBatch] = useState(null);
+    const [gandaBatch, setGandaBatch] = useState(null);
     const [reloadKey, setReloadKey] = useState(0);
 
     // Dipanggil setelah hapus berhasil: muat ulang daftar, dan kalau halaman
@@ -519,7 +676,12 @@ function RiwayatImport() {
                                             <StatusBadge status={batch.status} />
                                             {batch.rekonsiliasi_status === "selisih" && (
                                                 <p className="mt-1 text-xs text-amber-600">
-                                                    Ada selisih file vs database
+                                                    Ada selisih file vs hasil import
+                                                </p>
+                                            )}
+                                            {batch.ganda_nik_beda_nama > 0 && (
+                                                <p className="mt-1 text-xs font-semibold text-red-600">
+                                                    {batch.ganda_nik_beda_nama} pegawai hilang: NIK sama, nama berbeda
                                                 </p>
                                             )}
                                             {batch.rekonsiliasi_status === "cocok" && (
@@ -556,6 +718,15 @@ function RiwayatImport() {
                                                 >
                                                     <Users size={16} />
                                                     Lihat Perubahan
+                                                </button>
+                                            )}
+                                            {batch.status === "selesai" && batch.ganda_dalam_file > 0 && (
+                                                <button
+                                                    onClick={() => setGandaBatch(batch)}
+                                                    className={`flex items-center gap-1 text-sm font-semibold hover:underline mx-auto mb-1 ${batch.ganda_nik_beda_nama > 0 ? "text-red-600" : "text-[#006A4E]"}`}
+                                                >
+                                                    <Copy size={16} />
+                                                    Lihat Ganda
                                                 </button>
                                             )}
                                             {(batch.gagal ?? 0) > 0 ? (
@@ -623,6 +794,13 @@ function RiwayatImport() {
                 <PerubahanModal
                     batch={perubahanBatch}
                     onClose={() => setPerubahanBatch(null)}
+                />
+            )}
+
+            {gandaBatch && (
+                <GandaModal
+                    batch={gandaBatch}
+                    onClose={() => setGandaBatch(null)}
                 />
             )}
 

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ImportBatchCleaner;
 use App\Services\ImportPengaman;
 use App\Services\PerubahanPegawaiService;
+use App\Support\AlasanImport;
 use App\Support\KelengkapanPegawai;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -198,6 +199,55 @@ class ImportController extends Controller
     }
 
     /**
+     * GET /api/imports/{batch}/ganda
+     * Baris di file yang saling menimpa (NIP/NIK sama). Setiap baris menyebut
+     * siapa yang tertimpa (hilang dari database) dan apakah namanya berbeda
+     * (NIK sama, nama berbeda = perlu dicek manual). Dibaca Riwayat Import.
+     */
+    public function ganda(ImportBatch $batch)
+    {
+        $this->authorizeBatch($batch);
+
+        $rekon = $batch->rekonsiliasi ?? [];
+
+        // "NIK sama, nama berbeda" di atas, lalu menurut nomor baris.
+        $daftar = $rekon['ganda_detail'] ?? [];
+        usort($daftar, function ($a, $b) {
+            $beda = (int) !empty($b['nik_nama_beda']) <=> (int) !empty($a['nik_nama_beda']);
+
+            return $beda !== 0 ? $beda : ((int) ($a['baris'] ?? 0) <=> (int) ($b['baris'] ?? 0));
+        });
+
+        return response()->json([
+            'nama_file' => $batch->nama_file,
+            'periode' => $batch->periode,
+            // false = import lama: nama yang tertimpa belum dicatat. Upload ulang
+            // file yang sama supaya daftar ini terisi lengkap.
+            'tersedia' => array_key_exists('ganda_nik_beda_nama', $rekon),
+            'total_ganda' => (int) ($rekon['ganda_dalam_file'] ?? 0),
+            'nik_beda_nama' => (int) ($rekon['ganda_nik_beda_nama'] ?? 0),
+            'daftar' => $daftar,
+        ]);
+    }
+
+    /**
+     * GET /api/imports/{batch}/saran-perbaikan
+     * Semua baris gagal dikelompokkan per masalah: kolom Excel mana yang
+     * perlu diperbaiki, berapa baris, contoh nomor barisnya, dan caranya.
+     */
+    public function saranPerbaikan(ImportBatch $batch)
+    {
+        $this->authorizeBatch($batch);
+
+        return response()->json([
+            'total_gagal' => (int) $batch->gagal,
+            'saran' => AlasanImport::ringkasSaran(
+                $batch->errors()->select('import_batch_id', 'baris_ke', 'pesan', 'data_mentah')->orderBy('baris_ke')->cursor()
+            ),
+        ]);
+    }
+
+    /**
      * GET /api/imports/{batch}/errors
      * Daftar baris gagal.
      */
@@ -205,9 +255,29 @@ class ImportController extends Controller
     {
         $this->authorizeBatch($batch);
 
-        return response()->json(
-            $batch->errors()->select('baris_ke', 'pesan', 'data_mentah')->paginate(50)
-        );
+        $halaman = $batch->errors()->select('import_batch_id', 'baris_ke', 'pesan', 'data_mentah')->paginate(50);
+
+        // Tambahkan uraian yang mudah dipahami: penyebab, isian yang kurang, dan saran
+        // perbaikan (mis. NIK terpotong karena format angka di Excel). Dihitung saat
+        // dibaca, jadi berlaku juga untuk import lama.
+        $halaman->getCollection()->transform(function ($baris) {
+            try {
+                $uraian = AlasanImport::uraikanGagal($baris->pesan, $baris->data_mentah);
+            } catch (\Throwable $e) {
+                // Penguraian hanya tambahan: kalau gagal, tampilkan pesan asli.
+                Log::warning("Import batch {$baris->import_batch_id}: gagal menguraikan baris {$baris->baris_ke}: " . $e->getMessage());
+                $uraian = ['penyebab' => $baris->pesan, 'kurang' => [], 'saran' => null, 'data_lama_dipertahankan' => false];
+            }
+
+            $baris->setAttribute('penyebab', $uraian['penyebab']);
+            $baris->setAttribute('kurang', $uraian['kurang']);
+            $baris->setAttribute('saran', $uraian['saran']);
+            $baris->setAttribute('data_lama_dipertahankan', $uraian['data_lama_dipertahankan']);
+
+            return $baris;
+        });
+
+        return response()->json($halaman);
     }
 
     /**

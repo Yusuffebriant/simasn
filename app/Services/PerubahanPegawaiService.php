@@ -253,7 +253,10 @@ class PerubahanPegawaiService
         $jatuhTempoPensiun = $lama['status_kepegawaian'] === 'PNS'
             && $lama['tanggal_pensiun']
             && $akhirPeriode
-            && Carbon::parse($lama['tanggal_pensiun'])->lte($akhirPeriode);
+            // TMT pensiun PNS selalu tanggal 1. SIMPEG sudah mengeluarkan pegawai
+            // dari ekspor sebelum TMT-nya (mis. TMT 01-10 tidak ada di ekspor
+            // September), jadi TMT sehari setelah akhir periode ikut dihitung.
+            && Carbon::parse($lama['tanggal_pensiun'])->lte($akhirPeriode->copy()->addDay());
 
         $kontrakHabis = $lama['status_kepegawaian'] !== 'PNS'
             && $lama['tanggal_selesai_kontrak']
@@ -271,6 +274,7 @@ class PerubahanPegawaiService
         if ($statusAktif === 'pensiun' || $jatuhTempoPensiun) {
             $ket = $lama['tanggal_pensiun']
                 ? 'TMT pensiun ' . Carbon::parse($lama['tanggal_pensiun'])->format('d-m-Y')
+                    . ($akhirPeriode && Carbon::parse($lama['tanggal_pensiun'])->gt($akhirPeriode) ? ' (SIMPEG sudah mengeluarkan dari ekspor sebelum TMT)' : '')
                 : 'Status pensiun di data lama';
 
             return $this->baris('pensiun', $lama, 'aktif', null, $ket . '; tidak ada di file baru');

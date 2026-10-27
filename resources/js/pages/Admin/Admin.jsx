@@ -7,9 +7,11 @@ import ExportLaporan from "./ExportLaporan";
 import DaftarPegawai from "./DaftarPegawai";
 import PerubahanBulanan from "./PerubahanBulanan";
 import IndeksKumulatif from "./IndeksKumulatif";
+import PerawatanSistem from "./PerawatanSistem";
 import PeringatanData from "../../components/Admin/PeringatanData";
+import { hasRole } from "../../lib/api";
 
-const TABS = [
+const SEMUA_TAB = [
     { key: "import", label: "Import Data", component: ImportData },
     { key: "riwayat", label: "Riwayat Import", component: RiwayatImport },
     { key: "rekap", label: "Rekapitulasi", component: Rekapitulasi },
@@ -17,18 +19,27 @@ const TABS = [
     { key: "indeks", label: "Indeks Kumulatif", component: IndeksKumulatif },
     { key: "perubahan", label: "Perubahan Pegawai", component: PerubahanBulanan },
     { key: "export", label: "Export Laporan", component: ExportLaporan },
+    // Menjalankan perintah sistem (cache, arsip, pembersihan): khusus super-admin.
+    { key: "perawatan", label: "Perawatan Sistem", component: PerawatanSistem, hanya: ["super-admin"] },
 ];
+
+// Dihitung saat halaman dibuka (bukan saat file dimuat), supaya peran user
+// yang baru login ikut terbaca.
+function tabTersedia() {
+    return SEMUA_TAB.filter((t) => !t.hanya || hasRole(...t.hanya));
+}
 
 // Tab awal bisa ditentukan lewat URL, mis. /admin?tab=pegawai&kelengkapan=belum
 // (dipakai tautan "Lengkapi" dari hasil import dan banner peringatan).
-function tabAwal() {
+function tabAwal(TABS) {
     const key = new URLSearchParams(window.location.search).get("tab");
     return TABS.some((t) => t.key === key) ? key : "import";
 }
 
 export default function Admin() {
 
-    const [activeTab, setActiveTab] = useState(tabAwal);
+    const TABS = tabTersedia();
+    const [activeTab, setActiveTab] = useState(() => tabAwal(TABS));
 
     // Pindah tab secara manual = filter dari URL tidak berlaku lagi.
     function pilihTab(key) {

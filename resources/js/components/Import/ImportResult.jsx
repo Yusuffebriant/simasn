@@ -28,6 +28,25 @@ const KATEGORI_IDENTITAS = [
     },
 ];
 
+// Sebab isian kosong (dari AlasanImport di backend).
+const SEBAB_LABEL = {
+    kosong_di_file: "kosong di Excel",
+    kolom_tidak_ada: "kolom tidak ada di file",
+    tidak_dikenali: "isi tidak dikenali",
+};
+
+// Jenis sel berisi rumus Excel (dari AlasanImport::jenisRumus di backend).
+const JENIS_RUMUS_LABEL = {
+    teks_dibungkus:
+        "berbentuk =\"angka\", cara Excel menyimpan angka sebagai teks. Sistem membaca rumusnya, bukan angkanya, sehingga isi yang tersimpan bisa ikut membawa tanda =\"...\" (mis. NIP menjadi 21 karakter).",
+    rumus:
+        "rumus yang mengambil data dari tempat lain (mis. VLOOKUP ke file Excel lain). Sistem tidak bisa menghitungnya, jadi yang terbaca teks rumusnya, bukan isi sebenarnya. Jika teksnya terlalu panjang untuk kolom tujuan, barisnya gagal disimpan.",
+    campuran: "campuran rumus =\"angka\" dan rumus lain.",
+};
+
+const CARA_PERBAIKI_RUMUS =
+    "Di Excel: tekan Ctrl+A (pilih semua sel), Ctrl+C (salin), klik kanan lalu pilih Paste Special > Values (Tempel Nilai), simpan file, lalu import ulang.";
+
 function ImportResult({ result, onRestart }) {
 
     const total = result?.total_baris ?? 0;
@@ -40,11 +59,21 @@ function ImportResult({ result, onRestart }) {
     const sinkronStatus = result?.sinkron_status;
     const sinkronDilewati = sinkronStatus === "dilewati";
 
-    // Rekonsiliasi: isi file dibandingkan dengan isi database.
+    // Pengecekan otomatis (rekonsiliasi): isi file dibandingkan dengan hasil
+    // import periode ini.
     // cocok | selisih | tidak_tersedia
     const rekon = result?.rekonsiliasi;
     const rekonStatus = result?.rekonsiliasi_status;
     const rekonSelisih = rekon?.selisih ?? [];
+    const periodeLabel = result?.periode ? `import periode ${result.periode}` : "import ini";
+    const kosongRingkas = rekon?.kosong_ringkas ?? [];
+    const kosongDetail = rekon?.kosong_detail ?? [];
+    const rumusRingkas = rekon?.rumus_ringkas ?? [];
+
+    // NIK sama tetapi nama berbeda: pegawai di baris sebelumnya tertimpa dan
+    // hilang dari sistem. Jumlah akurat dari backend; daftar nama dari rincian.
+    const nikBedaNama = rekon?.ganda_nik_beda_nama ?? 0;
+    const nikBedaNamaDetail = (rekon?.ganda_detail ?? []).filter((g) => g.nik_nama_beda);
 
     // Seleksi kelengkapan: pegawai dari import ini yang isiannya masih kosong.
     const idBatch = result?.id;
@@ -66,6 +95,46 @@ function ImportResult({ result, onRestart }) {
             batal = true;
         };
     }, [idBatch, gagalTotal]);
+
+    // Baris yang gagal diimport, lengkap dengan penyebab dan isian yang kurang.
+    const [barisGagal, setBarisGagal] = useState(null);
+
+    useEffect(() => {
+        if (!idBatch || gagal <= 0) return;
+
+        let batal = false;
+
+        apiFetch(`/imports/${idBatch}/errors`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((json) => {
+                if (!batal && json) setBarisGagal(json);
+            })
+            .catch(() => { });
+
+        return () => {
+            batal = true;
+        };
+    }, [idBatch, gagal]);
+
+    // Saran perbaikan Excel: baris gagal dikelompokkan per kolom/masalah.
+    const [saranExcel, setSaranExcel] = useState(null);
+
+    useEffect(() => {
+        if (!idBatch || gagal <= 0) return;
+
+        let batal = false;
+
+        apiFetch(`/imports/${idBatch}/saran-perbaikan`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((json) => {
+                if (!batal && json) setSaranExcel(json.saran ?? []);
+            })
+            .catch(() => { });
+
+        return () => {
+            batal = true;
+        };
+    }, [idBatch, gagal]);
 
     const linkLengkapi = `/admin?tab=pegawai&kelengkapan=belum&batch=${idBatch}`;
 
@@ -130,6 +199,45 @@ function ImportResult({ result, onRestart }) {
                 </div>
             )}
 
+            {nikBedaNama > 0 && !gagalTotal && (
+                <div className="p-4 rounded-lg text-sm mb-6 bg-red-50 text-red-800 border border-red-200">
+                    <div className="flex items-start gap-3">
+                        <XCircle size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">
+                                {nikBedaNama} pegawai hilang karena NIK sama dengan nama berbeda
+                            </p>
+                            <p className="mt-1">
+                                Di file ada baris yang NIK-nya sama dengan baris sebelumnya,
+                                tetapi namanya berbeda. Sistem mengira keduanya satu orang,
+                                sehingga data baris sebelumnya tertimpa dan orangnya tidak
+                                ada lagi di sistem. Periksa NIK-nya di file: bisa salah
+                                ketik, atau memang dua orang berbeda.
+                            </p>
+
+                            {nikBedaNamaDetail.length > 0 && (
+                                <ul className="mt-2 list-disc pl-5 space-y-0.5">
+                                    {nikBedaNamaDetail.slice(0, 10).map((g, i) => (
+                                        <li key={i}>
+                                            <b>{g.nama_sebelumnya}</b> (baris {g.baris_sebelumnya}) hilang,
+                                            tertimpa <b>{g.nama}</b> (baris {g.baris}). NIK {g.nik}.
+                                        </li>
+                                    ))}
+                                    {nikBedaNama > 10 && (
+                                        <li>...dan {nikBedaNama - 10} pegawai lainnya</li>
+                                    )}
+                                </ul>
+                            )}
+
+                            <p className="mt-2">
+                                Daftar lengkapnya bisa dilihat di <b>Riwayat Import</b> (tombol
+                                &ldquo;Lihat Ganda&rdquo;).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {rekonStatus && !gagalTotal && (
                 <div
                     className={`p-4 rounded-lg text-sm mb-6 ${rekonStatus === "cocok"
@@ -146,17 +254,17 @@ function ImportResult({ result, onRestart }) {
                         <div className="w-full">
                             <p className="font-semibold">
                                 {rekonStatus === "cocok" &&
-                                    "Rekonsiliasi: data di database sama dengan isi file"}
+                                    `Pengecekan otomatis: data hasil ${periodeLabel} sama dengan isi file`}
                                 {rekonStatus === "selisih" &&
-                                    "Rekonsiliasi: ada selisih antara file dan database"}
+                                    `Pengecekan otomatis: ada selisih antara isi file dan hasil ${periodeLabel}`}
                                 {rekonStatus === "tidak_tersedia" &&
-                                    "Rekonsiliasi tidak bisa dihitung untuk import ini"}
+                                    "Pengecekan otomatis tidak bisa dihitung untuk import ini"}
                             </p>
 
                             {rekon?.total && (
                                 <p>
                                     Pegawai dibaca dari file: {rekon.total.file} &middot;
-                                    tersimpan di database: {rekon.total.db}
+                                    tercatat di {periodeLabel}: {rekon.total.db}
                                 </p>
                             )}
 
@@ -191,7 +299,7 @@ function ImportResult({ result, onRestart }) {
                                     {rekonSelisih.slice(0, 10).map((r, i) => (
                                         <li key={i}>
                                             {r.kategori} &ndash; {r.nilai}: file {r.file},
-                                            database {r.db}
+                                            hasil import {r.db}
                                         </li>
                                     ))}
                                     {rekonSelisih.length > 10 && (
@@ -248,6 +356,118 @@ function ImportResult({ result, onRestart }) {
                 </div>
             )}
 
+            {rumusRingkas.length > 0 && !gagalTotal && (
+                <div className="p-4 rounded-lg bg-amber-50 text-amber-800 text-sm mb-6">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">
+                                {(rekon?.rumus_baris ?? 0).toLocaleString("id-ID")} baris di file
+                                berisi rumus Excel, bukan isi sebenarnya
+                            </p>
+                            <p className="mt-1">
+                                Sistem membaca teks rumusnya, bukan nilai hasilnya. Akibatnya
+                                isian bisa gagal disimpan (baris masuk daftar gagal) atau
+                                tersimpan salah (mis. NIP/NIK dianggap tidak valid). Kolom yang
+                                berisi rumus:
+                            </p>
+
+                            <ul className="mt-2 space-y-2">
+                                {rumusRingkas.map((r) => (
+                                    <li key={r.kolom} className="bg-white/70 rounded p-3">
+                                        <p className="font-semibold">
+                                            Kolom {r.kolom}: {r.jumlah.toLocaleString("id-ID")} sel
+                                        </p>
+                                        <p className="mt-0.5">
+                                            Isinya {JENIS_RUMUS_LABEL[r.jenis] ?? JENIS_RUMUS_LABEL.rumus}
+                                        </p>
+                                        <p className="mt-0.5 text-xs">
+                                            Contoh isi: {r.contoh_isi} &middot; contoh baris:{" "}
+                                            {r.contoh_baris.join(", ")}
+                                            {r.jumlah > r.contoh_baris.length ? ", ..." : ""}
+                                        </p>
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <p className="mt-3">
+                                <span className="font-medium">Cara memperbaiki:</span>{" "}
+                                {CARA_PERBAIKI_RUMUS}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {rekon?.kosong_jumlah > 0 && !gagalTotal && (
+                <div className="p-4 rounded-lg bg-amber-50 text-amber-800 text-sm mb-6">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">
+                                {rekon.kosong_jumlah.toLocaleString("id-ID")} pegawai tersimpan
+                                tetapi ada isian yang kosong
+                            </p>
+                            <p className="mt-1">
+                                Pegawai ini tetap masuk, tetapi isian di bawah belum terisi.
+                                Tiap isian diberi sebabnya: kosong di Excel (tinggal diisi),
+                                kolom tidak ada di file (periksa judul kolom), atau isi tidak
+                                dikenali (perbaiki tulisannya).
+                            </p>
+
+                            {kosongRingkas.length > 0 && (
+                                <ul className="mt-3 space-y-1">
+                                    {kosongRingkas.map((k) => (
+                                        <li key={k.label}>
+                                            <span className="font-semibold">{k.label}</span>:{" "}
+                                            {[
+                                                k.kosong_di_file > 0 && `${k.kosong_di_file.toLocaleString("id-ID")} kosong di Excel`,
+                                                k.kolom_tidak_ada > 0 && `${k.kolom_tidak_ada.toLocaleString("id-ID")} karena kolom tidak ada di file`,
+                                                k.tidak_dikenali > 0 && `${k.tidak_dikenali.toLocaleString("id-ID")} isinya tidak dikenali`,
+                                            ].filter(Boolean).join(", ")}
+                                            {k.nilai_tidak_dikenali?.length > 0 && (
+                                                <span>
+                                                    {" "}(isi yang tidak dikenali:{" "}
+                                                    {k.nilai_tidak_dikenali
+                                                        .map((n) => `"${n.nilai}" ${n.jumlah}x`)
+                                                        .join(", ")}
+                                                    )
+                                                </span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            {kosongDetail.length > 0 && (
+                                <>
+                                    <p className="mt-3 font-semibold">Contoh pegawainya</p>
+                                    <ul className="mt-1 list-disc pl-5 space-y-1">
+                                        {kosongDetail.slice(0, 10).map((p, i) => (
+                                            <li key={i}>
+                                                Baris {p.baris} &ndash; {p.nama}
+                                                {p.nip ? ` (NIP ${p.nip})` : p.nik ? ` (NIK ${p.nik})` : ""}:{" "}
+                                                {p.kurang
+                                                    .map((k) => `${k.label} (${k.keterangan})`)
+                                                    .join("; ")}
+                                            </li>
+                                        ))}
+                                        {rekon.kosong_jumlah > Math.min(kosongDetail.length, 10) && (
+                                            <li>
+                                                ...dan{" "}
+                                                {(rekon.kosong_jumlah - Math.min(kosongDetail.length, 10)).toLocaleString("id-ID")}{" "}
+                                                pegawai lainnya (lihat daftar lengkap lewat tombol
+                                                "Lengkapi di Daftar Pegawai" di bawah)
+                                            </li>
+                                        )}
+                                    </ul>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {masalahIdentitas.length > 0 && !gagalTotal && (
                 <div
                     className={`p-4 rounded-lg text-sm mb-6 ${identitasMerah
@@ -297,7 +517,7 @@ function ImportResult({ result, onRestart }) {
 
                             {identitas?.nik_diperiksa === false && (
                                 <p className="mt-3 text-xs">
-                                    Catatan: kolom NIK tidak ditemukan di database, jadi
+                                    Catatan: kolom NIK tidak ditemukan pada data hasil import, jadi
                                     pemeriksaan hanya mencakup NIP.
                                 </p>
                             )}
@@ -357,7 +577,105 @@ function ImportResult({ result, onRestart }) {
                 )
             )}
 
-            {gagal > 0 && (
+            {saranExcel?.length > 0 && (
+                <div className="p-4 rounded-lg bg-blue-50 text-blue-900 text-sm mb-6">
+                    <div className="flex items-start gap-3">
+                        <Info size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">Yang perlu diperbaiki di file Excel</p>
+                            <p className="mt-1">
+                                Perbaiki bagian berikut, simpan file, lalu import ulang. Diurutkan
+                                dari yang paling banyak.
+                            </p>
+                            <p className="mt-1">
+                                Rincian {gagal.toLocaleString("id-ID")} baris gagal:{" "}
+                                {saranExcel
+                                    .map((s) => `${s.judul} (${s.jumlah.toLocaleString("id-ID")} baris)`)
+                                    .join("; ")}
+                                . Satu baris bisa punya lebih dari satu masalah, jadi jumlah per
+                                masalah bisa lebih besar dari total.
+                            </p>
+
+                            <ul className="mt-3 space-y-3">
+                                {saranExcel.map((s) => (
+                                    <li key={s.jenis} className="bg-white/70 rounded p-3">
+                                        <p className="font-semibold">
+                                            Kolom {s.kolom}: {s.judul} ({s.jumlah.toLocaleString("id-ID")} baris)
+                                        </p>
+                                        <p className="mt-0.5">
+                                            <span className="font-medium">Cara memperbaiki:</span> {s.saran}
+                                        </p>
+                                        <p className="mt-0.5 text-xs">
+                                            Contoh baris:{" "}
+                                            {s.contoh.map((c) => (c.nama ? `${c.baris} (${c.nama})` : c.baris)).join(", ")}
+                                            {s.jumlah > s.contoh.length ? ", ..." : ""}
+                                        </p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {gagal > 0 && barisGagal?.data?.length > 0 && (
+                <div className="p-4 rounded-lg bg-red-50 text-red-800 text-sm mb-6">
+                    <div className="flex items-start gap-3">
+                        <XCircle size={18} className="mt-0.5 shrink-0" />
+                        <div className="w-full">
+                            <p className="font-semibold">
+                                {gagal.toLocaleString("id-ID")} baris gagal diimport
+                            </p>
+                            <p className="mt-1">
+                                Baris ini belum masuk ke data. Berikut penyebab dan yang
+                                perlu diperbaiki di file Excel, lalu import ulang.
+                            </p>
+
+                            <ul className="mt-3 space-y-3">
+                                {barisGagal.data.slice(0, 10).map((b, i) => (
+                                    <li key={i} className="bg-white/70 rounded p-3">
+                                        <p className="font-semibold">
+                                            Baris {b.baris_ke}
+                                            {b.data_mentah?.NAMA ? ` – ${b.data_mentah.NAMA}` : ""}
+                                        </p>
+                                        <p className="mt-0.5">
+                                            <span className="font-medium">Penyebab:</span>{" "}
+                                            {b.penyebab ?? b.pesan}
+                                        </p>
+                                        {b.kurang?.length > 0 && (
+                                            <p className="mt-0.5">
+                                                <span className="font-medium">Yang kurang:</span>{" "}
+                                                {b.kurang.join(", ")}
+                                            </p>
+                                        )}
+                                        {b.saran && (
+                                            <p className="mt-0.5">
+                                                <span className="font-medium">Cara memperbaiki:</span>{" "}
+                                                {b.saran}
+                                            </p>
+                                        )}
+                                        {b.data_lama_dipertahankan && (
+                                            <p className="mt-0.5 text-xs text-red-700">
+                                                Data lama pegawai ini tetap dipertahankan.
+                                            </p>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+
+                            {gagal > Math.min(barisGagal.data.length, 10) && (
+                                <p className="mt-3">
+                                    ...dan {(gagal - Math.min(barisGagal.data.length, 10)).toLocaleString("id-ID")} baris
+                                    lainnya. Daftar lengkap ada di Riwayat Import &rarr; batch
+                                    #{result?.id}.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {gagal > 0 && !(barisGagal?.data?.length > 0) && (
                 <p className="text-gray-600 text-sm mb-6">
                     Ada {gagal} baris yang gagal diimport. Lihat detail di halaman
                     Riwayat Import &rarr; batch #{result?.id}.

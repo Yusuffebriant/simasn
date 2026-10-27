@@ -105,6 +105,38 @@ function PeringatanData({ refreshKey }) {
                         </p>
                         <p className="mt-1">{p.pesan}</p>
                         <KurangPerInstansi daftar={p.rincian_instansi} />
+                        {p.penjelasan && (
+                            <p className="mt-2 font-medium">{p.penjelasan}</p>
+                        )}
+                        {p.rincian_gagal?.length > 0 && (
+                            <div className="mt-3">
+                                <p className="font-semibold">
+                                    Yang perlu diperbaiki di file Excel, lalu import ulang:
+                                </p>
+                                <ul className="mt-2 space-y-2">
+                                    {p.rincian_gagal.map((g) => (
+                                        <li key={g.jenis} className="bg-white/70 rounded p-3">
+                                            <p className="font-semibold">
+                                                Kolom {g.kolom}: {g.judul}
+                                                <span className="ml-1 font-normal">
+                                                    ({Number(g.jumlah).toLocaleString("id-ID")} baris, {g.persen}%)
+                                                </span>
+                                            </p>
+                                            <p className="mt-0.5">
+                                                <span className="font-medium">Cara memperbaiki:</span> {g.saran}
+                                            </p>
+                                            <p className="mt-0.5 text-xs">
+                                                Contoh baris:{" "}
+                                                {g.contoh
+                                                    .map((c) => (c.nama ? `${c.baris} (${c.nama})` : c.baris))
+                                                    .join(", ")}
+                                                {g.jumlah > g.contoh.length ? ", ..." : ""}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         {p.tautan?.href && (
                             <a
                                 href={p.tautan.href}
