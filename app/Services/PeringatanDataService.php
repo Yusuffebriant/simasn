@@ -52,6 +52,7 @@ class PeringatanDataService
         $this->cekImportTerakhir($batch, $peringatan);
         $this->cekKelengkapan($peringatan);
         $this->cekJabatanBelumTerdaftar($peringatan);
+        $this->cekJenisKelaminNip($peringatan);
         $this->cekSnapshot($batch, $peringatan);
 
         return $this->hasil($peringatan, $batch->periode);
@@ -319,6 +320,65 @@ class PeringatanDataService
             null,
             null,
             $rincian
+        );
+    }
+
+    /**
+     * Jenis kelamin di data tidak cocok dengan digit ke-15 NIP (1 = laki-laki,
+     * 2 = perempuan). Hanya NIP 18 digit milik PNS dan PPPK yang diperiksa.
+     * Angka Pria/Wanita di rekap mengikuti kolom jenis kelamin, jadi
+     * ketidakcocokan ini bisa menggeser angka rekap. Perbaiki di data sumber.
+     */
+    private function cekJenisKelaminNip(array &$peringatan): void
+    {
+        $rows = Pegawai::asnPenuh()
+            ->where('status_aktif', 'aktif')
+            ->whereNotNull('jenis_kelamin')
+            ->whereRaw('LENGTH(TRIM(nip)) = 18')
+            ->select('nip', 'nama', 'jenis_kelamin', 'unit')
+            ->orderBy('nama')
+            ->get();
+
+        $tidakCocok = [];
+
+        foreach ($rows as $row) {
+            $nip = trim((string) $row->nip);
+
+            if (! ctype_digit($nip)) {
+                continue;
+            }
+
+            $dariNip = match ($nip[14]) {
+                '1' => 'L',
+                '2' => 'P',
+                default => null,
+            };
+
+            if ($dariNip !== null && $dariNip !== $row->jenis_kelamin) {
+                $tidakCocok[] = $row;
+            }
+        }
+
+        if ($tidakCocok === []) {
+            return;
+        }
+
+        $jumlah = count($tidakCocok);
+        $contoh = collect($tidakCocok)
+            ->take(10)
+            ->map(fn ($r) => $r->nama . ' (' . ($r->jenis_kelamin === 'L' ? 'tertulis pria' : 'tertulis wanita') . ')')
+            ->implode(', ');
+        $sisa = $jumlah > 10 ? ' dan ' . ($jumlah - 10) . ' lainnya' : '';
+
+        $peringatan[] = $this->item(
+            'jenis_kelamin_beda_nip',
+            'peringatan',
+            'Jenis kelamin tidak cocok dengan NIP',
+            "{$jumlah} pegawai punya jenis kelamin di data yang berbeda dari digit ke-15 NIP: {$contoh}{$sisa}. "
+                . 'Salah satunya keliru, dan bila data yang salah, angka Pria/Wanita di rekap ikut bergeser. '
+                . 'Periksa lalu perbaiki di data sumber.',
+            $jumlah,
+            ['label' => 'Buka Daftar Pegawai', 'href' => '/admin?tab=pegawai']
         );
     }
 

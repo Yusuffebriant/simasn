@@ -175,12 +175,15 @@ class RekapNakesExport implements FromArray, WithEvents, WithTitle
                     . 'perekam medis, nutrisionis, dan sejenisnya) berstatus PNS dan PPPK. Jabatan fungsional non-kesehatan '
                     . 'di fasilitas yang sama (mis. Pranata Komputer, Analis Kebijakan, Analis SDM Aparatur) tidak ikut dihitung, '
                     . 'sehingga angka RS Pratama dan RSUD pada sheet ini bisa lebih kecil daripada sheet JF Tertentu. '
+                    . 'Jabatan fungsional kesehatan yang tidak bertugas di fasilitas pelayanan kesehatan (mis. bidang di kantor '
+                    . 'Dinas Kesehatan, Labkesda, PSC 119, dan UPT PPA) juga tidak ikut dihitung, sehingga total sheet ini lebih '
+                    . 'kecil daripada jumlah JF Kesehatan PNS dan PPPK. '
                     . 'PPPK Paruh Waktu tidak termasuk.'
                 );
                 $sheet->mergeCells("A{$catatanRow}:F{$catatanRow}");
                 $sheet->getStyle("A{$catatanRow}")->getFont()->setItalic(true)->setSize(9);
                 $sheet->getStyle("A{$catatanRow}")->getAlignment()->setWrapText(true)->setVertical('top');
-                $sheet->getRowDimension($catatanRow)->setRowHeight(60);
+                $sheet->getRowDimension($catatanRow)->setRowHeight(90);
             },
         ];
     }
