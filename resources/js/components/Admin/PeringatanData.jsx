@@ -17,6 +17,52 @@ const GAYA = {
     },
 };
 
+const TAMPIL_AWAL = 5;
+
+/** Daftar jabatan belum terdaftar + nama pegawainya (lipat/buka per jabatan). */
+function DaftarJabatanBaru({ daftar }) {
+    const [terbuka, setTerbuka] = useState({});
+
+    if (!daftar?.length) return null;
+
+    return (
+        <ul className="mt-2 space-y-2">
+            {daftar.map((j) => {
+                const semua = terbuka[j.jabatan];
+                const tampil = semua ? j.pegawai : j.pegawai.slice(0, TAMPIL_AWAL);
+                const sisa = j.pegawai.length - tampil.length;
+
+                return (
+                    <li key={j.jabatan} className="bg-white/70 rounded p-3">
+                        <p className="font-semibold">
+                            {j.jabatan}
+                            <span className="ml-1 font-normal">
+                                ({Number(j.jumlah).toLocaleString("id-ID")} pegawai)
+                            </span>
+                        </p>
+                        <p className="mt-0.5 text-xs">
+                            {tampil
+                                .map((p) => (p.unit ? `${p.nama} (${p.unit})` : p.nama))
+                                .join(", ")}
+                            {sisa > 0 && (
+                                <button
+                                    type="button"
+                                    className="ml-2 underline"
+                                    onClick={() =>
+                                        setTerbuka((t) => ({ ...t, [j.jabatan]: true }))
+                                    }
+                                >
+                                    lihat {sisa} lainnya
+                                </button>
+                            )}
+                        </p>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
+
 /**
  * Banner kesehatan data di halaman Admin.
  *
@@ -105,6 +151,7 @@ function PeringatanData({ refreshKey }) {
                         </p>
                         <p className="mt-1">{p.pesan}</p>
                         <KurangPerInstansi daftar={p.rincian_instansi} />
+                        <DaftarJabatanBaru daftar={p.rincian_jabatan} />
                         {p.penjelasan && (
                             <p className="mt-2 font-medium">{p.penjelasan}</p>
                         )}

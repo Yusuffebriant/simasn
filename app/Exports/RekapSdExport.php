@@ -175,8 +175,26 @@ class RekapSdExport implements FromArray, WithEvents
                 $sheet->setShowGridLines(true);
                 $sheet->freezePane('A' . $firstDataRow);
 
+                /*
+                |--------------------------------------------------------------
+                | CATATAN di bawah tabel
+                |--------------------------------------------------------------
+                */
+                $catatanRow = $totalRow + 2;
+                $sheet->setCellValue(
+                    "A{$catatanRow}",
+                    'Catatan: sekolah yang namanya hanya berbeda penulisan angka Romawi dan angka Arab di akhir nama '
+                    . '(mis. "SD NEGERI JETIS I" dan "SD NEGERI JETIS 1", sampai angka V) digabung menjadi satu baris. '
+                    . 'Jumlah guru tidak berubah, hanya jumlah baris sekolah yang berkurang. Bila ada dua sekolah '
+                    . 'berbeda yang ikut tergabung, mohon dilaporkan agar aturan penggabungan disesuaikan.'
+                );
+                $sheet->mergeCells("A{$catatanRow}:E{$catatanRow}");
+                $sheet->getStyle("A{$catatanRow}")->getFont()->setItalic(true)->setSize(9);
+                $sheet->getStyle("A{$catatanRow}")->getAlignment()->setWrapText(true)->setVertical('top');
+                $sheet->getRowDimension($catatanRow)->setRowHeight(58);
+
                 // Cetak: A4 portrait, muat 1 halaman lebar, header kolom (baris 4) diulang
-                $this->applyPrintSetup($sheet, "A1:E{$totalRow}", $headerRow, 'portrait', $headerRow);
+                $this->applyPrintSetup($sheet, "A1:E{$catatanRow}", $headerRow, 'portrait', $headerRow);
             },
         ];
     }

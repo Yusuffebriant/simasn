@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Support\KlasifikasiJft;
 use App\Support\UrutanInstansi;
 
 class RekapService
@@ -1085,52 +1086,13 @@ class RekapService
      * "JFT - Pendidikan / Kesehatan / Teknis" di Ringkasan Dashboard.
      * Versi ringkas (3 rumpun) dari rumpunJabatanFungsional() milik
      * StatistikService (6 rumpun, dipakai di halaman Statistik) —
-     * keyword kesehatan-nya sama persis supaya konsisten.
+     * aturannya sekarang dipusatkan di App\Support\KlasifikasiJft.
      */
     private function klasifikasiJft(string $jabatan): string
     {
-        $jabatan = strtoupper(trim($jabatan));
-
-        $kesehatanKeywords = [
-            'DOKTER',
-            'PERAWAT',
-            'BIDAN',
-            'APOTEKER',
-            'PEREKAM MEDIS',
-            'PRANATA LABORATORIUM KESEHATAN',
-            'NUTRISIONIS',
-            'EPIDEMIOLOG',
-            'ADMINISTRATOR KESEHATAN',
-            'PENYULUH KESEHATAN',
-            'RADIOGRAFER',
-            'TEKNISI TRANSFUSI DARAH',
-            'SANITARIAN',
-            'TERAPIS GIGI',
-            'MEDIK VETERINER',
-            'PARAMEDIK VETERINER',
-            'PROMOSI KESEHATAN',
-            'SANITASI LINGKUNGAN',
-            'FISIOTERAPIS',
-            'FISIKAWAN MEDIS',
-            'PSIKOLOG KLINIS',
-            'TEKNISI ELEKTROMEDIS',
-            'TERAPIS WICARA',
-            'PENATA ANESTESI',
-            'OKUPASI TERAPIS',
-            'PEMBIMBING KESEHATAN KERJA',
-        ];
-
-        if (str_starts_with($jabatan, 'GURU') || str_contains($jabatan, 'DOSEN')) {
-            return 'pendidikan';
-        }
-
-        foreach ($kesehatanKeywords as $keyword) {
-            if (str_contains($jabatan, $keyword)) {
-                return 'kesehatan';
-            }
-        }
-
-        return 'teknis';
+        // Aturan pengelompokan ada di satu tempat (mengikuti dashboard resmi):
+        // lihat App\Support\KlasifikasiJft.
+        return KlasifikasiJft::kelompok($jabatan);
     }
 
     public function rekapEselonGolonganGender(?string $periode = null): array
@@ -1610,33 +1572,25 @@ class RekapService
     /**
      * Rekap Pejabat Fungsional Nakes (Puskesmas, RS Pratama, RSUD).
      *
-     * REVISI PENTING (setelah cek data dummy asli): 18 Puskesmas + RS Pratama
-     * TIDAK punya nama fasilitas di kolom unit — semuanya unit='DINAS
-     * KESEHATAN', nama fasilitas ada di sub_unit (kadang persis "UPT
-     * PUSKESMAS X", kadang berprefix "SUB BAGIAN TATA USAHA UPT PUSKESMAS X"
-     * untuk staf TU-nya), makanya dicocokkan pakai str_contains bukan exact
-     * match.
+     * Hanya jabatan fungsional bidang kesehatan yang dihitung. Jabatan
+     * fungsional non-kesehatan di fasilitas yang sama (mis. Pranata Komputer,
+     * Analis Kebijakan, Analis SDM Aparatur) tidak ikut. Klasifikasi memakai
+     * klasifikasiJft() supaya sama dengan kartu "JFT - Kesehatan" di dashboard.
      *
-     * RSUD Kota Yogyakarta BEDA STRUKTUR — dia OPD/instansi sendiri (bukan UPT
-     * di bawah Dinas Kesehatan), jadi unit-nya LANGSUNG bernilai nama RSUD
-     * tsb, dan sub_unit isinya nama bidang/bagian internal (Bidang Pelayanan
-     * Medis, dst). Untuk RSUD, SELURUH staf dengan unit tsb dihitung,
-     * terlepas dari sub_unit/bidang penempatannya.
-     *
-     * Filter jenis_kedudukan='FUNGSIONAL' sesuai cakupan laporan asli
-     * ("Data Pejabat Fungsional Nakes") — otomatis mengecualikan staf TU
-     * administratif (jenis_kedudukan PELAKSANA) walau sub_unit-nya mengandung
-     * nama fasilitas yang sama.
+     * Nama fasilitas Puskesmas / RS Pratama ada di sub_unit (unit =
+     * 'DINAS KESEHATAN'), kadang berprefix "SUB BAGIAN TATA USAHA ...",
+     * sehingga dicocokkan dengan str_contains. RSUD adalah instansi sendiri:
+     * seluruh jabatan fungsional kesehatan di unit RSUD dihitung.
      */
     public function rekapNakes(?string $periode = null): array
     {
         $rowsDinkes = Pegawai::asnPenuh()
-            ->select('sub_unit', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
+            ->select('sub_unit', 'jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
             ->whereRaw("UPPER(TRIM(unit)) = 'DINAS KESEHATAN'")
             ->whereNotNull('sub_unit')
-            ->groupBy('sub_unit', 'jenis_kelamin')
+            ->groupBy('sub_unit', 'jabatan', 'jenis_kelamin')
             ->get();
 
         $agregat = [];
@@ -1645,6 +1599,10 @@ class RekapService
         }
 
         foreach ($rowsDinkes as $row) {
+            if (!$this->adalahJabatanNakes((string) $row->jabatan)) {
+                continue;
+            }
+
             $subUnit = strtoupper(trim((string) $row->sub_unit));
             $jumlah = (int) $row->jumlah;
             $kelompok = $row->jenis_kelamin === 'L' ? 'pria' : 'wanita';
@@ -1658,17 +1616,23 @@ class RekapService
         }
 
         $rowsRsud = Pegawai::asnPenuh()
-            ->select('jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
+            ->select('jabatan', 'jenis_kelamin', DB::raw('COUNT(*) as jumlah'))
             ->where('status_aktif', 'aktif')
             ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
             ->whereRaw('UPPER(TRIM(unit)) = ?', [self::NAKES_RSUD_UNIT])
-            ->groupBy('jenis_kelamin')
+            ->groupBy('jabatan', 'jenis_kelamin')
             ->get();
 
         $rsudPria = 0;
         $rsudWanita = 0;
         foreach ($rowsRsud as $row) {
-            $row->jenis_kelamin === 'L' ? $rsudPria += (int) $row->jumlah : $rsudWanita += (int) $row->jumlah;
+            if (!$this->adalahJabatanNakes((string) $row->jabatan)) {
+                continue;
+            }
+
+            $row->jenis_kelamin === 'L'
+                ? $rsudPria += (int) $row->jumlah
+                : $rsudWanita += (int) $row->jumlah;
         }
 
         $alamatMap = \App\Models\AlamatFasilitas::where('jenis', 'nakes')->pluck('alamat', 'nama');
@@ -1696,6 +1660,15 @@ class RekapService
         ];
 
         return $hasil;
+    }
+
+    /**
+     * Jabatan fungsional bidang kesehatan? (definisi sama dengan kartu
+     * "JFT - Kesehatan" di Ringkasan Dashboard.)
+     */
+    private function adalahJabatanNakes(string $jabatan): bool
+    {
+        return $this->klasifikasiJft($jabatan) === 'kesehatan';
     }
 
 
@@ -1739,12 +1712,45 @@ class RekapService
         return $this->aggregasiSekolah($rows);
     }
 
+    /**
+     * Normalisasi nama untuk pencocokan: huruf besar, hanya huruf & angka.
+     * "Muja-Muju" dan "MUJAMUJU" menghasilkan "MUJAMUJU".
+     */
+    private function normalisasiNama(string $nama): string
+    {
+        return preg_replace('/[^A-Z0-9]/', '', strtoupper($nama));
+    }
+
+    /** Angka Romawi di akhir nama sekolah => angka Arab. */
+    private const ROMAWI_KE_ARAB = [
+        'I' => '1', 'II' => '2', 'III' => '3', 'IV' => '4', 'V' => '5',
+    ];
+
+    /**
+     * Rapikan nama sekolah: spasi ganda dibuang dan angka Romawi I-V di akhir
+     * nama diganti angka Arab, mis. "SD NEGERI JETIS I" => "SD NEGERI JETIS 1",
+     * "SD NEGERI TAMANSARI II" => "SD NEGERI TAMANSARI 2",
+     * "SD NEGERI REJOWINANGUN III" => "SD NEGERI REJOWINANGUN 3".
+     */
+    private function samakanNamaSekolah(string $nama): string
+    {
+        $nama = trim(preg_replace('/\s+/', ' ', $nama));
+
+        return preg_replace_callback(
+            '/\b(I{1,3}|IV|V)$/',
+            fn (array $m) => self::ROMAWI_KE_ARAB[$m[1]],
+            $nama
+        );
+    }
+
     private function aggregasiSekolah($rows): array
     {
         $agregat = [];
 
         foreach ($rows as $row) {
-            $nama = trim((string) $row->sub_unit); // <- diambil dari sub_unit
+            // Diambil dari sub_unit, lalu disamakan penulisannya ("... I" => "... 1")
+            // agar satu sekolah tidak terpecah menjadi dua baris.
+            $nama = $this->samakanNamaSekolah((string) $row->sub_unit);
             $key = strtoupper($nama);
 
             if (!isset($agregat[$key])) {
@@ -1849,12 +1855,26 @@ class RekapService
             $isKelurahan = $subUnit !== '' && str_contains($subUnit, 'KELURAHAN');
 
             if ($isKelurahan) {
+                // Cocokkan nama kelurahan tanpa memedulikan tanda hubung, spasi, atau tanda baca
+                // (mis. "MUJA-MUJU" di daftar vs "MUJAMUJU" di data sumber).
+                $subUnitNorm = $this->normalisasiNama($subUnit);
+
                 $kelurahanDitemukan = null;
                 foreach (self::KEMANTREN_KELURAHAN_MAP[$namaKemantren] as $kelurahan) {
-                    if (str_contains($subUnit, 'KELURAHAN ' . $kelurahan)) {
+                    if (str_contains($subUnitNorm, 'KELURAHAN' . $this->normalisasiNama($kelurahan))) {
                         $kelurahanDitemukan = $kelurahan;
                         break;
                     }
+                }
+
+                // Jangan biarkan pegawai hilang diam-diam: catat bila kelurahan tidak dikenali.
+                if ($kelurahanDitemukan === null) {
+                    Log::warning('RekapKecamatan: kelurahan tidak terpetakan, pegawai tidak ikut terhitung', [
+                        'kemantren' => $namaKemantren,
+                        'sub_unit' => $subUnit,
+                        'jenis_kelamin' => $row->jenis_kelamin,
+                        'jumlah' => $jumlah,
+                    ]);
                 }
 
                 if ($kelurahanDitemukan !== null && in_array($kedudukan, ['struktural', 'pelaksana'], true)) {

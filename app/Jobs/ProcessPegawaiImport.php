@@ -80,8 +80,30 @@ class ProcessPegawaiImport implements ShouldQueue
         return $rel;
     }
 
+    /**
+     * DIAGNOSA SEMENTARA: catat pemakaian memori tiap tahap ke storage/logs/laravel.log
+     * (ditulis sebagai WARNING karena LOG_LEVEL=warning). Tahap yang lonjakannya
+     * paling besar adalah sumber masalah "Allowed memory size exhausted".
+     * Boleh dihapus setelah penyebabnya ketemu.
+     */
+    protected function catatMemori(string $tahap): void
+    {
+        gc_collect_cycles();
+
+        Log::warning(sprintf(
+            '[MEMORI] batch %d setelah %s: sekarang %.1f MB, puncak %.1f MB',
+            $this->batch->id,
+            $tahap,
+            memory_get_usage() / 1048576,
+            memory_get_peak_usage() / 1048576
+        ));
+    }
+
     public function handle(): void
     {
+        // Worker berjalan lama; jangan simpan riwayat query di memori.
+        DB::disableQueryLog();
+
         // Batch dihapus saat job menunggu/baru mulai: batalkan, bersihkan file.
         if (!ImportBatch::whereKey($this->batch->id)->exists()) {
             Storage::delete($this->filePath);
@@ -94,6 +116,7 @@ class ProcessPegawaiImport implements ShouldQueue
             // Kalau gagal membuat cadangan, import dihentikan (data aman).
             $backupPath = $this->buatCadangan();
             $this->batch->update(['backup_path' => $backupPath]);
+            $this->catatMemori('cadangan CSV');
 
             // Foto kondisi pegawai SEBELUM import, untuk catatan perubahan
             // bulanan (pensiun, naik pangkat, pegawai baru, dst). Kalau gagal,
@@ -108,9 +131,12 @@ class ProcessPegawaiImport implements ShouldQueue
 
             // Objek import dipegang supaya hitungan isi file & rincian baris
             // ganda bisa dibaca lagi setelah proses selesai.
+            $this->catatMemori('foto perubahan (sebelum baca Excel)');
+
             $import = new PegawaiImport($this->batch);
 
             Excel::import($import, Storage::path($this->filePath));
+            $this->catatMemori('baca & simpan Excel');
 
             $this->batch->refresh();
 
@@ -157,6 +183,7 @@ class ProcessPegawaiImport implements ShouldQueue
                 }
             }
             unset($foto);
+            $this->catatMemori('catat perubahan pegawai');
 
             // Pengecekan otomatis (rekonsiliasi): bandingkan isi file dengan hasil
             // import periode ini. Kalau
@@ -195,6 +222,8 @@ class ProcessPegawaiImport implements ShouldQueue
                 }
             }
 
+            $this->catatMemori('rekonsiliasi');
+
             $this->batch->update([
                 'jumlah_dihapus' => $dihapus,
                 'status' => 'selesai',
@@ -213,6 +242,7 @@ class ProcessPegawaiImport implements ShouldQueue
                 } catch (\Throwable $e) {
                     Log::warning("Import batch {$this->batch->id}: gagal membekukan rekap periode {$this->batch->periode}: " . $e->getMessage());
                 }
+                $this->catatMemori('bekukan rekap');
 
                 // Snapshot INDIVIDUAL pegawai periode ini + riwayat perubahan
                 // terhadap periode sebelumnya yang punya snapshot. Idempoten:
@@ -224,6 +254,7 @@ class ProcessPegawaiImport implements ShouldQueue
                 } catch (\Throwable $e) {
                     Log::warning("Import batch {$this->batch->id}: gagal membuat snapshot individual periode {$this->batch->periode}: " . $e->getMessage());
                 }
+                $this->catatMemori('snapshot individual');
             }
         } catch (\Throwable $e) {
             $this->batch->update([

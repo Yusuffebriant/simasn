@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
+import { LoaderCircle, AlertTriangle, Download, Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { getCurrentPeriode } from "../../lib/periode";
 import PeriodeLabel from "./PeriodeLabel";
@@ -213,6 +213,16 @@ function RekapSdSmpTable() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SubTable title="SD" rows={sdRows} loading={loading} colLabel="SD" />
                 <SubTable title="SMP" rows={smpRows} loading={loading} colLabel="SMP" />
+            </div>
+
+            <div className="flex items-start gap-2 bg-blue-50 text-blue-800 text-sm rounded-lg p-3 mt-4">
+                <Info size={16} className="mt-0.5 shrink-0" />
+                <p>
+                    Catatan: sekolah yang namanya hanya berbeda penulisan angka Romawi dan angka Arab
+                    di akhir nama (mis. SD NEGERI JETIS I dan SD NEGERI JETIS 1, sampai angka V)
+                    digabung menjadi satu baris. Jumlah guru tidak berubah, hanya jumlah baris sekolah
+                    yang berkurang.
+                </p>
             </div>
         </div>
     );

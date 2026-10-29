@@ -235,6 +235,40 @@ class RekapPendidikanExport implements FromArray, WithEvents
                 }
                 $sheet->getColumnDimension('Y')->setWidth(10);
 
+                // ===== Catatan di bawah tabel =====
+                // Pegawai yang TINGKAT_PENDIDIKAN-nya masih kosong ikut JML TOTAL tetapi tidak
+                // masuk kolom jenjang mana pun, sehingga jumlah semua jenjang bisa lebih kecil
+                // dari JML TOTAL. Catatan hanya muncul bila memang ada selisih.
+                $fmt = fn ($n) => number_format((int) $n, 0, ',', '.');
+                $sumJenjang = 0;
+                $sumTotalSemua = 0;
+                $belumTerisi = [];
+                foreach ($this->data as $d) {
+                    $jenjang = (int) $d['jml_pria'] + (int) $d['jml_wanita'];
+                    $sumJenjang += $jenjang;
+                    $sumTotalSemua += (int) $d['jml_total'];
+                    $selisih = (int) $d['jml_total'] - $jenjang;
+                    if ($selisih > 0) {
+                        $belumTerisi[] = $d['instansi'] . ': ' . $fmt($selisih) . ' orang';
+                    }
+                }
+                $jumlahBelumTerisi = $sumTotalSemua - $sumJenjang;
+
+                if ($jumlahBelumTerisi > 0) {
+                    $teks = 'Catatan: JML TOTAL (' . $fmt($sumTotalSemua) . ') lebih besar ' . $fmt($jumlahBelumTerisi)
+                        . ' dari jumlah seluruh jenjang pendidikan (' . $fmt($sumJenjang) . '). Selisihnya adalah '
+                        . $fmt($jumlahBelumTerisi) . ' pegawai yang jenjang pendidikannya belum terisi di data sumber ('
+                        . implode(', ', $belumTerisi) . '). Mereka dihitung di JML TOTAL tetapi tidak masuk kolom '
+                        . 'jenjang mana pun. Setelah data pendidikannya dilengkapi dan data diimpor ulang, kedua angka akan sama.';
+
+                    $catatanRow = $totalRow + 2;
+                    $sheet->setCellValue('A' . $catatanRow, $teks);
+                    $sheet->mergeCells("A{$catatanRow}:Y{$catatanRow}");
+                    $sheet->getStyle("A{$catatanRow}")->getFont()->setItalic(true)->setSize(9);
+                    $sheet->getStyle("A{$catatanRow}")->getAlignment()->setWrapText(true)->setVertical('top');
+                    $sheet->getRowDimension($catatanRow)->setRowHeight(36);
+                }
+
                 // Bekukan judul & header kolom supaya tetap terlihat saat scroll ke bawah
                 $sheet->freezePane('A' . ($this->headerRows + 1));
             },

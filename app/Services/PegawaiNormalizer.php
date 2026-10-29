@@ -578,7 +578,10 @@ class PegawaiNormalizer
             'agama_id' => $this->resolveAgama($row['AGAMA'] ?? null),
 
             // S-3/Doktor -> S3 -> pendidikan.id = 7
-            'pendidikan_id' => $this->resolvePendidikan($row['TINGKAT_PENDIDIKAN'] ?? null),
+            // Bila TINGKAT_PENDIDIKAN kosong, coba baca jenjang dari teks kolom PENDIDIKAN
+            // (mis. "S-1 ADMINISTRASI PUBLIK", "SMK", "PAKET C ...").
+            'pendidikan_id' => $this->resolvePendidikan($row['TINGKAT_PENDIDIKAN'] ?? null)
+                ?? $this->resolvePendidikan($this->tingkatDariTeks($row['PENDIDIKAN'] ?? null)),
 
             'jabatan' => $row['JABATAN'] ?? null,
 
@@ -623,5 +626,29 @@ class PegawaiNormalizer
         ];
 
         return compact('pegawai', 'detail');
+    }
+
+    /**
+     * Tebak jenjang pendidikan dari teks bebas kolom PENDIDIKAN. Hanya dipakai
+     * sebagai cadangan saat TINGKAT_PENDIDIKAN kosong. Mengembalikan null bila
+     * tidak yakin (jenjang tidak dikenali tidak ditebak).
+     */
+    private function tingkatDariTeks(?string $teks): ?string
+    {
+        $t = strtoupper(trim((string) $teks));
+        if ($t === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_starts_with($t, 'S-3'), str_starts_with($t, 'S3') => 'S-3/DOKTOR',
+            str_starts_with($t, 'S-2'), str_starts_with($t, 'S2') => 'S-2',
+            str_starts_with($t, 'S-1'), str_starts_with($t, 'S1') => 'S-1/SARJANA',
+            str_starts_with($t, 'PAKET C'), str_starts_with($t, 'SMA'),
+            str_starts_with($t, 'SMK'), str_starts_with($t, 'SLTA') => 'SLTA',
+            str_starts_with($t, 'PAKET B'), str_starts_with($t, 'SMP'),
+            str_starts_with($t, 'SLTP') => 'SLTP',
+            default => null,
+        };
     }
 }

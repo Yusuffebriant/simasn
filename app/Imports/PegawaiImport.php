@@ -140,6 +140,15 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
                 $totalSheet = (int) (reset($totals) ?: 0);
                 $total = max(0, $totalSheet - 1); // dikurangi baris heading
 
+                // DIAGNOSA SEMENTARA (boleh dihapus): jumlah baris menurut Excel.
+                // Angka jutaan (mis. 1048576) berarti ada baris kosong berformat.
+                \Illuminate\Support\Facades\Log::warning(sprintf(
+                    '[MEMORI] batch %d Excel melaporkan %d baris (heading ikut dihitung), memori sekarang %.1f MB',
+                    $this->batch->id,
+                    $totalSheet,
+                    memory_get_usage() / 1048576
+                ));
+
                 DB::table('import_batches')
                     ->where('id', $this->batch->id)
                     ->update(['total_baris' => $total]);
@@ -160,6 +169,16 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
         $berhasilChunk = 0;
         $gagalChunk = 0;
         $dilindungiChunk = 0;
+
+        // DIAGNOSA SEMENTARA (boleh dihapus): memori saat potongan baris diterima.
+        \Illuminate\Support\Facades\Log::warning(sprintf(
+            '[MEMORI] batch %d potongan mulai di baris %d (%d baris diterima): sekarang %.1f MB, puncak %.1f MB',
+            $this->batch->id,
+            $this->barisKe + 1,
+            $rows->count(),
+            memory_get_usage() / 1048576,
+            memory_get_peak_usage() / 1048576
+        ));
 
         foreach ($rows as $row) {
             $this->barisKe++;
@@ -266,6 +285,17 @@ class PegawaiImport implements ToCollection, WithHeadingRow, WithChunkReading, W
                     "jumlah_dilindungi + {$dilindungiChunk}"
                 ),
             ]);
+
+        // DIAGNOSA SEMENTARA (boleh dihapus)
+        \Illuminate\Support\Facades\Log::warning(sprintf(
+            '[MEMORI] batch %d potongan selesai di baris %d (berhasil %d, gagal %d): sekarang %.1f MB, puncak %.1f MB',
+            $this->batch->id,
+            $this->barisKe,
+            $berhasilChunk,
+            $gagalChunk,
+            memory_get_usage() / 1048576,
+            memory_get_peak_usage() / 1048576
+        ));
     }
 
     /**

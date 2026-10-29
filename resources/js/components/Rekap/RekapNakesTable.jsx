@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LoaderCircle, AlertTriangle, Download } from "lucide-react";
+import { LoaderCircle, AlertTriangle, Download, Info } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { getCurrentPeriode } from "../../lib/periode";
 import PeriodeLabel from "./PeriodeLabel";
@@ -205,6 +205,18 @@ function RekapNakesTable() {
                     </table>
                 </div>
             )}
+
+            <div className="flex items-start gap-2 bg-blue-50 text-blue-800 text-sm rounded-lg p-3 mt-4">
+                <Info size={16} className="mt-0.5 shrink-0" />
+                <p>
+                    Catatan: angka hanya mencakup jabatan fungsional bidang kesehatan (dokter, perawat,
+                    bidan, apoteker, perekam medis, nutrisionis, dan sejenisnya) berstatus PNS dan PPPK.
+                    Jabatan fungsional non-kesehatan di fasilitas yang sama (mis. Pranata Komputer,
+                    Analis Kebijakan, Analis SDM Aparatur) tidak ikut dihitung, sehingga angka RS Pratama
+                    dan RSUD di sini bisa lebih kecil daripada di menu JF Tertentu. PPPK Paruh Waktu
+                    tidak termasuk.
+                </p>
+            </div>
         </div>
     );
 }

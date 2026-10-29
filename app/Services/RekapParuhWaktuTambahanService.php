@@ -99,8 +99,8 @@ class RekapParuhWaktuTambahanService
     */
 
     /**
-     * Berdasarkan pegawai.tanggal_pensiun (untuk Paruh Waktu diisi dari
-     * batas usia pensiun saat import). Dikelompokkan per tahun, dari tahun
+     * Berdasarkan pegawai.tanggal_pensiun; bila kosong (Paruh Waktu) memakai
+     * pegawai.tanggal_selesai_kontrak. Dikelompokkan per tahun, dari tahun
      * periode sampai 5 tahun ke depan, sisanya digabung.
      */
     public function rekapPerkiraanPensiun(?string $periode = null): array
@@ -119,13 +119,17 @@ class RekapParuhWaktuTambahanService
 
         $pegawai = Pegawai::paruhWaktu()
             ->where('pegawai.status_aktif', 'aktif')
-            ->get(['pegawai.tanggal_pensiun', 'pegawai.jenis_kelamin']);
+            ->get(['pegawai.tanggal_pensiun', 'pegawai.tanggal_selesai_kontrak', 'pegawai.jenis_kelamin']);
 
         foreach ($pegawai as $p) {
-            if ($p->tanggal_pensiun === null) {
+            // Saat import, tanggal_pensiun hanya diisi untuk PNS; tanggal Paruh Waktu
+            // disimpan di tanggal_selesai_kontrak. Pakai keduanya agar tidak kosong.
+            $tanggal = $p->tanggal_pensiun ?? $p->tanggal_selesai_kontrak;
+
+            if ($tanggal === null) {
                 $kunci = '_kosong';
             } else {
-                $tgl = Carbon::parse($p->tanggal_pensiun);
+                $tgl = Carbon::parse($tanggal);
 
                 if ($tgl->lt($mulai)) {
                     $kunci = '_lewat';

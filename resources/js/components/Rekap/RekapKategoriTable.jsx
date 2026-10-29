@@ -126,8 +126,18 @@ function RekapKategoriTable({
     // ASN aktif yang tidak masuk kolom tabel (mis. Konghucu atau agama kosong).
     let jmlLainnya = 0;
     const rincianLainnya = {};
+    // ASN yang ikut Total tetapi tidak masuk kolom kategori mana pun (mis. jenjang
+    // pendidikan yang masih kosong di data sumber), sehingga jumlah kolom < Total.
+    let selisihKategori = 0;
+    const rincianSelisih = [];
 
     rows.forEach((row) => {
+        const sisa = (row.jml_total || 0) - (row.jml_pria || 0) - (row.jml_wanita || 0);
+        if (sisa > 0) {
+            selisihKategori += sisa;
+            rincianSelisih.push(`${row[rowField]} ${sisa}`);
+        }
+
         categories.forEach((k) => {
             totalPria[k] += row.pria?.[k] || 0;
             totalWanita[k] += row.wanita?.[k] || 0;
@@ -193,6 +203,20 @@ function RekapKategoriTable({
                         ). Total tabel = {totalJmlTotal.toLocaleString("id-ID")}; jumlah ASN
                         aktif seluruhnya ={" "}
                         {(totalJmlTotal + jmlLainnya).toLocaleString("id-ID")}.
+                    </span>
+                </div>
+            )}
+
+            {!loading && selisihKategori > 0 && (
+                <div className="flex items-start gap-2 text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm mb-4">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                        Total ({totalJmlTotal.toLocaleString("id-ID")}) lebih besar{" "}
+                        <strong>{selisihKategori.toLocaleString("id-ID")}</strong> dari jumlah
+                        seluruh kolom ({(totalJmlTotal - selisihKategori).toLocaleString("id-ID")}).
+                        Selisihnya adalah ASN yang datanya belum terisi di data sumber (
+                        {rincianSelisih.join(", ")}). Mereka dihitung di Total tetapi tidak masuk
+                        kolom mana pun. Setelah datanya dilengkapi dan diimpor ulang, kedua angka akan sama.
                     </span>
                 </div>
             )}

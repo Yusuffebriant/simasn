@@ -7,6 +7,7 @@ use App\Models\Pegawai;
 use App\Models\RekapSnapshotData;
 use App\Support\AlasanImport;
 use App\Support\KelengkapanPegawai;
+use App\Support\KlasifikasiJft;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -50,6 +51,7 @@ class PeringatanDataService
         $this->cekKemungkinanDobel($peringatan);
         $this->cekImportTerakhir($batch, $peringatan);
         $this->cekKelengkapan($peringatan);
+        $this->cekJabatanBelumTerdaftar($peringatan);
         $this->cekSnapshot($batch, $peringatan);
 
         return $this->hasil($peringatan, $batch->periode);
@@ -253,10 +255,78 @@ class PeringatanDataService
     }
 
     /**
+     * JFT yang jabatannya belum dikenal KlasifikasiJft. Mereka tetap dihitung
+     * sebagai Teknis, tetapi dilaporkan di sini beserta nama pegawainya supaya
+     * admin bisa memutuskan masuk kelompok mana dan menambahkannya di
+     * App\Support\KlasifikasiJft. Tidak muncul kalau semua jabatan sudah dikenal.
+     */
+    private function cekJabatanBelumTerdaftar(array &$peringatan): void
+    {
+        $rows = Pegawai::asnPenuh()
+            ->where('status_aktif', 'aktif')
+            ->whereRaw("UPPER(TRIM(jenis_kedudukan)) = 'FUNGSIONAL'")
+            ->select('nip', 'nama', 'jabatan', 'unit')
+            ->orderBy('nama')
+            ->get();
+
+        $perJabatan = [];
+
+        foreach ($rows as $row) {
+            if (KlasifikasiJft::terdaftar($row->jabatan)) {
+                continue;
+            }
+
+            $nama = KlasifikasiJft::normalisasi($row->jabatan);
+            $nama = $nama === '' ? '(JABATAN KOSONG)' : $nama;
+
+            $perJabatan[$nama][] = [
+                'nip' => $row->nip,
+                'nama' => $row->nama,
+                'unit' => $row->unit,
+            ];
+        }
+
+        if ($perJabatan === []) {
+            return;
+        }
+
+        $rincian = [];
+        $totalPegawai = 0;
+
+        foreach ($perJabatan as $jabatan => $pegawai) {
+            $totalPegawai += count($pegawai);
+            $rincian[] = [
+                'jabatan' => $jabatan,
+                'jumlah' => count($pegawai),
+                'pegawai' => $pegawai,
+            ];
+        }
+
+        usort($rincian, fn ($a, $b) => $b['jumlah'] <=> $a['jumlah']);
+
+        $jumlahJabatan = count($rincian);
+
+        $peringatan[] = $this->item(
+            'jabatan_belum_terdaftar',
+            'peringatan',
+            'Jabatan fungsional belum terdaftar di sistem',
+            "{$jumlahJabatan} jabatan ({$totalPegawai} pegawai) belum ada di daftar pengelompokan JFT, "
+                . 'sehingga sementara dihitung sebagai Teknis. Jika ternyata bidang Pendidikan atau Kesehatan, '
+                . 'tambahkan di app/Support/KlasifikasiJft.php. Setelah itu catatan ini hilang sendiri.',
+            $totalPegawai,
+            null,
+            null,
+            null,
+            null,
+            $rincian
+        );
+    }
+
+    /**
      * @param array|null $rincianInstansi Perangkat daerah yang punya kekurangan
      *        (khusus peringatan data belum lengkap), lihat KelengkapanPegawai::perInstansi().
      */
-    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null, ?array $rincianInstansi = null, ?array $rincianGagal = null, ?string $penjelasan = null): array
+    private function item(string $kode, string $tingkat, string $judul, string $pesan, ?int $jumlah = null, ?array $tautan = null, ?array $rincianInstansi = null, ?array $rincianGagal = null, ?string $penjelasan = null, ?array $rincianJabatan = null): array
     {
         return [
             'kode' => $kode,
@@ -269,6 +339,8 @@ class PeringatanDataService
             // Khusus peringatan baris gagal: kelompok masalah + kalimat penjelasan.
             'rincian_gagal' => $rincianGagal,
             'penjelasan' => $penjelasan,
+            // Khusus peringatan jabatan belum terdaftar: jabatan + nama pegawainya.
+            'rincian_jabatan' => $rincianJabatan,
         ];
     }
 

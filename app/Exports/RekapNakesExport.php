@@ -166,6 +166,21 @@ class RekapNakesExport implements FromArray, WithEvents, WithTitle
                 $sheet->getStyle('B' . $firstDataRow . ':B' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
                 $sheet->getStyle('F' . $firstDataRow . ':F' . $lastDataRow)->getAlignment()->setWrapText(true)->setVertical('top');
                 $sheet->getStyle("C{$firstDataRow}:E{$lastDataRow}")->getAlignment()->setHorizontal('center');
+
+                // Catatan di bawah tabel
+                $catatanRow = $totalRow + 2;
+                $sheet->setCellValue(
+                    "A{$catatanRow}",
+                    'Catatan: angka hanya mencakup jabatan fungsional bidang kesehatan (dokter, perawat, bidan, apoteker, '
+                    . 'perekam medis, nutrisionis, dan sejenisnya) berstatus PNS dan PPPK. Jabatan fungsional non-kesehatan '
+                    . 'di fasilitas yang sama (mis. Pranata Komputer, Analis Kebijakan, Analis SDM Aparatur) tidak ikut dihitung, '
+                    . 'sehingga angka RS Pratama dan RSUD pada sheet ini bisa lebih kecil daripada sheet JF Tertentu. '
+                    . 'PPPK Paruh Waktu tidak termasuk.'
+                );
+                $sheet->mergeCells("A{$catatanRow}:F{$catatanRow}");
+                $sheet->getStyle("A{$catatanRow}")->getFont()->setItalic(true)->setSize(9);
+                $sheet->getStyle("A{$catatanRow}")->getAlignment()->setWrapText(true)->setVertical('top');
+                $sheet->getRowDimension($catatanRow)->setRowHeight(60);
             },
         ];
     }

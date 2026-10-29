@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Pegawai;
+use App\Support\KlasifikasiJft;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -156,34 +157,9 @@ class StatistikService
      */
     protected function rumpunJabatanFungsional(): array
     {
-        $medisKeywords = [
-            'DOKTER',
-            'PERAWAT',
-            'BIDAN',
-            'APOTEKER',
-            'PEREKAM MEDIS',
-            'PRANATA LABORATORIUM KESEHATAN',
-            'NUTRISIONIS',
-            'EPIDEMIOLOG',
-            'ADMINISTRATOR KESEHATAN',
-            'PENYULUH KESEHATAN',
-            'RADIOGRAFER',
-            'TEKNISI TRANSFUSI DARAH',
-            'SANITARIAN',
-            'TERAPIS GIGI',
-            'MEDIK VETERINER',
-            'PARAMEDIK VETERINER',
-            'PROMOSI KESEHATAN',
-            'SANITASI LINGKUNGAN',
-            'FISIOTERAPIS',
-            'FISIKAWAN MEDIS',
-            'PSIKOLOG KLINIS',
-            'TEKNISI ELEKTROMEDIS',
-            'TERAPIS WICARA',
-            'PENATA ANESTESI',
-            'OKUPASI TERAPIS',
-            'PEMBIMBING KESEHATAN KERJA',
-        ];
+        // Daftar kata kunci kesehatan dipusatkan di App\Support\KlasifikasiJft
+        // (mengikuti dashboard resmi: veteriner dan sanitasi lingkungan = teknis).
+        $medisKeywords = KlasifikasiJft::KATA_KUNCI_KESEHATAN;
 
         // FIX: kata kunci P2UPD ditulis lengkap plus singkatannya, supaya
         // menangkap varian penulisan "Pengawas Penyelenggaraan Urusan
